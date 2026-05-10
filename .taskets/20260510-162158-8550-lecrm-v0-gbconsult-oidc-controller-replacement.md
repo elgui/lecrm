@@ -1,12 +1,13 @@
 ---
 id: 20260510-162158-8550
 title: leCRM v0 — gbconsult OIDC controller replacement
-status: later
+status: deleted
 priority: p1
 created: 2026-05-10
 updated: 2026-05-10
 tags: [auth, oidc, gbconsult, v0]
 category: project
+review: "superseded-by: docs/adr/ADR-008-clean-room-reimplementation.md + docs/adr/ADR-009-stack-and-license.md. Twenty-fork-specific work; no analogue under clean-room Apache 2.0 build. Cleared by housekeeping in tasket 20260510-202450-b844 Part A on 2026-05-10."
 group: lecrm-v0-build
 order: 6
 plan: true

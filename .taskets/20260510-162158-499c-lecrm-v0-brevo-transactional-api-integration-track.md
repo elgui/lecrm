@@ -7,27 +7,37 @@ created: 2026-05-10
 updated: 2026-05-10
 tags: [email, brevo, integration, v0]
 category: project
+review: "rescoped-by: docs/adr/ADR-009-stack-and-license.md on 2026-05-10. Body re-aligned to Go + Postgres 17 + REST + thin MCP adapter + Apache 2.0 + OVH-first hosting. See body for the re-scoped done-criteria. Original Twenty-fork-shaped plan superseded; intent preserved."
 group: lecrm-v0-build
 order: 1
 plan: true
 ---
 
-# leCRM v0 — Brevo Transactional API integration (Track B)
+# leCRM v0 — Brevo Transactional API integration (Go HTTP client)
 
 ## Why this tasket exists
-The v0 spine ships with Brevo SMTP wired into the per-client docker-compose template (`ops/templates/docker-compose.template.yml`). That covers transactional email via plain SMTP, but the Brevo *Transactional API* path (`POST /v3/smtp/email`) is what unlocks the v1 sequences architecture: per-message `messageId` for downstream reply correlation, webhook-driven event handling (`delivered`, `hardBounce`, `softBounce`, `blocked`, `spam`, `unsubscribed`, `inboundEmailProcessed`), and per-client domain authentication automation.
 
-Reference: ADR-003 (Brevo provider decision, `docs/adr/ADR-003-email-provider-brevo.md`).
+Per [ADR-003](docs/adr/ADR-003-email-provider-brevo.md), Brevo is the EU-resident email provider. Under the clean-room Go stack (ADR-009), integration is via a hand-rolled Go HTTP client wrapping Brevo's REST API — not a NestJS service wrapping `@getbrevo/brevo` v5 as in the original Twenty-fork plan.
 
-## Done criteria
+**This tasket is downstream of [b844](20260510-202450-b844-lecrm-v0-twenty-fork-tasket-housekeeping-week-1-sc.md) (scaffolding) — start after the scaffold is up. The Go ramp checkpoint (a5d3) must have outcome=CONTINUE Go before this proceeds; if SWITCH was decided, re-write this tasket against `node-mailers/brevo-sdk` instead.**
+
+## Re-scoped done criteria
+
 - [ ] Brevo account created; sender domain authenticated (DKIM + SPF + DMARC) for the first Design Partner.
-- [ ] `gbconsult/email/` module added with a `BrevoTransactionalEmailService` that wraps `@getbrevo/brevo` v5.
-- [ ] Twenty's `EmailModule` substituted via DI override (same pattern as the EnterprisePlanService stub).
-- [ ] BullMQ queue `email-event` consuming Brevo webhooks (`/api/email/events`), with HMAC signature verification and a DLQ.
-- [ ] Webhook event handler writes hard-bounces and complaints into a new `email_suppression` table; pre-flight check against the table on every send.
-- [ ] Bounce-rate alarm: per-workspace, 7-day rolling window, complaint-rate >0.1% auto-pauses sequences and tags admin.
-- [ ] Brevo sales email (`docs/research/brevo-sales-email-draft.md`) sent (Guillaume task; log here when done).
+- [ ] `apps/api/internal/email/brevo/` Go package: idiomatic HTTP client wrapping `POST /v3/smtp/email`, the inbound webhook receivers (`delivered`, `hardBounce`, `softBounce`, `blocked`, `spam`, `unsubscribed`), and HMAC signature verification.
+- [ ] river background-job handlers for `email.send.requested` (mutation path) and `email.event.received` (webhook ingest). Per-workspace `river_<workspace_base36>` schema per ADR-009 §8.3.
+- [ ] `email_suppression` table per workspace schema; pre-flight check against the table on every send.
+- [ ] Bounce-rate alarm: per-workspace, 7-day rolling window, complaint-rate >0.1% emits a `security.email_bounce_rate_high` event and pauses pending sends for that workspace.
+- [ ] Audit-log emission per ADR-007 §3 on every `email.send.*` event with `actor_type` claim from the service token (`human_api` or `internal_service`).
+- [ ] OpenAPI 3.1 surface for the email send endpoint (`POST /v1/workspaces/{id}/emails`) wired into `apps/api`.
 
-## Open dependencies
-- Brevo plan tier confirmation (Starter → Standard → Business) per ADR-003 §Plan tier.
-- Per-client domain DNS API integration (Cloudflare / OVH / Gandi) is in scope for the v1 sequences sub-tasket (F), not this one.
+## Out of scope
+
+- Native sequences engine with reply detection (separate tasket aa6f — v1, post-first-paying-client).
+- Per-client domain DNS API integration for automated DKIM provisioning (Cloudflare / OVH / Gandi) — v1 work.
+
+## References
+
+- [ADR-003](docs/adr/ADR-003-email-provider-brevo.md) (Brevo provider decision).
+- [ADR-009](docs/adr/ADR-009-stack-and-license.md) §4 (REST), §4.1 (service tokens with `actor_type`), §8.3 (river job tenancy).
+- [ADR-007](docs/adr/ADR-007-encryption-secrets-audit.md) §3 (audit-log catalogue).
