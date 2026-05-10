@@ -1,7 +1,7 @@
 ---
 id: 20260510-202018-c458
 title: Week 1-2 — leCRM v0 scaffolding + Twenty-fork tasket cleanup + Go ramp checkpoint
-status: later
+status: deleted
 priority: p0
 created: 2026-05-10
 updated: 2026-05-10
