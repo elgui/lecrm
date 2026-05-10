@@ -1,7 +1,8 @@
 ---
 id: lecrm-002
 title: "leCRM — v0 Build Kickoff: shallow fork, Brevo wiring, ops baseline, first Design Partner"
-status: open
+status: done
+done: 2026-05-10
 priority: p1
 category: project
 created: 2026-05-10
