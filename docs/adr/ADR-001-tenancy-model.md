@@ -1,8 +1,16 @@
 # ADR-001 — Tenancy Model: VPS-per-Client → Schema-per-Tenant
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-05-10 by ADR-009 — three sections superseded; see banner below)
 **Date:** 2026-05-10
 **Deciders:** Guillaume
+
+> **2026-05-10 amendment from [ADR-009](ADR-009-stack-and-license.md).** Three sections of this ADR are now superseded by ADR-009's clean-room stack reframe:
+>
+> 1. **"Tenant boundary security" — `SET LOCAL search_path` in TypeORM's queryRunner** is **[SUPERSEDED by ADR-009 §2.1](ADR-009-stack-and-license.md): per-workspace Postgres role with `ALTER ROLE workspace_<id> SET search_path = workspace_<id>, public` set at provisioning time, via a single `SECURITY DEFINER` function `lecrm_provision_workspace(uuid)`. The application connects AS the workspace role; `search_path` is inherited from the role, mode-agnostic.**
+> 2. **"Operational specifics" — phase-3 PgBouncer 1.20+ `track_extra_parameters = search_path` transaction-mode plan** is **[SUPERSEDED by ADR-009 §2.2](ADR-009-stack-and-license.md): the `ALTER ROLE` pattern eliminates the PgBouncer-version dependency and is mode-agnostic.**
+> 3. **TO RESOLVE item 1 (verify PgBouncer ≥1.20 for `track_extra_parameters`)** is **[CLOSED — obsolete under ADR-009 §2 ALTER ROLE pattern]**. Replacement TO RESOLVE under ADR-009 TO RESOLVE-13: verify Ubicloud Standard-2 PgBouncer config uses `auth_query` mode (not static `auth_file`) before Phase-2 cut-over.
+>
+> The "fork of Twenty" framing in §Context below is also superseded by ADR-008 (clean-room reimplementation). The schema-per-tenant primitive (`workspace_<base36(uuid)>`) is read from Twenty as architectural reference, not inherited as code.
 
 ---
 
@@ -51,7 +59,7 @@ Pure consolidation is binding. Tiered offerings (some clients on dedicated VPS, 
 **PostgreSQL sizing (phase 2):**
 - `max_connections = 250`.
 - Sizing arithmetic: 10 clients × 10 conns + worker pool (20) + headroom = 130; comfortably under 250.
-- At phase 3 (20 clients): 20 × 10 + 20 + headroom = 220; still under 250 but with less margin → upgrade to PgBouncer 1.20+ with `track_extra_parameters = search_path` and switch to transaction pooling, which collapses real connection count.
+- At phase 3 (20 clients): 20 × 10 + 20 + headroom = 220; still under 250 but with less margin → upgrade to PgBouncer 1.20+ with `track_extra_parameters = search_path` and switch to transaction pooling, which collapses real connection count. **[SUPERSEDED by [ADR-009](ADR-009-stack-and-license.md) §2.2: the `ALTER ROLE` pattern is mode-agnostic and eliminates this PgBouncer-version dependency. CVE-2025-12819 (December 2025) also affected `track_extra_parameters = search_path`; the role-level pattern is CVE-clean as a side effect.]**
 
 **Migration trigger:** the **fifth signed client** triggers consolidation, OR (whichever comes first) ops time spent on multi-stack maintenance crosses 4 h/week. Both signals point at the same operational tipping point.
 
@@ -76,7 +84,9 @@ Per-client window: 30–60 min, with the only client-visible interruption being 
 
 ### Tenant boundary security
 
-- Schema isolation enforced at every connection by `SET LOCAL search_path = workspace_<id>` in TypeORM's queryRunner (Twenty's existing behaviour).
+> **[SUPERSEDED by [ADR-009](ADR-009-stack-and-license.md) §2.1]** — the `SET LOCAL search_path` / TypeORM mechanism described below is replaced by per-workspace Postgres role + role-level `ALTER ROLE search_path` set at provisioning. Read the bullets below as historical context; the current mechanism is in ADR-009.
+
+- Schema isolation enforced at every connection by `SET LOCAL search_path = workspace_<id>` in TypeORM's queryRunner (Twenty's existing behaviour). **[SUPERSEDED — current mechanism is per-workspace Postgres role + `ALTER ROLE workspace_<id> SET search_path = workspace_<id>, public`. See ADR-009 §2.1.]**
 - PgBouncer in session mode preserves the path across requests on the same connection.
 - Per-role PostgreSQL `CONNECTION LIMIT` and `statement_timeout` provide noisy-neighbour mitigation (`docs/research/multi-tenant-postgres-patterns.md` §6).
 - `application_name = 'workspace_<id>'` on every connection enables per-tenant filtering in `pg_stat_activity` and `pg_stat_statements` for monitoring.
@@ -146,7 +156,7 @@ Rejected as binding architectural choice. Tiered offerings double the deploy/upg
 
 ## TO RESOLVE
 
-1. **PgBouncer version on target VPS.** Verify Hetzner image / Debian APT version is ≥1.20 to enable `track_extra_parameters` at phase 3. If not, pin phase 3 to session mode and budget the upgrade as a separate task. (`docs/research/multi-tenant-postgres-patterns.md` §10 item 1)
+1. **PgBouncer version on target VPS.** Verify Hetzner image / Debian APT version is ≥1.20 to enable `track_extra_parameters` at phase 3. If not, pin phase 3 to session mode and budget the upgrade as a separate task. (`docs/research/multi-tenant-postgres-patterns.md` §10 item 1) **[CLOSED 2026-05-10 — obsolete under [ADR-009](ADR-009-stack-and-license.md) §2.2 `ALTER ROLE` pattern. Replacement: ADR-009 TO RESOLVE-13 — verify Ubicloud Standard-2 PgBouncer config uses `auth_query` mode, not static `auth_file`.]**
 2. **Twenty migration runner per-schema audit.** Before the phase 1 → phase 2 cut-over of any client, test Twenty's `database:migrate` against a 2-workspace cluster on a staging environment to confirm it iterates `workspace_*` schemas correctly and rolls back cleanly on partial failure. (`docs/research/multi-tenant-postgres-patterns.md` §10 item 7)
 3. **Subdomain wildcard SSL** before phase 2 onboarding. Confirm Caddy + DNS-01 challenge against Cloudflare API works for `*.lecrm.fr`, including renewal cron. (`docs/research/multi-tenant-postgres-patterns.md` §10 item 6)
 4. **CNIL DPA template wording** that explicitly describes schema-per-tenant logical isolation as the operative mechanism in phase 2+. Draft language: *« les données de chaque client sont isolées dans un schéma PostgreSQL dédié, inaccessible aux autres clients tant au niveau applicatif qu'au niveau base de données. »* This is a legal task tracked in `docs/LEGAL-PLAYBOOK.md` but called out here so the architecture commits to a phrasing the legal posture can defend. (`docs/research/multi-tenant-postgres-patterns.md` §10 item 3)

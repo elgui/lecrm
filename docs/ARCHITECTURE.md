@@ -1,9 +1,11 @@
 # leCRM Architecture
 
-**Status:** Living document
+**Status:** ⚠️ **PENDING REWRITE — describes a foundation no longer being built**
 **Date:** 2026-05-10
 **Maintainer:** Guillaume (GB Consult)
 **Audience:** Any developer joining the project cold. No prior context assumed beyond "leCRM is a managed CRM-as-a-service for French/EU SMBs."
+
+> **This document describes the Twenty-fork architecture.** On 2026-05-10 the project pivoted to **clean-room reimplementation** (Path D — see [ADR-008](adr/ADR-008-clean-room-reimplementation.md)). The current document remains reference-only. A substantial rewrite will follow once stack selection lands (ADR-009, primed by the stack-research tasket). What survives unchanged: the tenancy migration path (ADR-001), email provider (ADR-003), backup/DR posture (ADR-006), encryption/secrets/audit principles (ADR-007), and AI-agent tenancy patterns (ADR-005). What changes: every reference to the Twenty fork, Twenty's stack (NestJS / TypeORM / GraphQL / React), fork rebase cadence, AGPL §13 obligations, and the `gbconsult/` DI module. Sections 2, 4, and 8.7 are most affected.
 
 ---
 

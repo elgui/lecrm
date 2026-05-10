@@ -1,8 +1,10 @@
 # ADR-002 — Twenty Fork Management
 
-**Status:** Accepted
+**Status:** ⚠️ **SUPERSEDED by [ADR-008](ADR-008-clean-room-reimplementation.md) on 2026-05-10**
 **Date:** 2026-05-10
 **Deciders:** Guillaume
+
+> **This ADR is preserved for historical reference only.** A four-round council debate on 2026-05-10 concluded that the shallow-fork architecture described below is structurally unrealistic (30-50 files of effective modification, not 3-5; rebase tax that compounds rather than stays bounded; CLA-ratchet probability ~35-50% over 24 months). The decision was changed to **clean-room reimplementation informed by reading Twenty as a reference** (Path D). See ADR-008 for the new decision and rationale. The content below describes a path **no longer being taken**.
 
 ---
 
