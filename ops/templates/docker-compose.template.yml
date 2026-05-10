@@ -1,0 +1,189 @@
+# =====================================================================
+# leCRM — per-client Docker Compose stack template (Phase 1)
+#
+# Architecture: ADR-001 §Phase 1 — VPS-per-client.
+# Sizing target: Hetzner CX22 (2 vCPU, 4 GB RAM) per ARCHITECTURE.md §6.1.
+# Each client gets a dedicated VM running this stack. Twenty is in
+# single-workspace mode (`IS_MULTIWORKSPACE_ENABLED=false`).
+#
+# This file is a TEMPLATE — `ops/provision-client.sh` renders it into
+# `ops/clients/<client-slug>/docker-compose.yml` with the per-client
+# secrets and config drawn from `ops/clients/<client-slug>/.env`.
+#
+# Image source: leCRM publishes its own Docker image at
+#   ghcr.io/elgui/lecrm:twenty-X.Y.Z-lecrm.N
+# (build pipeline produces this on each tagged release; for a manual
+# build, use `docker buildx build -f packages/twenty-docker/twenty/
+# Dockerfile -t lecrm:local .`).
+# =====================================================================
+
+name: lecrm-${CLIENT_SLUG}
+
+services:
+  server:
+    image: ${LECRM_IMAGE:-ghcr.io/elgui/lecrm:twenty-2.2.0-lecrm.0}
+    container_name: lecrm-${CLIENT_SLUG}-server
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    environment:
+      NODE_PORT: 3000
+      PG_DATABASE_URL: postgres://${PG_DATABASE_USER}:${PG_DATABASE_PASSWORD}@db:5432/${PG_DATABASE_NAME}
+      SERVER_URL: https://${CLIENT_SUBDOMAIN}
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET}
+
+      # Single-workspace mode (Phase 1).
+      IS_MULTIWORKSPACE_ENABLED: "false"
+
+      # Email — Brevo SMTP for transactional sends. Full Brevo
+      # Transactional API integration lands with the email-track
+      # sub-tasket; SMTP is the v0 fallback path.
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME}
+      EMAIL_DRIVER: smtp
+      EMAIL_SMTP_HOST: smtp-relay.brevo.com
+      EMAIL_SMTP_PORT: 587
+      EMAIL_SMTP_USER: ${BREVO_SMTP_LOGIN}
+      EMAIL_SMTP_PASSWORD: ${BREVO_SMTP_KEY}
+
+      # OIDC — Google Workspace (default v0 IdP). Override at deploy
+      # time for clients on Microsoft Entra ID.
+      AUTH_OIDC_ENABLED: "true"
+      AUTH_OIDC_ISSUER: ${OIDC_ISSUER:-https://accounts.google.com}
+      AUTH_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      AUTH_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      AUTH_OIDC_CALLBACK_URL: https://${CLIENT_SUBDOMAIN}/auth/oidc/callback
+
+      # Storage — defaults to local volume. Switch to S3-compatible
+      # (Hetzner Object Storage) once WAL-G + media offload land in
+      # the ops sub-tasket.
+      STORAGE_TYPE: local
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+    restart: unless-stopped
+
+  worker:
+    image: ${LECRM_IMAGE:-ghcr.io/elgui/lecrm:twenty-2.2.0-lecrm.0}
+    container_name: lecrm-${CLIENT_SLUG}-worker
+    volumes:
+      - server-local-data:/app/packages/twenty-server/.local-storage
+    command: ["yarn", "worker:prod"]
+    environment:
+      PG_DATABASE_URL: postgres://${PG_DATABASE_USER}:${PG_DATABASE_PASSWORD}@db:5432/${PG_DATABASE_NAME}
+      SERVER_URL: https://${CLIENT_SUBDOMAIN}
+      REDIS_URL: redis://redis:6379
+      APP_SECRET: ${APP_SECRET}
+      DISABLE_DB_MIGRATIONS: "true"
+      DISABLE_CRON_JOBS_REGISTRATION: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    container_name: lecrm-${CLIENT_SLUG}-db
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${PG_DATABASE_NAME}
+      POSTGRES_USER: ${PG_DATABASE_USER}
+      POSTGRES_PASSWORD: ${PG_DATABASE_PASSWORD}
+      # WAL-G archive_timeout enforces a max RPO of 60s once WAL-G is
+      # wired up (ADR-006 backup baseline). Until then, archive_timeout
+      # has no effect because no archiver is running.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command:
+      - postgres
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - archive_timeout=60
+      - -c
+      - wal_level=replica
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_DATABASE_USER} -d ${PG_DATABASE_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: lecrm-${CLIENT_SLUG}-redis
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: lecrm-${CLIENT_SLUG}-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  server-local-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

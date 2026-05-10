@@ -11,9 +11,9 @@ Copyright (c) Twenty, Inc. and Twenty contributors.
   vendored upstream tree once Twenty's source is imported.
 
 Modifications Copyright (c) GB Consult SARL.
-  Modified source: https://github.com/gbconsult/lecrm
+  Modified source: https://github.com/elgui/lecrm
   Modifications licensed: AGPL-3.0
-  Patch directory: `gbconsult/` (see CHANGES.md)
+  Patch directory: `packages/twenty-server/src/engine/gbconsult/` (see CHANGES.md)
 
 Files in the upstream tree carrying an `@license Enterprise` header are
 licensed under Twenty's commercial Enterprise License, NOT under AGPL-3.0.

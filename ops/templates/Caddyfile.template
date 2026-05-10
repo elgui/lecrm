@@ -1,0 +1,32 @@
+# leCRM — per-client Caddy reverse proxy
+# Auto-HTTPS via Let's Encrypt. Caddy resolves CLIENT_SUBDOMAIN at deploy
+# time and provisions the certificate on first boot.
+
+{$CLIENT_SUBDOMAIN} {
+    encode gzip zstd
+
+    # Twenty server
+    reverse_proxy server:3000 {
+        header_up X-Forwarded-Proto https
+        header_up X-Real-IP {remote_host}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # AGPL §13 source link as a header (belt-and-braces alongside the UI footer)
+        X-Source "github.com/elgui/lecrm"
+    }
+
+    log {
+        output file /data/access.log {
+            roll_size 50mb
+            roll_keep 7
+            roll_keep_for 720h
+        }
+        format json
+    }
+}

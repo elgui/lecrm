@@ -35,6 +35,12 @@ import { ModulesModule } from 'src/modules/modules.module';
 
 import { ClickHouseModule } from './database/clickHouse/clickHouse.module';
 import { CoreEngineModule } from './engine/core-modules/core-engine.module';
+// leCRM patch: GBConsultModule must be imported LAST in the imports array
+// below so its providers shadow upstream defaults via NestJS's standard
+// custom-providers pattern. Single touch-point in upstream code per
+// ADR-002 §2 (private architecture project). See
+// `engine/gbconsult/README.md` for the override pattern.
+import { GBConsultModule } from './engine/gbconsult/gbconsult.module';
 import { I18nModule } from './engine/core-modules/i18n/i18n.module';
 
 // TODO: Remove this middleware when all the rest endpoints are migrated to TwentyORM
@@ -75,6 +81,9 @@ const MIGRATED_REST_METHODS = [
     I18nModule,
     // Conditional modules
     ...AppModule.getConditionalModules(),
+    // leCRM patch: must remain last so its providers shadow upstream
+    // defaults (see ADR-002 §2 in the private architecture project).
+    GBConsultModule,
   ],
 })
 export class AppModule {
