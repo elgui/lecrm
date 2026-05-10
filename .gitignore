@@ -1,0 +1,10 @@
+# Automation run progress (transient, regenerated per run)
+.automation-progress-*.json
+
+# Unsubstituted template placeholder (artefact of project bootstrap)
+{output_folder}/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
