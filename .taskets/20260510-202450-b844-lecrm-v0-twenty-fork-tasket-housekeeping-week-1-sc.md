@@ -6,6 +6,7 @@ priority: p0
 created: 2026-05-10
 updated: 2026-05-10
 category: engineering
+review: "part-a-complete: housekeeping pass done in commit 6f490e0 on 2026-05-10. Skip straight to Part B (Week 1 scaffolding). The 9 lecrm-v0-build sub-taskets have been classified (3 deleted, 6 re-scoped with new bodies, 2 meta-taskets were already done)."
 group: lecrm-v0-scaffolding
 order: 1
 ---
