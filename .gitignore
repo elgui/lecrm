@@ -1,0 +1,20 @@
+# Node / pnpm (Twenty's stack — used once upstream source is imported)
+node_modules/
+.pnpm-store/
+dist/
+build/
+*.log
+.DS_Store
+
+# Env / secrets — never commit
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~

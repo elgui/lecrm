@@ -1,0 +1,6 @@
+# Empty marker
+
+This directory will hold all GB Consult modifications on top of upstream Twenty.
+
+It is empty in the seed repository and will be populated during the v0 build.
+See ../CHANGES.md for the planned contents.

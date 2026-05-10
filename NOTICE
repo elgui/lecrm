@@ -1,0 +1,29 @@
+leCRM
+=====
+
+This product is a modified fork of Twenty CRM (https://github.com/twentyhq/twenty),
+distributed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+Copyright (c) Twenty, Inc. and Twenty contributors.
+  Original source: https://github.com/twentyhq/twenty
+  Original license: AGPL-3.0
+  Original NOTICE / third-party attributions are preserved within the
+  vendored upstream tree once Twenty's source is imported.
+
+Modifications Copyright (c) GB Consult SARL.
+  Modified source: https://github.com/gbconsult/lecrm
+  Modifications licensed: AGPL-3.0
+  Patch directory: `gbconsult/` (see CHANGES.md)
+
+Files in the upstream tree carrying an `@license Enterprise` header are
+licensed under Twenty's commercial Enterprise License, NOT under AGPL-3.0.
+leCRM does NOT redistribute Enterprise-licensed files. Enterprise features
+are functionally replaced by AGPL-3.0 substitutes maintained in the
+`gbconsult/` directory (per docs/adr/ADR-002 in the architecture project).
+
+Trademark notice
+----------------
+"Twenty" is a trademark of Twenty, Inc. This fork does not display the
+"Twenty" name in customer-facing UI. AGPL §13 attribution to the upstream
+project is rendered as a "Powered by Twenty CRM (AGPL-3.0)" link in the
+application footer linking to this repository.
