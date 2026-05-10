@@ -19686,8 +19686,8 @@ __metadata:
   linkType: hard
 
 "@react-three/fiber@npm:^9.5.0":
-  version: 9.5.0
-  resolution: "@react-three/fiber@npm:9.5.0"
+  version: 9.6.1
+  resolution: "@react-three/fiber@npm:9.6.1"
   dependencies:
     "@babel/runtime": "npm:^7.17.8"
     "@types/webxr": "npm:*"
@@ -19721,7 +19721,7 @@ __metadata:
       optional: true
     react-native:
       optional: true
-  checksum: 10c0/88daa671550a4383636e41ae9358747baa45ca9b02787f4dcf427a1778faf135c5e0f328fce0a1a152c653446cb3544004260c99807c0685ed0ebc60cf1c8a51
+  checksum: 10c0/669d78d126ab61977356936d3a89ce0f15051ec4d49e130d009cdc1ee3f6e01763322d4ef0b2720852d0cb457595417aeffccc433b33abd1d07b23b891527ea2
   languageName: node
   linkType: hard
 
