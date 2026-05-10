@@ -1,23 +1,17 @@
 ---
 id: lecrm-001
 title: "leCRM — Technical Deep-Dive: Architecture, Deliverability, Scalability, AI-Native UX"
-status: open
+status: done
 priority: p1
-category: project
 created: 2026-05-10
-project: leCRM
-project_root: /home/gui/Projects/leCRM
-tags:
-  - architecture
-  - deliverability
-  - scalability
-  - multi-tenancy
-  - ai-native-ui
-  - sequences
-  - security
-  - disaster-recovery
+updated: 2026-05-10
+tags: [architecture, deliverability, scalability, multi-tenancy, ai-native-ui, sequences, security, disaster-recovery]
+category: project
 group: lecrm-technical-foundation
 order: 1
+done: 2026-05-10
+project: leCRM
+project_root: /home/gui/Projects/leCRM
 ---
 
 # leCRM — Technical Deep-Dive Session
