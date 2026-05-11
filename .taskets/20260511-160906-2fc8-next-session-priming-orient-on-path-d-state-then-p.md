@@ -1,13 +1,14 @@
 ---
 id: 20260511-160906-2fc8
 title: "Next-session priming — orient on Path D state, then pick: (a) docs cleanup, (b) resume PRD, or (c) Week-1 scaffolding"
-status: later
+status: done
 priority: p0
 created: 2026-05-11
 updated: 2026-05-11
 category: tooling
 group: lecrm-session-priming
 order: 1
+done: 2026-05-11
 ---
 
 # Next-Session Priming
