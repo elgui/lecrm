@@ -4,10 +4,9 @@ title: leCRM v0 — Embedded Metabase reporting (Track D)
 status: later
 priority: p2
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-11
 tags: [reporting, metabase, v0]
 category: project
-review: "rescoped-by: docs/adr/ADR-009-stack-and-license.md on 2026-05-10. Body re-aligned to Go + Postgres 17 + REST + thin MCP adapter + Apache 2.0 + OVH-first hosting. See body for the re-scoped done-criteria. Original Twenty-fork-shaped plan superseded; intent preserved."
 group: lecrm-v0-build
 order: 2
 plan: true

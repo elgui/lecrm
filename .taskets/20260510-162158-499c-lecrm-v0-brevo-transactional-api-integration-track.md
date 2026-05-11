@@ -4,10 +4,9 @@ title: leCRM v0 — Brevo Transactional API integration (Track B)
 status: later
 priority: p1
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-11
 tags: [email, brevo, integration, v0]
 category: project
-review: "rescoped-by: docs/adr/ADR-009-stack-and-license.md on 2026-05-10. Body re-aligned to Go + Postgres 17 + REST + thin MCP adapter + Apache 2.0 + OVH-first hosting. See body for the re-scoped done-criteria. Original Twenty-fork-shaped plan superseded; intent preserved."
 group: lecrm-v0-build
 order: 1
 plan: true
