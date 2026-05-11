@@ -1,29 +1,31 @@
-# leCRM — Feasibility Memo: Forking Twenty as a HubSpot Alternative
+# leCRM — Feasibility Memo: Clean-Room CRM as a HubSpot Alternative
 
 **Author:** Guillaume (GB Consult)
-**Date:** 2026-05-07 (v2 — updated after license + moat reassessment)
-**Status:** Internal decision document — not for client distribution
-**Subject:** Can we fork Twenty's AGPL-3.0 portion only, build the missing enterprise features and connectors ourselves using AI-augmented dev velocity, and offer a managed CRM service through Leo's sales channel that builds serious MRR?
+**Date:** 2026-05-07 (v2); **§2-3 rewritten 2026-05-11 (v3)** for Path D + ADR-009 alignment
+**Status:** Internal decision document — not for client distribution. §2 (License) and §3 (Build Roadmap) reflect the locked Apache 2.0 clean-room posture per [ADR-008](adr/ADR-008-clean-room-reimplementation.md) and the locked Go + PostgreSQL + Apache 2.0 stack per [ADR-009](adr/ADR-009-stack-and-license.md). §1 (Strategic Frame), §4 (HubSpot Moat sizing), §5 (GTM), §6 (Operational Reality), §7 (Risks), §8 (Decision Path), §9 (Open Questions), §10 (v1 → v2 diff) still describe the earlier fork frame in places and will be reissued as a light pass after the v0 build re-scope completes. Where the doc is internally inconsistent between §2-3 and the rest, **§2-3 are canonical**.
+**Subject (v3):** Can we build a clean-room CRM under Apache 2.0 (Go + PostgreSQL, single-binary deploy, schema-per-tenant), ship it to a first paying Design Partner inside 11-13 weeks, and operate it as a managed service through Leo's sales channel — building serious MRR?
+
+> **v3 banner (2026-05-11).** The fork-of-Twenty premise was retired by [ADR-008](adr/ADR-008-clean-room-reimplementation.md) (clean-room reimplementation) and the stack + license inheritance was retired by [ADR-009](adr/ADR-009-stack-and-license.md) (Go 1.23 + PostgreSQL 17 schema-per-tenant + React 19 + Apache 2.0). §2 and §3 are rewritten to that frame. The strategic moat is also reframed in `STRATEGIC-OVERVIEW.md` §4 (revised 2026-05-11): ownership + Leo's distribution + tailorization speed + transparent pricing; AI-native UX is v2 strategic optionality, not the v1 bet.
 
 ---
 
 ## TL;DR — Verdict
 
-**GO on the technical path. The remaining decision is commercial, not legal or technical.**
+**GO on the technical path. The remaining decisions are commercial and execution-discipline, not legal or technical.**
 
-The strategic shift — "we build connectors and missing features ourselves with AI-augmented dev velocity" — collapses two of the three biggest concerns from v1:
+Two pivots from v2 collapsed the earlier license and stack debate:
 
-- **License:** The Enterprise-licensed surface is much narrower than initially feared. Only ~5-7 confirmed files (concentrated in the SSO module and the enterprise gate itself). Everything else (custom objects, workflows, audit log infrastructure, field-level permissions, 2FA, REST/GraphQL API, multi-tenant workspaces) is **AGPL-3.0 today**. We can stay 100% on AGPL by stubbing out the enterprise module and building our own SSO + row-level permissions in **3-6 weeks of dev time**. ([1])
-- **HubSpot moat with connectors removed:** Of HubSpot's seven structural moats, two are real engineering work (sequences with reply-detection: 6-9 weeks; reporting depth via Cube.dev: 3-4 weeks), one is positioning (brand trust → GDPR DPA + SLA + price delta), and the rest are buyable or negligible for our ICP. ([2])
+- **License posture (Path D, §2).** leCRM is a clean-room reimplementation under Apache 2.0 ([ADR-008](adr/ADR-008-clean-room-reimplementation.md), [ADR-009](adr/ADR-009-stack-and-license.md)). No AGPL §13 obligation, no CLA-ratchet risk, no fork rebase tax. Twenty's source is read as architectural reference only. The license question is resolved; the technical sizing becomes the load-bearing question.
+- **HubSpot moat sized post-tailorization (§4, still based on v2 frame; light reissue pending).** HubSpot's structural moats reduce, for our ICP, to two genuine engineering items (sequences with reply-detection; reporting depth) and one positioning item (brand trust). All three are buildable/closeable at v1 against the locked Go stack.
 
-**Realistic timeline with parallel AI-coding agents: ~4-6 weeks to first paying Design Partner live; ~12-18 weeks to 5 clients with full v1 stack.** See Section 3 for the parallelized roadmap.
+**Honest timeline (Path D, §3): 11-13 weeks to first paying Design Partner — council rated P50 achievable, P80 not at current scope.** The earlier 4-6 week estimate was based on the AGPL-fork posture (ADR-002, superseded). Four binding schedule gates carry the schedule risk: Week 2 Go ramp litmus test; Week 5 ADR-010 metadata-engine pattern; Week 6 metadata-engine scope gate; Week 5-6 Google OAuth app review kickoff (4-6 week external blocker for production Gmail scopes). See §3 for the week-by-week roadmap.
 
 The remaining hard questions are commercial:
-1. **ICP discipline** — first paying clients must NOT be Marketing-Hub-Pro users or Shopify-heavy e-commerce shops. See `ICP-ARCHETYPE.md` for the full archetype.
-2. **Solo-operator capacity** — even with parallel agents, build + client ops + onboarding is multi-quarter execution. Cap clients at 5 in Phase 1-2.
+1. **ICP discipline** — first paying clients must match the Marc / Anne / Pierre archetypes (see [ICP-ARCHETYPE.md](ICP-ARCHETYPE.md)), NOT Marketing-Hub-Pro users or Shopify-heavy e-commerce shops.
+2. **Solo-operator capacity** — 11-13 weeks of focused build + client ops + onboarding is multi-quarter execution. Cap clients at 5 in Phase 1-2.
 3. **Leo's positioning** — resolved: Leo introduces discreetly, his name does not appear on bills or contracts (GB Consult ↔ client direct, Leo paid via separate referral agreement). His HubSpot brand stays clean.
 
-**Recommended path:** Phase 0 commercial gate (~5 hours, this week), then 4-track parallel build + 1 paid Design Partner targeted for week 4-6, layering v1 features (native sequences, Cube.dev dashboards, RLS) over weeks 5-14 in parallel with the first 3 clients live.
+**Recommended path:** Phase 0 commercial gate (~5 hours, this week), then the 11-13-week v0 build per §3, with the four binding schedule gates enforced. First paying Design Partner targeted by end of week 12-13. v1 productisation and clients 2-5 follow over months 4-9.
 
 ---
 
@@ -42,126 +44,225 @@ A **managed CRM service** in the Plausible/Mautic-managed-hosting tradition: ope
 
 ---
 
-## 2. License Posture — Resolved (mostly)
+## 2. License Posture — Apache 2.0 Clean-Room (Path D)
 
-### What's gated behind `@license Enterprise`
+*Rewritten 2026-05-11 (v3). The earlier section sized the AGPL-fork posture: Enterprise-licensed file inventory, build effort to reproduce gated features, AGPL §13 obligations, Twenty CLA-ratchet risk. None of that applies under Path D. The original content is preserved in git history.*
 
-Direct source inspection ([4]) confirmed only ~7 files carry the Enterprise header, all concentrated in two modules:
+### Posture
 
-| File | Feature | If Missing |
-|---|---|---|
-| `core-modules/sso/sso.module.ts` + `sso.resolver.ts` | SAML + OIDC SSO module + GraphQL API | No SSO login; settings UI inert |
-| `core-modules/auth/strategies/saml.auth.strategy.ts` | Passport SAML strategy | No SAML auth flow |
-| `core-modules/auth/strategies/oidc.auth.strategy.ts` | Passport OIDC strategy | No OIDC auth flow |
-| `core-modules/enterprise/enterprise.module.ts` + `enterprise.resolver.ts` + `enterprise-plan.service.ts` | License key system, subscription gating | The gate itself — stub it out |
+leCRM is a **clean-room reimplementation** under Apache 2.0, per [ADR-008](adr/ADR-008-clean-room-reimplementation.md) and [ADR-009 §6](adr/ADR-009-stack-and-license.md). No Twenty source code is copied, ported, or transformed into the leCRM repository. Twenty's source is read as architectural reference — the way a developer reads a textbook — for the metadata-engine pattern, workspace-isolation patterns, audit-log infrastructure, OIDC strategy shape, and migration-management approach. Specifically NOT inherited: Twenty's codebase, file structure, migrations, package names, domain types, language, framework, ORM, database driver, frontend library, or build system. Every line in the leCRM repository is greenfield code originated by GB Consult.
 
-Probable additions (directory confirmed but headers not directly inspected): row-level permission predicates, advanced encryption module, audit log gating UI (the audit infrastructure module itself is **AGPL**).
+### Consequences of Path D for the license question
 
-### What's AGPL today (i.e. free to use, modify, ship)
+- **No AGPL §13 distribution obligation.** The earlier draft of this memo sized that carefully; it does not apply.
+- **No Twenty CLA exposure.** Twenty's right to relicense contributions (HashiCorp-style ratchet risk over a 24-month horizon, base-rated by the Researcher voice at 35-50% in the four-round council; see [ADR-008](adr/ADR-008-clean-room-reimplementation.md) Context) does not bind leCRM.
+- **No fork rebase tax.** The "2-4 hours/month" estimate from the v2 memo was acknowledged unrealistic at honest accounting (30-50 files in security-critical zones; see [ADR-008](adr/ADR-008-clean-room-reimplementation.md) Context). Under Path D it is irrelevant.
+- **Trademark cleanliness is straightforward.** No "Powered by Twenty" question to negotiate; leCRM ships under GB Consult's own brand (the customer-facing brand decision still pending — see §9) and INPI registration (one class).
 
-Custom objects, custom fields, multi-tenant workspaces (subdomain-based), custom views, **workflow engine** (with filter conditions), 2FA, **field-level permissions** (shipped v1.4 as AGPL), **audit log infrastructure**, REST + GraphQL API, webhooks, MCP server, AI chat, Gmail/IMAP/Outlook email sync, calendar sync, multi-step workflows, custom subdomain support, the entire `twenty-sdk` extension package system.
+### License selected: Apache 2.0 (with FSL-2.0-Apache-2.0 as upgrade path)
 
-### Build effort to reproduce Enterprise features in AGPL code
+Per [ADR-009 §6](adr/ADR-009-stack-and-license.md):
 
-| Feature | Effort (AI-augmented) | Notes |
-|---|---|---|
-| OIDC SSO (Google Workspace, Microsoft Entra) | 2-3 days | `openid-client` already a Twenty dep; substitute the strategy |
-| SAML SSO | ~1 week | `passport-saml` MIT; same lib Twenty uses internally |
-| Row-level permissions | 2-4 weeks | PostgreSQL RLS + workspace-aware policies; touches the metadata schema layer |
-| Audit log UI surface | 3-5 days | Infrastructure already AGPL; just add the view + ensure all writes emit |
-| Stub enterprise gate | 1 day | Replace `EnterprisePlanService` with always-valid stub |
-| Custom AI models config | 1 week | env-var driven; not really a code feature |
-| **Total** | **~3-6 weeks** | One senior dev + Claude Code |
+- **Apache 2.0** at the first commit. `LICENSE` file at repository root. `NOTICE` file with `Copyright (c) 2026 GB Consult SARL`. No CLA at v1 (solo dev, no external contributors yet).
+- Apache 2.0 over MIT for the **patent grant**. Apache 2.0 over AGPL because the clean-room reframe gave us the freedom to escape AGPL §13; reinstating it voluntarily would narrow the €170-340k acquirer pool. Apache 2.0 over BSL/proprietary because the **Cal.com April 2026 closed-source backlash** is the relevant precedent for relicensing established open-source projects; we are choosing the right license now to avoid the migration ever being needed.
+- **FSL-2.0-Apache-2.0 is the credible upgrade path** if a real competitor emerges post-launch tracking the public codebase. Sentry's BSL → FSL move (November 2023) is the relevant precedent. The 2-year non-compete window from a 2026 launch converts to Apache 2.0 in 2028 — likely before the acquisition window closes, so the FSL upgrade is a temporary instrument that lands on Apache 2.0 regardless.
+- **No CLA at v1.** A CLA may be revisited at v2 if dual-licensing (Apache + commercial) becomes a monetisation lever. Decision deferred.
 
-### Fork architecture
+The ICP (Marc / Anne / Pierre archetypes — see [ICP-ARCHETYPE.md](ICP-ARCHETYPE.md)) does not differentiate between OSI-approved licenses. The license decision is purely commercial; the commercial logic favors Apache 2.0.
 
-This is a **shallow fork**. Twenty's `twenty-sdk` extension model handles 80% of what we want to add (custom objects, workflows, UI panels, AI agents) **without touching core**. The remaining 20% — auth pipeline substitution and row-level permissions — requires modifying ~3-5 core files (`auth.module.ts`, the strategy files, the permission middleware). Not "fork the world," not "vendor a maintained patchset" — just shallow source modifications to a small number of well-isolated files.
+### What this enables on the sales call
 
-Estimated merge/rebase cost against Twenty's 2-week upstream release cadence: **2-4 hours/month**. Manageable.
+The pitch sentence becomes:
 
-### AGPL distribution obligation
+> "We wrote every line of code that touches your data. It is open-source under Apache 2.0; you can audit it, fork it, run it yourself if we ever disappear. Your data lives on French infrastructure operated by GB Consult, no US sub-processors on the primary data path."
 
-If we run this as managed SaaS, AGPL §13 obligates us to publish our fork's source on request. **We publish to GitHub by default** — costs nothing, signals trust, complies cleanly. No proprietary value lost (the value is in operations, integrations as separate services, and managed support, not in the CRM source).
+This is materially stronger than the prior "we forked an AGPL project and operate it" pitch — and aligns with the moat reframe in `STRATEGIC-OVERVIEW.md` §4 (revised 2026-05-11): sovereign codebase + tailorization + transparent pricing + Leo's distribution. The license-posture conversation moves from "can we" (a legal-risk frame) to "we did" (an ownership claim).
 
-### Trademark + CLA risks
+### Acquirer story
 
-- **Trademark:** Must rebrand entirely — no "Powered by Twenty" without permission. "leCRM" is internal-only; needs a customer-facing brand.
-- **CLA risk (medium-term):** Twenty's CLA gives them rights to relicense contributions. If they pull a HashiCorp-style ratchet to BSL/SSPL, our fork freezes at the last AGPL release. Mitigation: pin to a stable release tag, plan a once-yearly fork health review. Not an immediate concern.
-- **Twenty's stance toward forks:** README explicitly says "Contribute, self-host, fork." No adversarial signal. ([5])
+A clean-room scratch CRM under permissive license at 20 clients (~€84k ARR) is a more attractive acquisition target than a Twenty fork. No AGPL contagion concern for the acquirer's broader product line, no CLA inheritance, no upstream landlord. Apache 2.0's patent grant adds legal hygiene. The €170-340k 2-4× ARR window is maximised, not narrowed, by this license choice.
 
 ### Verdict
 
-The AGPL-only path is **real and bounded**. Single 30-min courtesy email to Twenty's partner team to introduce ourselves is good practice but not a blocker — we don't need their permission to fork an AGPL project.
+**GO on the technical path.** The license posture is resolved. The technical sizing (§3) becomes the load-bearing question. The remaining hard questions are commercial — ICP discipline, solo-operator capacity, Leo's positioning — and execution-discipline at the four binding schedule gates documented in §3.
 
 ---
 
-## 3. Build Roadmap — Aggressive AI-Coding Parallelization
+## 3. Build Roadmap — 11-13 Weeks to First Paying Design Partner (Path D)
 
-The previous serial estimate (16-22 weeks) compresses substantially if multiple Claude Code agents work in parallel on independent workstreams, AND if v0 leans on hosted services / API bridges where native build can come later.
+*Rewritten 2026-05-11 (v3). The earlier section described a 4-6 week, 4-track parallel-agents build with Reply.io / Metabase iframe / Postmark bridges in v0 and a v1 productisation track over weeks 5-14. That plan was downstream of the AGPL-fork posture and the TypeScript / NestJS / GraphQL stack inherited from Twenty. Both are gone. This section describes the v0 plan against the locked Go + PostgreSQL + Apache 2.0 stack per [ADR-009](adr/ADR-009-stack-and-license.md), with the four binding schedule gates from §Schedule of that ADR.*
 
-### v0 — First Paying Client Live (target: 4-6 weeks)
+### Honest top-line numbers
 
-Run 4 parallel tracks. Each track is a distinct agent context with its own scope.
+- **11-13 weeks** total: 1-2 weeks Twenty-as-textbook reading + 10-12 weeks scratch implementation.
+- **Council rating: P50 achievable, P80 not at current scope.** (Five-voice council validation: Architect Winston, Engineer Amelia, Researcher Ava, Pentester, Code Reviewer; transcript at `docs/research/stack-selection.md` §11.)
+- **Four binding schedule gates** carry the schedule risk; details below.
+- **Scope cuts baked in** to protect the 13-week ceiling: Gmail-only at v0 (Microsoft Outlook + IMAP at v1); pg full-text search at v0 (typesense at v1); Google Workspace OIDC at v0 (Microsoft Entra at v1); native sequences with reply detection deferred to v1; row-level permissions at workspace level only (per-record ACLs at v1); no SAML, no Cube.dev dashboards at v0.
+- **Engineering team: solo (Guillaume) + Claude Code.** Aaron held as optional collaborator if Phase-3-class infrastructure is demanded earlier than the staged plan anticipates (see `STRATEGIC-OVERVIEW.md` §2).
 
-| Track | Scope | Effort | Notes |
+### Pre-flight: 1-2 weeks Twenty-as-textbook reading
+
+Read Twenty's source as architectural reference, no copying. Specific lessons to capture:
+
+- Custom-object metadata-engine shape: `object_definitions`, `field_definitions`, `field_values` patterns; dynamic schema generation; permission-aware query patterns.
+- Workspace isolation patterns: boundaries, scoping, tenant-FK-on-every-row.
+- Audit log infrastructure: event emission, queryable schema.
+- Auth strategy module shape: OIDC, password, 2FA flows.
+- Migration management approach.
+
+Notes captured in `docs/research/twenty-as-textbook-notes.md` (to be authored during this phase).
+
+### Weeks 1-2 — Scaffolding + Go ramp checkpoint (binding gate)
+
+Scope:
+- Monorepo layout per [ADR-009 §8.1](adr/ADR-009-stack-and-license.md) (`apps/api`, `apps/web`, `apps/mcp`, `apps/migrate`, `packages/db`, `packages/crm-adapter`, `packages/shared-types`, `deploy/compose`, `deploy/caddy`).
+- Authentik 2025.10 vs Zitadel Cloud EU decision at scaffolding (week 1 per [ADR-009 §7.1](adr/ADR-009-stack-and-license.md)) — Authentik default; Zitadel if Guillaume estimates the v0→v1 migration cost at >4 h.
+- Bare HTTP server (net/http + Chi) with one sqlc-typed query against local PostgreSQL.
+- `WorkspaceContext` middleware via idiomatic Go context propagation.
+- `golangci-lint run` + `go vet ./...` clean.
+- Atlas v1.0 migration tooling wired in.
+- CI/CD scaffolding: `go test ./...` (testcontainers-go), `pnpm test`, `atlas migrate lint`, `gosec`, `govulncheck`, `go mod verify`.
+
+**Gate 1 (Week 2 end) — Go ramp litmus test (binding, irrevocable).** Three concrete tests per [ADR-009 §1.1](adr/ADR-009-stack-and-license.md):
+1. Minimal HTTP handler running an `sqlc`-typed query against local Postgres, returning JSON.
+2. Workspace-scoping middleware using `context.WithValue` for `WorkspaceContext`.
+3. `golangci-lint run` and `go vet ./...` with zero warnings.
+
+If any test is blocked > 4 working hours despite Claude Code assistance, **switch to TypeScript on Hono runner-up** (Hono + Drizzle + Atlas + `openid-client` v6) for the remainder of the build. Decision irrevocable by end of week 2; do not relitigate at week 5. Tasket: `20260510-202450-a5d3`.
+
+### Weeks 3-4 — Tenancy + auth foundation
+
+- `lecrm_provision_workspace` `SECURITY DEFINER` function per [ADR-009 §2.1](adr/ADR-009-stack-and-license.md): single SQL call creating per-workspace Postgres role, schema, river schema, default privileges, and lateral-expansion-mitigated public-schema revocations. Idempotent.
+- `lecrm_provisioner` role added to SOPS secret manifest as Tier-0 ([ADR-007](adr/ADR-007-encryption-secrets-audit.md) follow-up).
+- Per-workspace Postgres role + `ALTER ROLE search_path` pattern (supersedes the original ADR-001 `SET LOCAL search_path` plan; see [ADR-009 §2.2](adr/ADR-009-stack-and-license.md)).
+- OIDC integration with the selected IDP (Authentik or Zitadel) via `zitadel/oidc` library.
+- `(issuer, sub)` user-key migration table built in from day 1 for the v0→v1 IDP-migration path.
+- Session cookies scoped to specific workspace subdomain ([ADR-009 §5.2](adr/ADR-009-stack-and-license.md)).
+- CSP header on the embedded SPA per ADR-009 §5.2.
+- River workers acquiring workspace-scoped Postgres connections before any data operation.
+
+### Weeks 5-6 — Metadata engine + Google OAuth review kickoff (binding gates)
+
+**Gate 2 (Week 5 end) — ADR-010 authored (binding).** Custom-object metadata-engine pattern recorded with per-tenant DDL as primary and JSONB fallback documented. Per [ADR-009 §9](adr/ADR-009-stack-and-license.md): "ADR-010 authored by end of week 5, not week 7."
+
+- Metadata engine implementation: `object_definitions`, `field_definitions`, dynamic table creation per workspace schema.
+- Permission-aware query layer (workspace + role-aware).
+- Custom-object CRUD surface.
+
+**Gate 3 (Week 6 end) — metadata-engine scope (binding).** If cumulative metadata-engine work > 5 days by week 6, **fall back to JSONB `data` column on a generic `objects` table per workspace schema**. Faster, less elegant, acceptable for v1 scale (3-15 users × ≤30 custom objects per workspace).
+
+**Gate 4 (Week 5-6 start) — Google OAuth app review initiated (binding).** External process takes 4-6 weeks for production OAuth scopes (Gmail readonly / send / drafts). **If not started by end of week 6, week 11-12 deploy slips by 4-6 weeks.** This is the critical-path external blocker — start it before the metadata engine if scheduling conflict emerges.
+
+### Weeks 7-8 — Standard CRUD surface + audit log + service tokens
+
+- REST handlers for standard objects (Contact, Company, Deal, Activity, Note, Task) with URL-prefix versioning (`/v1/…`).
+- OpenAPI 3.1 generated via `ogen` or `oapi-codegen`; `@hey-api/openapi-ts` for the React frontend types ([ADR-009 TO RESOLVE-6](adr/ADR-009-stack-and-license.md)).
+- `Idempotency-Key` header support.
+- Opaque base64 cursor pagination.
+- Workspace-scoped Bearer service tokens per [ADR-009 §4.1](adr/ADR-009-stack-and-license.md): Argon2id-hashed at rest, 1-year default expiry, synchronous DB lookup on every authenticated request, `actor_type` claim (`human_api` / `mcp_agent` / `internal_service`).
+- Audit log infrastructure with `actor_type` accepting `agent` from day 1.
+- `security.workspace_id_mismatch` event emitted when subdomain-derived `workspace_id` disagrees with Bearer-token claim (token authoritative; request rejected 401).
+- **Audit writes on the mutation path are fail-closed.** A mutation that cannot be audit-logged must be rejected. Hard requirement before first paying client.
+
+### Weeks 9-10 — Frontend (React 19 + shadcn/ui + TanStack)
+
+- React 19 + Vite + TanStack Router v1 + TanStack Query.
+- shadcn/ui (Radix UI + Tailwind) component library.
+- TanStack Table for list views; DnD Kit; cmdk; react-hook-form + zod.
+- Workspace subdomain → `WorkspaceContext` routing.
+- Frontend embedded into Go binary via `//go:embed dist/*` for single-binary deploy.
+- Caddy terminates TLS and proxies all traffic to the single Go binary; internal routing `/v1/*` → REST handlers, `/*` → embedded SPA.
+- Vercel AI SDK 6 wired but not exercised at v1 (preserves v2 chat/voice optionality without rewrite).
+- MCP adapter (`cmd/lecrm-mcp/`) skeleton implemented as a separate Compose service per [ADR-009 §4.2](adr/ADR-009-stack-and-license.md); React-to-MCP framing translation deferred (the React app does not speak MCP directly).
+
+### Weeks 11-12 — Email + observability + deploy
+
+- Gmail integration via the production OAuth scopes (gated on Gate 4 completing).
+- LGTM Compose stack on Hetzner: Loki + Grafana + Tempo + Prometheus + OpenTelemetry Collector (~1.1 GB additional RAM on CX22 €4.35/mo per [ADR-009 §7.3](adr/ADR-009-stack-and-license.md)).
+- All metrics labelled with `workspace_id` for per-tenant anomaly detection.
+- WAL-G + GPG client-side encryption to Hetzner Object Storage per [ADR-006](adr/ADR-006-backup-dr.md).
+- pg full-text search wired into the CRUD surface (typesense deferred to v1).
+- Caddy DNS-01 wildcard cert configuration.
+- Brevo as transactional email provider per [ADR-003](adr/ADR-003-brevo-transactional.md) (unchanged from earlier ADR).
+- Single-binary deploy via Compose; pre-deploy `lecrm-migrate` job (Atlas runner) gates `lecrm-api` startup.
+
+### Week 12-13 — First Design Partner onboarding
+
+- Lawyer-reviewed DPA + CGV + SLA signed (parallel non-dev track, started in week 0-2 alongside scaffolding — see [LEGAL-PLAYBOOK.md](LEGAL-PLAYBOOK.md)).
+- Customer-facing brand decided and INPI registered (parallel non-dev track).
+- Workspace provisioned for the Design Partner via the `SECURITY DEFINER` function.
+- Onboarding checklist executed: DNS subdomain, Google Workspace OIDC, Gmail OAuth grant, first data import, first user trained.
+- **First paying Design Partner live.**
+
+### Four binding schedule gates (summary)
+
+| Gate | Week | Decision | If failed |
 |---|---|---|---|
-| **A. Shallow fork + multi-tenant baseline** | Stub `EnterprisePlanService`; OIDC strategy (Google + Microsoft Entra covers ~95% of SMB SSO; skip SAML for v0); custom subdomain + workspace provisioning script | 1-2 weeks | One agent, focused |
-| **B. Email layer** | Postmark integration: per-client DKIM template, bounce/complaint webhooks → Twenty contact suppression, sending domain template | 3-5 days | Independent of A |
-| **C. Ops baseline** | 1-VPS-per-client Docker compose template, automated backups (postgres + S3), UptimeRobot, basic runbook | 1 week | Independent of A and B |
-| **D. Embedded reporting (Metabase, not Cube.dev for v0)** | Self-hosted Metabase pointed at Twenty's PostgreSQL with workspace-scoped SQL queries; embed via iframe in Twenty's UI as an extension package; live with the "Powered by Metabase" logo for v0 (free Embedding License) | 1 week | Cube.dev custom dashboards is a v1 swap-in |
-| **E. Legal/trust track (parallel non-dev)** | GDPR DPA template (1 lawyer engagement), uptime SLA doc, terms of service, brand identity, customer-facing brand decision | 2 weeks calendar (mostly waiting) | Runs alongside A-D |
-
-**v0 deferred to bridges, not built:**
-- **Sequences:** Reply.io API bridge for clients 1-3. Native build kicks off after first client live. ($89/seat passed through to client or absorbed in MRR.)
-- **Custom connectors:** Built only per signed-client requirement, 3-5 days each with AI agent.
-- **PWA polish:** Responsive web works for v0; PWA upgrade in v1.
-- **Row-level permissions:** Workspace-level isolation suffices for v0; per-record ACLs added in v1.
-- **Audit log UI:** Infrastructure already AGPL; ship the existing surface as-is; custom view in v1.
-- **SAML SSO:** OIDC covers Google Workspace + Microsoft Entra; SAML if a specific client needs it.
-
-**v0 critical path:** ~4 weeks calendar with 3-4 parallel agents + 1 day/week founder oversight, plus ~2 weeks for the legal track (mostly external waiting). First paying Design Partner can sign in **week 4-6**.
-
-### v1 — Productized Stack (target: weeks 5-12, parallel with first 3 clients live)
-
-Run while clients 1-3 are in production. The first clients' needs drive the v1 backlog.
-
-| Track | Scope | Effort |
-|---|---|---|
-| **F. Native sequences w/ reply-detection** | Gmail Pub/Sub + Microsoft Graph subscription + IMAP IDLE + state machine + OOO classifier (Haiku) | 4-6 weeks (compressed from 6-9 with agent parallelization on each protocol) |
-| **G. Cube.dev semantic layer + custom dashboards** | Replace Metabase iframe with embedded React dashboards consuming Cube REST API | 2-3 weeks |
-| **H. Row-level permissions** | PostgreSQL RLS + workspace-aware policies in metadata schema | 2 weeks |
-| **I. SAML SSO + audit UI surface** | If client demand emerges | 1 week each |
-| **J. Standard connector library** | Shopify, Klaviyo, Stripe, HelloHarel, Brevo — built reactively as clients sign | 3-5 days per connector |
-| **K. PWA polish** | Service worker, offline read, Web Push, install prompt | 1-2 weeks |
-| **L. Multi-tenant ops tooling v2** | Provisioning automation, central monitoring dashboard, scheduled rebases | 1-2 weeks |
-
-**v1 critical path:** ~8 weeks calendar with 2-3 parallel agents + ongoing client ops capacity.
+| **G1 — Go ramp litmus** | End of week 2 | Three concrete tests per [ADR-009 §1.1](adr/ADR-009-stack-and-license.md) pass within 4 h each | Switch stack to TypeScript+Hono for remainder of build (irrevocable) |
+| **G2 — ADR-010 authored** | End of week 5 | Metadata-engine pattern recorded (per-tenant DDL primary; JSONB fallback) | Decision deferred to G3 — adds week-6 risk |
+| **G3 — Metadata-engine scope** | End of week 6 | Cumulative metadata work ≤ 5 days | Fall back to JSONB `data` column on generic `objects` table per workspace schema |
+| **G4 — Google OAuth review** | End of week 6 at latest | Application submitted to Google for production Gmail scopes | Week 11-12 deploy slips by 4-6 weeks |
 
 ### Rolled-up timeline
 
 | Milestone | Target |
 |---|---|
-| Phase 0 commercial gate cleared | Week 0 (this week, 5 hours) |
-| First Design Partner signed | Week 4-6 |
-| 3 clients live with v0 stack | Week 8-12 |
-| Native sequences shipped | Week 10-14 |
-| 5 clients live, full v1 stack, Phase-3 trigger met | Week 14-18 |
+| Phase 0 commercial gate cleared | Week 0 |
+| Twenty-as-textbook reading complete; scaffolding repo initialised | Week 1-2 |
+| **Gate 1 — Go ramp litmus test passed** | End of week 2 |
+| Tenancy + auth foundation in place | End of week 4 |
+| **Gate 2 — ADR-010 authored** | End of week 5 |
+| **Gate 3 — Metadata-engine scope decision** | End of week 6 |
+| **Gate 4 — Google OAuth app review initiated** | End of week 6 |
+| CRUD surface + audit log + service tokens | End of week 8 |
+| Frontend embedded in single Go binary | End of week 10 |
+| Email + observability + deploy ready | End of week 12 |
+| **First paying Design Partner live** | End of week 12-13 |
 
-This is materially faster than the v1 memo's 16-22 weeks. The compression comes from: (a) parallel agents on independent tracks, (b) hosted-service bridges in v0 instead of native builds, (c) deferring features to actual client demand instead of speculative build, (d) accepting "good-enough" v0 quality where v1 polish doesn't gate first revenue.
+### Real ceiling on this timeline
 
-**Real ceiling on this timeline isn't dev velocity — it's:**
-- Client decision cycles (4-8 weeks from intro to signing — externally bounded)
-- Legal review and DNS propagation lead times
-- Twenty release rebases (low-frequency but distracting)
-- Founder context-switching between build, sell, and ops
+It isn't dev velocity. It's:
 
-### What we're explicitly NOT building
+- **Google OAuth app review** — 4-6 week external blocker, the single hardest constraint on the schedule.
+- **Client decision cycles** — 4-8 weeks from intro to signing. Phase-0 qualifying conversations must start during the build window, not after (per [ADR-008](adr/ADR-008-clean-room-reimplementation.md) TO RESOLVE-7 → moved to `STRATEGIC-OVERVIEW.md`).
+- **Legal review and DNS propagation lead times.**
+- **Founder context-switching** between build, sell, and ops. Solo-operator capacity is the §6 / §7 risk; do not run more than one active discovery conversation while the build is in weeks 3-10.
 
-- Marketing automation engine — n8n + Brevo handles 80% of SMB needs; Mautic as optional managed add-on for clients who genuinely need lead scoring
-- Native iOS/Android apps — PWA suffices for 12-18 months
-- HubSpot Academy equivalent — Loom videos + Mintlify docs
-- Custom landing page builder — Webflow/Carrd as recommended pairing
-- E-signature — PandaDoc API for clients who need quotes
+### v1 — Productized stack (post-Design-Partner, months 4-9)
+
+Run while clients 1-3 are in production. The first clients' needs drive the v1 backlog. Items deferred from v0:
+
+- Native sequences with reply-detection (Gmail Pub/Sub + Microsoft Graph subscription + IMAP IDLE + state machine + OOO classifier on Haiku) — see tasket `20260510-202450-aa6f` for v1 native sequences scope.
+- Microsoft Outlook + IMAP email sync.
+- Microsoft Entra OIDC.
+- SAML SSO (if a specific client requires it).
+- Row-level permissions (per-record ACLs in addition to workspace-level isolation).
+- typesense full-text search.
+- Metabase reporting bridge as the interim dashboard solution (tasket `20260510-202450-29dc`); custom React dashboards on a Postgres semantic layer later.
+- Standard connector library: built reactively per signed-client requirement, 3-5 days each.
+- PWA polish (service worker, offline read, Web Push, install prompt).
+- HA replica + Patroni only at Phase 3 (20+ clients) per [ADR-001](adr/ADR-001-tenancy-model.md).
+
+### v2 — Strategic optionality (post-Phase-3, months 9+)
+
+Per `STRATEGIC-OVERVIEW.md` §4 (revised 2026-05-11), v2 features are premium add-ons opportunistically priced after first 5 clients are stable:
+
+- Telegram/WhatsApp chatbot CRM as a per-client opt-in (tasket `20260510-202450-11e5` is the v2 prototype).
+- Voice-call-to-CRM logging.
+- Autonomous pipeline-watching agents.
+- LLM-driven dashboards ("ask your CRM").
+
+The architecture in [ADR-009](adr/ADR-009-stack-and-license.md) preserves the optionality at near-zero v1 cost: MCP adapter ships in v1 as a separate binary; `actor_type=agent` accepted from day 1; React 19 + Vercel AI SDK 6 frontend is layer-on-able without rewrite.
+
+### What we're explicitly NOT building at v0
+
+- Marketing automation engine — n8n + Brevo handles 80% of SMB needs; Mautic as optional managed add-on if a client genuinely needs lead scoring.
+- Native iOS/Android apps — responsive web at v0; PWA at v1; native only if a client requirement justifies it.
+- HubSpot Academy equivalent — Loom videos + Mintlify docs.
+- Custom landing page builder — Webflow/Carrd as recommended pairing.
+- E-signature — PandaDoc API as a per-client integration for those who need quote sign-off.
+- GraphQL — Twenty's choice; REST + thin MCP adapter is durable for solo-dev maintenance; re-evaluate at v2 only if a paying Design Partner explicitly demands it.
+- Redis at v1 — `river` is Postgres-native; Phase-3 throughput may demand a Redis-backed queue, deferred decision.
 
 ---
 

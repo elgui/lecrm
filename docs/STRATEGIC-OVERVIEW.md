@@ -1,12 +1,12 @@
 # leCRM — Strategic Overview
 
 **Author:** Guillaume (GB Consult)
-**Date:** 2026-05-07 — *partially superseded 2026-05-10 (see banner below)*
-**Status:** Synthesis document — sections 1, 2 (Technical), 4, 8 require revision
+**Date:** 2026-05-07 — *§2 (Technical) revised 2026-05-10; §4 (Moat) revised 2026-05-11 (see banner below)*
+**Status:** Synthesis document — §2 (Technical) and §4 (Moat) aligned to Path D + ADR-009; §1 executive summary and §8 risk register pending light updates
 **Audience:** Guillaume primary; Leo on a need-to-know basis (with the agreed discreet-introducer framing)
 **Length:** ~10-15 minute read
 
-> **2026-05-10 update — strategic and technical pivots.** Status of pending revisions: **§2 (Technical) is revised below in this update** to reflect the clean-room reimplementation ([ADR-008](adr/ADR-008-clean-room-reimplementation.md)) and the locked stack ([ADR-009](adr/ADR-009-stack-and-license.md)). **§4 (Moat) still requires revision** — the "AI-native interface freedom enabled by AGPL source access" framing is now overstated. The revised moat is: ownership + Leo's distribution + tailorization speed + transparent pricing; AI-native interfaces remain a v2 upside, not the v1 bet. The unit economics (§5-7) and risk register (§8) still hold in shape and will be reissued after the v0 build re-scope completes.
+> **2026-05-10 / 2026-05-11 updates — strategic and technical pivots.** **§2 (Technical) is revised** (2026-05-10) to reflect the clean-room reimplementation ([ADR-008](adr/ADR-008-clean-room-reimplementation.md)) and the locked stack ([ADR-009](adr/ADR-009-stack-and-license.md)). **§4 (Moat) is revised** (2026-05-11) — the AI-native-interface-freedom framing has been retired in favour of: ownership (sovereign codebase under Apache 2.0) + Leo's distribution + tailorization speed + transparent pricing. AI-native interfaces remain v2 strategic optionality, not the v1 bet. **§1 executive summary** still describes the Twenty-fork posture and will be reissued as a light pass after the v0 build re-scope completes; the unit economics (§5-7) and risk register (§8) still hold in shape and will be reissued at the same time.
 
 This document synthesizes the situation across `FEASIBILITY-MEMO.md`, `ICP-ARCHETYPE.md`, `LEGAL-PLAYBOOK.md`, and `HUBSPOT-PARTNER-BILLING-RESEARCH.md` into a single decision-ready overview. Cross-references those for full detail.
 
@@ -92,59 +92,86 @@ These are not theoretical — Leo can name 3-5 actual prospects matching each pe
 
 ---
 
-## 4. The Strategic Moat — Complete UI Freedom and AI-Native Interfaces
+## 4. The Strategic Moat — Sovereign Codebase, Distribution, Tailorization, Transparent Pricing
 
-This is the section that matters most for the long-term value of the project. It is also the angle that no incumbent CRM can match.
+*Revised 2026-05-11. The earlier draft framed "AI-native interface freedom enabled by AGPL source access" as the load-bearing differentiator. Two facts retired that frame: the Path D pivot ([ADR-008](adr/ADR-008-clean-room-reimplementation.md)) made leCRM a clean-room reimplementation under Apache 2.0 (per [ADR-009](adr/ADR-009-stack-and-license.md)) — the "we run a fork others can't run" angle is moot under permissive licensing — and the four-round council debate (2026-05-10, Architect / Engineer / Researcher / Pentester / Code Reviewer, plus Mary's Round-3 strategic-analyst pass) converged on the same finding: the durable core is **sovereign codebase + tailorization depth**; Leo's distribution is the GTM accelerant; transparent pricing is the wedge that opens conversations. AI-native UX is upside, not the bet.*
 
-### Why HubSpot's API is structurally limited
-HubSpot's API is a *gatekeeping interface*, not a freedom interface:
-- **Rate limits**: Sales Hub Pro at ~100 requests/10s, ~1,500/100s burst, daily caps. This is fine for periodic data sync. It is **fundamentally incompatible** with interactive UIs that read/write CRM data on every user action — multi-user chatbots, voice interfaces, real-time AI agents all hit the ceiling fast.
-- **Read-only access to certain primitives**: workflows, sequences, and proprietary AI features cannot be replicated externally — partners build *around* HubSpot, not on top of it.
-- **No source access**: integrators cannot modify the UI, the data model behind the UI, or the relationship between data and UI. The product is what HubSpot ships.
-- **AI features locked behind tier upgrades**: Breeze Assistant requires Sales Hub Pro+; Breeze Agents are consumption-priced credits *on top of* base subscription. Custom AI agents that the *operator* controls are simply not on offer.
+The v1 sales motion sells on ownership / tailorization / transparent pricing, distributed through Leo. v2 monetises AI-native UX as a separate category if and only if it materialises — opportunistically, not on schedule.
 
-### What Twenty AGPL gives us
-- **Full source access** to the data model, the API server, the workflow engine, the UI. We can change anything.
-- **Unlimited internal API** — when our UI talks to our backend, there is no rate limit. We can build interactive interfaces that issue 50 calls/second per user without any throttling.
-- **Custom UI per client if we want**. Wine distributor sees a wine-shaped interface. Consultancy sees deal-flow-shaped. SaaS company sees pipeline-shaped. Same backend.
-- **Headless mode**: the CRM data model becomes a service that *anything* can be a UI for — Telegram bot, WhatsApp bot, voice assistant, native mobile shell, embedded widget in another product.
+### The four moat components
 
-### What we can build that HubSpot cannot
-**Conversational CRM as the primary interface.** Instead of users clicking through HubSpot's UI to update a deal stage, log a call, send a follow-up, schedule a meeting — they message a chatbot in Telegram/WhatsApp/Slack. The chatbot:
-- Logs a call after the rep finishes ("just had a call with Marc, he's interested but wants to think for two weeks")
-- Updates deal stage on its own decision based on conversation context
-- Drafts and queues a follow-up email for the rep to approve
-- Surfaces upcoming actions ("Marc said two weeks — that's tomorrow, do you want me to send the follow-up?")
-- Pulls reports on demand ("how many deals did we win last quarter from referrals?")
+#### 4.1 Sovereign codebase (ownership)
 
-This is not a HubSpot integration. It is a different product category. **HubSpot's API rate limits make this UX impossible at multi-user scale.** Twenty AGPL with our UI freedom makes it trivial.
+leCRM is greenfield code originated by GB Consult under [Apache 2.0](adr/ADR-009-stack-and-license.md) ([ADR-008](adr/ADR-008-clean-room-reimplementation.md)). Twenty's source is read as architectural reference only — the way a developer reads a textbook — for the metadata-engine pattern, workspace-isolation patterns, audit-log infrastructure, OIDC strategy shape, and migration-management approach. No code copied. No AGPL contagion. No upstream landlord. No CLA-ratchet risk.
 
-**Voice-first CRM.** A rep finishes a client call, hits a button on their phone, dictates a 30-second summary. The CRM extracts: contact, deal, stage, next action, sentiment, follow-up date. Logs everything. Sends notifications. Updates the pipeline. Voice → action, no clicking. The infrastructure for this (Whisper transcription, Claude classification, Twenty CRUD via internal API) costs €0.01/call.
+For the ICP (see [ICP-ARCHETYPE.md](ICP-ARCHETYPE.md) — Marc / Anne / Pierre archetypes), this translates into one concrete sentence on a sales call:
 
-**AI agents as autonomous CRM users.** An agent watches the CRM in real time. When a deal sits in "Qualified" for >14 days without activity, it drafts a re-engagement email referencing the prospect's stated pain points (logged in custom fields). When a meeting transcript lands, it updates the deal stage, identifies objections, schedules follow-ups. The rep approves; the agent executes. This is what HubSpot's Breeze Agents *aspire to* but are constrained by — they run inside HubSpot, on HubSpot's data, on HubSpot's terms, paying HubSpot's per-credit rates. Ours run on our infrastructure, with our prompts, on our data, at our cost (~€0.01-0.10 per agent action with Haiku/Sonnet).
+> "Your data lives on French infrastructure, in a database we operate, with code we wrote and you can audit. No US sub-processor, no Salesforce-style escalation tier, no proprietary upstream we depend on."
 
-**Embedded LLM-driven dashboards.** Instead of static charts, the dashboard is a chat interface. "Show me deals likely to close this quarter" becomes a Claude-driven query that the agent answers from the actual PostgreSQL data, with reasoning, and you can drill in by following up. This is a Cube.dev semantic layer plus an LLM agent — buildable in 2-3 weeks.
+This is what HubSpot, Salesforce, and even Twenty-as-vendor cannot say. It is also what the acquirer's CTO will ask about at the €170-340k 2-4× ARR window — a clean-room Apache 2.0 codebase with no derivative-work exposure is materially more attractive than an AGPL fork.
 
-### Why we are uniquely positioned to build this
-- Guillaume already operates **CaaS infrastructure** (Tele-Claude, OpenClawing, the existing Telegram-bot-as-AI-interface pattern is in production for Leo himself today)
-- Anthropic API integration is a daily-use skill, not a learning curve
-- AI-augmented dev velocity makes "weeks of focused build" a real schedule, not a fantasy
-- The Twenty AGPL data model is well-documented and accessible from outside via GraphQL — a chatbot or voice agent can read/write it cleanly
-- French SMBs are increasingly comfortable with conversational interfaces (WhatsApp Business, Telegram, voice) — but no CRM has shipped this UX
+The "open-source" framing survives: the repository is public, the license is OSI-approved, audit is possible. But the load-bearing claim is **ownership**, not the license tier. FSL-2.0-Apache-2.0 is the documented upgrade path ([ADR-009 §6](adr/ADR-009-stack-and-license.md)) if a competitor emerges tracking the public codebase — the FSL window converts to Apache 2.0 within the acquisition horizon regardless.
 
-### Sequencing
-- **v1 stack** focuses on parity (sales pipeline, sequences, reporting) — the must-haves for any CRM
-- **v2 stack** layers AI-native interfaces on top:
-  - Telegram/WhatsApp chatbot CRM as a per-client opt-in (4-6 weeks build, leverages existing Tele-Claude infrastructure)
-  - Voice-call-to-CRM logging (3-4 weeks, Whisper + Claude + Twenty API)
-  - Autonomous agent that watches the pipeline and drafts actions (2-3 weeks per agent type)
-  - LLM-driven dashboard ("ask your CRM") (2-3 weeks)
-- **v2 timing**: opportunistic, after first 5 clients live. Sell as a premium add-on at €100-200/mo extra per client.
+#### 4.2 Tailorization speed
 
-### The defensive moat this creates
-Once we ship v2 features, the gap with HubSpot is no longer "open-source alternative" — it's "fundamentally different product category." HubSpot has no answer because their API is the bottleneck. Salesforce has the same constraint. Pipedrive doesn't even try. Twenty itself has not built this — and our AGPL fork can ship it without negotiating with anyone.
+The structural advantage HubSpot cannot match is **how fast we can shape the product to each client**. AI-augmented dev (Claude Code + Guillaume + a single-binary Go stack — see [ADR-009](adr/ADR-009-stack-and-license.md)) collapses what would have been weeks of work to days for things that genuinely matter at the client level:
 
-This is the actual product moat. The cost-savings narrative gets us to first clients. The AI-native interface narrative gets us to a defensible long-term position.
+- Custom object schemas (vintages, estate hierarchies, regulated-sector fields, project-with-milestones models).
+- Custom workflows wired to client-specific business rules.
+- Custom views, dashboards, sequences, audit reports.
+- One-off integrations against client-specific tools.
+
+HubSpot tiers these capabilities behind plan upgrades and rate-limits them via the platform API. We ship them as configuration or 1-3 day custom-dev devis against a database we own. The one-sentence pitch (per [ADR-008](adr/ADR-008-clean-room-reimplementation.md) Context) is:
+
+> "transparent, honest pricing with any kind of tailorization."
+
+Tailorization is not "customizing a SaaS via the API" — it is "the product takes the client's shape." That is a different category of work. AI-augmented dev makes the unit cost low enough to do it inside a setup fee or a small custom-dev devis, which is what the ICP needs but cannot extract from a tier-gated platform.
+
+#### 4.3 Leo's distribution
+
+Leo's network is the GTM accelerant, not the product moat. He sources:
+
+- **Lost-HubSpot-deals** — prospects pre-qualified as price-sensitive, sovereignty-driven, or customization-driven. Historically 40-60% of his pipeline.
+- **Founder and peer network** outside HubSpot's client base.
+- **Peer referrals** from existing Vernayo clients into adjacent verticals.
+
+Leo's relationship to the product is recorded separately ([HUBSPOT-PARTNER-BILLING-RESEARCH.md](HUBSPOT-PARTNER-BILLING-RESEARCH.md) for the billing structure; §9 below for the discreet-introducer model). The strategic point is that distribution is solved without paid acquisition, marketing spend, or a sales hire — which keeps the v0 cost profile clean and the Phase-3 incorporation trigger reachable on first-customer revenue alone.
+
+This is durable only as long as the partnership holds. The dependency is real; mitigation is to use Leo's pipeline as proof of model and to open non-Leo channels at Phase 3.
+
+#### 4.4 Transparent pricing
+
+Pricing is published, simple, and honest:
+
+- A flat setup fee covering provisioning, data migration, training, and first-month integration.
+- A flat MRR per user-band with no hidden seat math, no contact-volume tiers, no "Marketing Hub Pro for €1,180/mo to unlock that one feature."
+- Custom dev quoted on a separate devis at a transparent day rate.
+
+HubSpot's commercial model is structurally opposed to this — tier-gating, contact-count math, and per-feature pricing pages are the business model. We compete by being the alternative that does not do that. The pricing posture is a moat against the *category*, not against any single competitor, and it is consistent with the rejection reasons the ICP names in [ICP-ARCHETYPE.md](ICP-ARCHETYPE.md).
+
+### What about AI-native UX?
+
+AI-native interfaces (chatbot CRM, voice-first CRM, autonomous pipeline agents, LLM-driven dashboards) remain *strategic optionality*, not load-bearing for v1. The reframe is:
+
+- **v1 sells on the four moat components above.** The pitch is ownership + tailorization + transparent pricing, distributed through Leo.
+- **v2 monetises AI-native UX as a category** if and only if it materialises. The architecture preserves the optionality at near-zero cost: the MCP adapter ships in v1 as a separate `cmd/lecrm-mcp` binary ([ADR-009 §4.2](adr/ADR-009-stack-and-license.md)); `actor_type` in the audit log accepts `agent` from day 1; the React 19 + Vercel AI SDK 6 frontend layers chat/voice without rewrite. v2 features are premium add-ons, opportunistically priced once first 5 clients are stable.
+
+The earlier draft positioned AI-native UX as the structural moat because no incumbent CRM can match it under their API rate limits. That claim is still true. It is also true that:
+
+- v0 is already 11-13 weeks at council-rated P50 (not P80) — see [ADR-009 §9](adr/ADR-009-stack-and-license.md) and `FEASIBILITY-MEMO.md` §3. AI-native UX features add weeks each without paying clients to absorb the cost.
+- Tailorization depth — also unmatched by incumbents — is shippable at v0 and is what the ICP already names as a rejection reason for HubSpot.
+- AI-native UX is a *category bet*; tailorization is a *category fit*. Bet on the fit at v1; pursue the category at v2.
+
+The cost-savings narrative gets us to first clients. The ownership-and-tailorization narrative gets us to the durable position. AI-native UX is the upside if the category materialises during the staged plan.
+
+### What kills the moat
+
+- **Twenty (or a successor) ships a polished, EU-sovereignty-positioned managed offering** at competitive pricing. Mitigation: tailorization speed is the residual gap; AI-native UX is the v2 wedge.
+- **HubSpot drops EU-sovereignty data residency at parity pricing** and absorbs the political-data-locality concern. Mitigation: codebase ownership and transparent pricing remain residual gaps; the tier-gated commercial model is structurally hard for HubSpot to abandon.
+- **The acquirer pool dries up.** The €170-340k window assumes 2026-2028 M&A appetite for sub-€100k-ARR open-source SaaS. Mitigation: revenue-positive standalone at €100k+/year personal income is the cash-flow alternative; the asset value is upside, not load-bearing on the decision.
+- **The Leo channel saturates faster than expected** without alternative channels being warm. Mitigation: open non-Leo sourcing at Phase 3 trigger, not later.
+
+The defensive posture is: do not stake the business on AI-native UX timing. Stake it on the four components that are shippable at v1 and visible on the first sales call.
 
 ---
 
