@@ -26,13 +26,13 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Bootstrap migration is mounted as a one-shot init script. It runs
-      # only on a fresh data directory; idempotency in the provision
-      # function means re-runs in production are handled by Atlas via the
-      # `cmd/lecrm-migrate` pre-deploy job.
-      - ../../packages/db/migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
+      # Bootstrap migrations run alphabetically on a fresh data dir.
+      # Beyond v0 these go through Atlas via cmd/lecrm-migrate as a
+      # Compose pre-deploy job (ADR-009 §8.2); the docker-entrypoint
+      # path is for greenfield local boot only.
+      - ../../packages/db/migrations:/docker-entrypoint-initdb.d:ro
     ports:
-      - "127.0.0.1:5432:5432"                     # bind localhost only
+      - "127.0.0.1:${LECRM_POSTGRES_HOST_PORT:-5432}:5432"   # bind localhost only; override in dev to avoid conflicts
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d lecrm"]
       interval: 10s
@@ -47,4 +47,4 @@ volumes:
 networks:
   lecrm:
     name: lecrm
-    driver: bridge
+    external: true

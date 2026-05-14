@@ -18,13 +18,17 @@ import (
 // One Provider exists per-process; it is shared across all workspaces
 // because the IDP (and therefore the OIDC issuer) is global at v0.
 // Workspaces are distinguished by the redirect URI and the resulting
-// session-cookie Domain — both per-request inputs.
+// session-cookie Domain — both per-request inputs. The redirect URI
+// passed to NewRelyingPartyOIDC is a placeholder; callers MUST override
+// it per-request via the redirectURI argument to BuildAuthURL and
+// Exchange so the value reaching Authentik exactly matches the
+// workspace subdomain.
 type Provider struct {
-	RP            rp.RelyingParty
-	StateSecret   []byte // separate from session secret so rotation can be staged
-	Issuer        string
-	Scopes        []string
-	CallbackPath  string
+	RP           rp.RelyingParty
+	StateSecret  []byte // separate from session secret so rotation can be staged
+	Issuer       string
+	Scopes       []string
+	CallbackPath string
 }
 
 // NewProvider builds the RP by hitting the IDP's well-known discovery
@@ -48,18 +52,20 @@ type AuthRequest struct {
 	State              string    `json:"st"`
 	CodeVerifier       string    `json:"cv"`
 	WorkspaceSubdomain string    `json:"ws"`
+	RedirectURI        string    `json:"ru"`
 	IssuedAt           time.Time `json:"ia"`
 }
 
 // BuildAuthURL generates a fresh state nonce and PKCE code verifier,
 // returns the AuthRequest to be stamped into the state cookie and the
-// authorization URL the browser should redirect to.
+// authorization URL the browser should redirect to. redirectURI MUST be
+// the workspace-specific callback URL — the IdP rejects mismatches.
 //
 // PKCE is mandatory per OAuth 2.1 / OIDC best practice and protects
 // against authorization-code interception for public clients. Even
 // though our client is confidential, PKCE adds defence in depth at
 // negligible cost.
-func (p *Provider) BuildAuthURL(workspaceSubdomain string) (AuthRequest, string, error) {
+func (p *Provider) BuildAuthURL(workspaceSubdomain, redirectURI string) (AuthRequest, string, error) {
 	state, err := randomString(32)
 	if err != nil {
 		return AuthRequest{}, "", err
@@ -69,23 +75,30 @@ func (p *Provider) BuildAuthURL(workspaceSubdomain string) (AuthRequest, string,
 		return AuthRequest{}, "", err
 	}
 	challenge := oidc.NewSHACodeChallenge(verifier)
+	// rp.WithURLParam returns URLParamOpt; AuthURL takes AuthURLOpt.
+	// They share the same underlying signature so a direct cast is the
+	// idiomatic bridge (the library does this internally in AuthURLHandler).
 	authURL := rp.AuthURL(state, p.RP,
 		rp.WithCodeChallenge(challenge),
+		rp.AuthURLOpt(rp.WithURLParam("redirect_uri", redirectURI)),
 	)
 	return AuthRequest{
 		State:              state,
 		CodeVerifier:       verifier,
 		WorkspaceSubdomain: workspaceSubdomain,
+		RedirectURI:        redirectURI,
 		IssuedAt:           time.Now(),
 	}, authURL, nil
 }
 
 // Exchange exchanges the authorization code for tokens, verifies the
 // ID token, and returns the parsed claims. The (Issuer, Subject) pair
-// is the canonical identity tuple per ADR-009 §7.1.
-func (p *Provider) Exchange(ctx context.Context, code, codeVerifier string) (*oidc.IDTokenClaims, error) {
+// is the canonical identity tuple per ADR-009 §7.1. redirectURI MUST
+// match the URI sent in the original authorization request.
+func (p *Provider) Exchange(ctx context.Context, code, codeVerifier, redirectURI string) (*oidc.IDTokenClaims, error) {
 	tokens, err := rp.CodeExchange[*oidc.IDTokenClaims](ctx, code, p.RP,
 		rp.WithCodeVerifier(codeVerifier),
+		rp.CodeExchangeOpt(rp.WithURLParam("redirect_uri", redirectURI)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("code exchange failed: %w", err)

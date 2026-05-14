@@ -48,11 +48,12 @@ func run(logger *slog.Logger) error {
 	defer pool.Close()
 	logger.Info("database connected")
 
-	// Build the OIDC provider. Redirect URI is a wildcard-on-the-
-	// subdomain pattern from Authentik's POV; at runtime the actual
-	// redirect URI is the workspace-specific URL the browser hit.
-	redirectURI := fmt.Sprintf("https://*.%s%s", cfg.CookieDomainTLD, cfg.OIDC.CallbackPath)
-	provider, err := auth.NewProvider(ctx, cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDC.ClientSecret, redirectURI, cfg.OIDC.Scopes, cfg.SessionSecret)
+	// The redirect URI is computed per-request in the handler from the
+	// inbound workspace subdomain — Authentik rejects mismatches. We
+	// pass a sentinel here only because rp.NewRelyingPartyOIDC requires
+	// a non-empty value; AuthURL/CodeExchange always override it.
+	placeholderRedirectURI := fmt.Sprintf("https://placeholder.%s%s", cfg.CookieDomainTLD, cfg.OIDC.CallbackPath)
+	provider, err := auth.NewProvider(ctx, cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDC.ClientSecret, placeholderRedirectURI, cfg.OIDC.Scopes, cfg.SessionSecret)
 	if err != nil {
 		return fmt.Errorf("oidc provider: %w", err)
 	}
@@ -64,6 +65,7 @@ func run(logger *slog.Logger) error {
 		SessionSecret: cfg.SessionSecret,
 		DomainTLD:     cfg.CookieDomainTLD,
 		CookieSecure:  cfg.CookieSecure,
+		CallbackPath:  cfg.OIDC.CallbackPath,
 		Logger:        logger,
 	}
 

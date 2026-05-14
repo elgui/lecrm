@@ -19,8 +19,8 @@ const stateMaxAge = 10 * time.Minute
 // EncodeAuthRequest signs an AuthRequest with the state secret for
 // transport via the state cookie.
 func EncodeAuthRequest(req AuthRequest, secret []byte) (string, error) {
-	if req.State == "" || req.CodeVerifier == "" || req.WorkspaceSubdomain == "" {
-		return "", errors.New("AuthRequest requires state, code_verifier, and workspace")
+	if req.State == "" || req.CodeVerifier == "" || req.WorkspaceSubdomain == "" || req.RedirectURI == "" {
+		return "", errors.New("AuthRequest requires state, code_verifier, workspace, and redirect_uri")
 	}
 	payload, err := json.Marshal(req)
 	if err != nil {

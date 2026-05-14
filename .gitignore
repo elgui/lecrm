@@ -26,6 +26,7 @@ apps/web/.vite/
 .env.*
 !.env.example
 !.env.*.enc
+!.env.*.example
 
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*

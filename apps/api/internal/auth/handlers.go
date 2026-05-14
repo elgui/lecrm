@@ -11,12 +11,40 @@ import (
 
 // Handler bundles the dependencies for the /auth/* routes.
 type Handler struct {
-	Provider     *Provider
-	Store        *Store
+	Provider      *Provider
+	Store         *Store
 	SessionSecret []byte
 	DomainTLD     string // e.g. "lecrm.fr"
-	CookieSecure  bool
+	CookieSecure  bool   // true in prod, false in plain-http dev
+	CallbackPath  string // e.g. "/auth/callback"
 	Logger        *slog.Logger
+}
+
+// redirectURIFor returns the workspace-specific OAuth callback URL the
+// IdP must redirect back to. Scheme is https when CookieSecure (which
+// tracks "are we behind TLS") is true, http otherwise — the http case
+// is dev-only.
+func (h *Handler) redirectURIFor(subdomain string, hostFromRequest string) string {
+	// Preserve port from inbound Host (e.g. dev "acme.lecrm.test:8080").
+	host := subdomain + "." + h.DomainTLD
+	if idx := indexByte(hostFromRequest, ':'); idx >= 0 && !h.CookieSecure {
+		host += hostFromRequest[idx:]
+	}
+	scheme := "https"
+	if !h.CookieSecure {
+		scheme = "http"
+	}
+	return scheme + "://" + host + h.CallbackPath
+}
+
+// indexByte is the inverse of strings.IndexByte without importing strings here.
+func indexByte(s string, c byte) int {
+	for i := 0; i < len(s); i++ {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }
 
 // Register mounts the auth routes onto m at the conventional paths.
@@ -51,7 +79,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, authURL, err := h.Provider.BuildAuthURL(subdomain)
+	redirectURI := h.redirectURIFor(subdomain, r.Host)
+	req, authURL, err := h.Provider.BuildAuthURL(subdomain, redirectURI)
 	if err != nil {
 		h.error(w, "build auth url", err)
 		return
@@ -116,7 +145,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, err := h.Provider.Exchange(r.Context(), code, req.CodeVerifier)
+	claims, err := h.Provider.Exchange(r.Context(), code, req.CodeVerifier, req.RedirectURI)
 	if err != nil {
 		h.error(w, "code exchange", err)
 		return
