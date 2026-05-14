@@ -1,10 +1,11 @@
 ---
 id: 20260510-202450-a5d3
 title: "leCRM v0 — Week-2 Go ramp checkpoint (BINDING decision gate: continue Go or switch to TypeScript+Hono)"
-status: later
+status: done
 priority: p0
 created: 2026-05-10
 updated: 2026-05-14
+done: 2026-05-14
 category: engineering
 group: lecrm-v0-scaffolding-v2
 group_order: 1
