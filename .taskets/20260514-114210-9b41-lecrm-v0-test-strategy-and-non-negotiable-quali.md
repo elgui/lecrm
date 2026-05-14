@@ -1,10 +1,11 @@
 ---
 id: 20260514-114210-9b41
 title: "leCRM v0 — Test strategy and non-negotiable quality regression"
-status: later
+status: done
 priority: p0
 created: 2026-05-14
 updated: 2026-05-14
+done: 2026-05-14
 category: engineering
 group: lecrm-v0-sprint-3
 group_order: 3
