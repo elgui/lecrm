@@ -78,6 +78,35 @@ curl -sS -D - -o /dev/null \
 # Set-Cookie: lecrm_oauth_state=... Domain=acme.lecrm.test
 ```
 
+### End-to-end OIDC test (Day 3)
+
+A build-tagged Go test drives the full flow — including the
+post-Authentik half that the curl smoke test can't reach. Stop any
+running lecrm-api on :8080 first; the test spawns its own.
+
+```
+# 1. Provision the test user (idempotent).
+docker cp scripts/authentik-provision-test-user.py \
+   lecrm-authentik-worker:/tmp/provision-user.py
+docker exec lecrm-authentik-worker \
+   ak shell -c "exec(open('/tmp/provision-user.py').read())"
+
+# 2. Build + run the e2e test.
+set -a; source deploy/.env.dev 2>/dev/null; set +a
+~/.local/go/bin/go -C apps/api build -o /tmp/lecrm-api ./cmd/lecrm-api
+LECRM_API_BIN=/tmp/lecrm-api \
+   ~/.local/go/bin/go -C apps/api test -tags e2e -count 1 -v \
+     -run TestE2EOIDCFlow ./internal/auth
+```
+
+The test asserts four properties of a completed login: the
+`lecrm_session` cookie has `Domain=acme.lecrm.test` (not a parent-domain
+wildcard); `core.users` has exactly one row keyed on the `(issuer,
+subject)` tuple from the Authentik ID token; `core.workspace_members`
+links that user to the `acme` workspace; `GET /auth/me` returns
+`{user_id, workspace_id}` with both populated. The test is idempotent —
+`UpsertUser` and `EnsureMember` collapse repeat runs into the same row.
+
 LGTM and the Caddy edge are deferred to Sprint 11; they boot after the
 Compose stack is the primary entry point (production deploy).
 

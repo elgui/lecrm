@@ -14,6 +14,7 @@ from authentik.providers.oauth2.models import (
     OAuth2Provider,
     RedirectURI,
     RedirectURIMatchingMode,
+    ScopeMapping,
 )
 
 CLIENT_ID = "lecrm-api"
@@ -67,6 +68,19 @@ provider.redirect_uris = [
         url=r"^http://[a-z0-9-]+\.lecrm\.test:8080/auth/callback$",
     )
 ]
+provider.save()
+
+# Attach the standard openid/profile/email scope mappings so the ID
+# token carries `sub`, `name`, and `email` claims. Without these, the
+# provider mints tokens with empty claims and our (issuer, subject)
+# tuple is the only identifier the relying party sees.
+scope_names = ["openid", "email", "profile"]
+mappings = ScopeMapping.objects.filter(scope_name__in=scope_names)
+if mappings.count() != len(scope_names):
+    found = set(mappings.values_list("scope_name", flat=True))
+    missing = set(scope_names) - found
+    raise SystemExit(f"missing default ScopeMappings: {missing}")
+provider.property_mappings.set(mappings)
 provider.save()
 
 # 3. Application bound to the provider.
