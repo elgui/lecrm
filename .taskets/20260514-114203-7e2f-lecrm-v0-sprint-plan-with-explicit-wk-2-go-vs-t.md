@@ -1,7 +1,7 @@
 ---
 id: 20260514-114203-7e2f
-title: "leCRM v0 — Sprint plan with explicit Wk-2 Go-vs-TS fork branch"
-status: later
+title: leCRM v0 — Sprint plan with explicit Wk-2 Go-vs-TS fork branch
+status: done
 priority: p1
 created: 2026-05-14
 updated: 2026-05-14
@@ -9,6 +9,7 @@ category: engineering
 group: lecrm-v0-execution-discipline
 group_order: 2
 order: 1
+done: 2026-05-14
 ---
 
 ## Read this cold — full context inline
