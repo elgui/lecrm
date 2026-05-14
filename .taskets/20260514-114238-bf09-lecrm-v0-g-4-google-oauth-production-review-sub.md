@@ -1,7 +1,7 @@
 ---
 id: 20260514-114238-bf09
 title: "leCRM v0 — G4: Google OAuth production review submission (Wk 5-6)"
-status: later
+status: blocked
 priority: p0
 created: 2026-05-14
 updated: 2026-05-14
@@ -9,6 +9,7 @@ category: engineering
 group: lecrm-v0-scaffolding-v2
 group_order: 1
 order: 2
+blocked_on: DOR-prerequisites (Wk 3-4 work) + schedule-timing (we are in Wk 2; submission window opens Wk 5-6 ~2026-06-09)
 ---
 
 ## Read this cold — full context inline
@@ -71,3 +72,30 @@ Wk 11-12 deploy slides 4-6 weeks per ADR-009 §9. The PRD Exec Summary failure-m
 - `{output_folder}/planning-artifacts/prd.md` — Exec Summary failure mode + `external-review-dependency` flag row
 - Google OAuth verification requirements: https://support.google.com/cloud/answer/9110914
 - Google Sales Hub pricing for HubSpot comparison context: see PRD footnote ¹
+
+---
+
+## Submission Prep Status (2026-05-14)
+
+The automator scheduled this Wk 5-6 task during Wk 2 of the build. Submission itself is **not possible** from this session — the Done-When acceptance criteria require external actions (publishing legal pages, recording a live demo, clicking through Google Cloud Console) that depend on Wk 3-4 implementation work that has not started. Marking the task `done` without an actual submission ID would falsify the run record and break the ADR-009 §9 G4 schedule gate. Status is therefore **blocked**, not **done**, by automator rule #4.
+
+### What was completed in this session (commit-tracked)
+
+- **`docs/legal/PRIVACY-POLICY.md`** — RGPD + Google-Limited-Use-compliant draft, scoped specifically to `gmail.readonly` + `gmail.modify`. Ready to publish at `gbconsult.me/lecrm/privacy` once `_TBD_` fields are filled (SIRET, postal address, repo URL).
+- **`docs/legal/TERMS-OF-SERVICE.md`** — French-law-governed, Apache-2.0-aware ToS draft. Ready to publish at `gbconsult.me/lecrm/terms`.
+- **`docs/oauth-submission/SUBMISSION-PACKAGE.md`** — the paste-and-submit kit: DOR gap analysis, Cloud Console field values, per-scope justification narratives (copy-paste-ready), 8-shot demo-video script, Wk-3-4 code-scaffolding plan, Submission-Day checklist, typical Google round-trip playbook.
+
+### DOR gap (must close before Wk 5-6 submission can fire)
+
+1. **Gmail integration code** — `apps/api/internal/integrations/gmail/` does not exist. Code-scaffolding plan in `docs/oauth-submission/SUBMISSION-PACKAGE.md` §6 lists the seven files + DB migration + tests needed. Wk 3-4 work.
+2. **Legal pages live on `gbconsult.me`** — drafts are ready; needs `_TBD_` fills + VPSDeploy + Cloudflare DNS skill to publish.
+3. **Domain verified in Google Search Console** — needs TXT record on `gbconsult.me`.
+4. **Google Cloud Console OAuth app** — needs project provisioning + consent-screen configuration with `app name = leCRM`, scopes, URLs.
+5. **App logo (120×120 PNG) + favicon** — Art skill to generate.
+6. **Demo video** — needs the Gmail integration working in restricted-test mode first.
+
+### Hand-off to Wk 5-6 trigger
+
+When Wk 5-6 arrives and items 1-6 above are green, the submission is a **30-minute paste-and-submit** following `docs/oauth-submission/SUBMISSION-PACKAGE.md` §7. The submission ID + date should be appended to a new `## Submission Log` section below this one; status then flips from `blocked` to `done`.
+
+A follow-up tasket for the +14-day polling check should be created **via the Tasket skill** (not direct markdown write — see [[feedback_tasket_skill_required]]) at submission time.
