@@ -28,5 +28,14 @@ apps/web/.vite/
 !.env.*.enc
 !.env.*.example
 
+# SOPS-decrypted secret manifests (tasket 20260510-162158-1023).
+# Only the encrypted `.enc.yaml` form and the `.template` form may be
+# committed. The plaintext intermediate `secrets.yaml` (between
+# template-copy and sops-encrypt) MUST stay local.
+secrets/clients/*/secrets.yaml
+secrets/operator/secrets.yaml
+!secrets/clients/_template/secrets.yaml.template
+!secrets/operator/secrets.yaml.template
+
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*
