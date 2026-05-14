@@ -6,9 +6,9 @@ priority: p0
 created: 2026-05-10
 updated: 2026-05-14
 category: engineering
-group: lecrm-v0-scaffolding
+group: lecrm-v0-scaffolding-v2
 group_order: 1
-order: 2
+order: 1
 ---
 
 ## Read this cold — full context inline
