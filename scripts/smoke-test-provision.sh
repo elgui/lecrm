@@ -58,12 +58,14 @@ export PGPORT
 export PGUSER=postgres
 export PGDATABASE=postgres
 
-# --- 2. Apply migration ---
-step "Applying packages/db/migrations/0001_init.sql"
+# --- 2. Apply migrations in order ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MIGRATION="${SCRIPT_DIR}/../packages/db/migrations/0001_init.sql"
-psql -v ON_ERROR_STOP=1 -q -f "${MIGRATION}" >/dev/null
-pass "Migration applied; core.lecrm_provision_workspace is defined"
+MIGRATIONS_DIR="${SCRIPT_DIR}/../packages/db/migrations"
+for m in "${MIGRATIONS_DIR}"/*.sql; do
+  step "Applying $(basename "${m}")"
+  psql -v ON_ERROR_STOP=1 -q -f "${m}" >/dev/null
+done
+pass "All migrations applied"
 
 # Verify the function exists and is owned correctly.
 OWNER=$(psql -tAc "SELECT pg_get_userbyid(p.proowner) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname='core' AND p.proname='lecrm_provision_workspace';")
@@ -117,5 +119,38 @@ SECOND_ROLE="workspace_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 RESULT3=$(psql -tA -c "SET ROLE lecrm_provisioner; SELECT core.lecrm_provision_workspace('${SECOND_UUID}'::uuid);" | tail -n1)
 [[ "${RESULT3}" == "${SECOND_ROLE}" ]] || fail "second tenant returned ${RESULT3}, expected ${SECOND_ROLE}"
 pass "second tenant provisioned (role=${RESULT3})"
+
+# --- 8. Identity registry: (issuer, sub) uniqueness ---
+step "Identity registry: (issuer, sub) uniqueness from 0002_identity.sql"
+
+# Run as lecrm_provisioner without an inline SET (the command tag pollutes
+# tuples-only output when followed by INSERT...RETURNING).
+export PGOPTIONS="-c role=lecrm_provisioner"
+
+UUID_RE='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+
+USER_A_ID=$(psql -tA -c "INSERT INTO core.users (issuer, subject, email) VALUES ('https://auth.lecrm.test/application/o/lecrm/', 'auth-uuid-1', 'guillaume@gbconsult.example') RETURNING id;" | grep -E "^${UUID_RE}\$" | head -n1)
+[[ -n "${USER_A_ID}" ]] || fail "INSERT into core.users returned no id"
+pass "Authentik user inserted (id=${USER_A_ID})"
+
+# Same (issuer, sub) must error with unique_violation (23505).
+if psql -tA -v ON_ERROR_STOP=1 -c "INSERT INTO core.users (issuer, subject, email) VALUES ('https://auth.lecrm.test/application/o/lecrm/', 'auth-uuid-1', 'dup@example.com');" >/dev/null 2>&1; then
+  fail "duplicate (issuer, subject) should have failed"
+fi
+pass "duplicate (issuer, subject) rejected"
+
+# Same subject, different issuer is a DIFFERENT user (key motivation of
+# the tuple: v0→v1 IDP migration is a mapping table, not a destructive
+# rewrite — ADR-009 §7.1).
+USER_B_ID=$(psql -tA -c "INSERT INTO core.users (issuer, subject, email) VALUES ('https://zitadel.cloud/v2', 'auth-uuid-1', 'guillaume@gbconsult.example') RETURNING id;" | grep -E "^${UUID_RE}\$" | head -n1)
+[[ -n "${USER_B_ID}" ]] || fail "second issuer with same subject failed"
+[[ "${USER_B_ID}" != "${USER_A_ID}" ]] || fail "same id returned for different issuer"
+pass "different issuer, same subject = distinct user (id=${USER_B_ID})"
+
+# Workspace membership FK exercises the cross-table contract.
+psql -tA -v ON_ERROR_STOP=1 -c "INSERT INTO core.workspaces (id, slug, role_name) VALUES ('${TEST_UUID}'::uuid, 'acme', '${TEST_ROLE}') ON CONFLICT (id) DO NOTHING; INSERT INTO core.workspace_members (workspace_id, user_id, role) VALUES ('${TEST_UUID}'::uuid, '${USER_A_ID}'::uuid, 'owner');" >/dev/null
+pass "workspace membership row created"
+
+unset PGOPTIONS
 
 printf '\n\033[1;32mALL CHECKS PASSED\033[0m on Postgres %s\n' "$(${PGBIN}/postgres --version | awk '{print $3}')"
