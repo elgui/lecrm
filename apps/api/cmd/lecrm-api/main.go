@@ -20,6 +20,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/config"
 	"github.com/gbconsult/lecrm/apps/api/internal/db"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
+	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
 func main() {
@@ -69,9 +70,18 @@ func run(logger *slog.Logger) error {
 		Logger:        logger,
 	}
 
+	wsResolver := &workspace.PoolResolver{Pool: pool}
+	testList := &workspace.TestListHandler{Pool: pool, Logger: logger}
+
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           httpserver.NewRouter(logger, authH),
+		Addr: cfg.HTTPAddr,
+		Handler: httpserver.NewRouter(httpserver.RouterDeps{
+			Logger:          logger,
+			AuthHandler:     authH,
+			Resolver:        wsResolver,
+			TestList:        testList,
+			CookieDomainTLD: cfg.CookieDomainTLD,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       2 * time.Minute,
 	}

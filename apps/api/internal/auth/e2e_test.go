@@ -135,7 +135,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	resp := mustDo(t, noRedir, "GET", base+"/auth/login", nil, nil)
 	requireStatus(t, "/auth/login", resp, http.StatusFound)
 	authzURL := resp.Header.Get("Location")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if !strings.HasPrefix(authzURL, authentikBase+"/application/o/authorize/") {
 		t.Fatalf("/auth/login Location not authorize endpoint: %q", authzURL)
 	}
@@ -144,7 +144,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	//    Set-Cookie authentik_session (anonymous, server-side state init).
 	resp = mustDo(t, noRedir, "GET", authzURL, nil, nil)
 	requireStatus(t, "authz seed", resp, http.StatusFound)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// 3. Drive the JSON flow executor. The `?query=` param round-trips the
 	//    authz query so the post-auth re-entry knows where to land.
@@ -156,19 +156,17 @@ func TestE2EOIDCFlow(t *testing.T) {
 		"Content-Type": []string{"application/json"},
 	}
 
-	resp = mustDo(t, noRedir, "GET", execURL, nil, jsonHdr)
-	requireComponent(t, "identification GET", resp, "ak-stage-identification")
+	requireComponentVia(t, noRedir, "identification GET", "GET", execURL, nil, jsonHdr, "ak-stage-identification")
 
 	resp = mustDo(t, noRedir, "POST", execURL, []byte(`{"uid_field":"`+testUsername+`"}`), jsonHdr)
 	requireStatus(t, "uid_field POST", resp, http.StatusFound)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
-	resp = mustDo(t, noRedir, "GET", execURL, nil, jsonHdr)
-	requireComponent(t, "password GET", resp, "ak-stage-password")
+	requireComponentVia(t, noRedir, "password GET", "GET", execURL, nil, jsonHdr, "ak-stage-password")
 
 	resp = mustDo(t, noRedir, "POST", execURL, []byte(`{"password":"`+testPassword+`"}`), jsonHdr)
 	requireStatus(t, "password POST", resp, http.StatusFound)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// 4. The MFA-validate stage skips (not_configured_action=skip, no
 	//    devices enrolled) and chains into UserLoginStage. Following the
@@ -181,7 +179,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&redir); err != nil {
 		t.Fatalf("decode flow completion: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if redir.Component != "xak-flow-redirect" {
 		t.Fatalf("expected xak-flow-redirect after auth, got %q", redir.Component)
 	}
@@ -192,7 +190,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	resp = mustDo(t, noRedir, "GET", authzURL, nil, nil)
 	requireStatus(t, "post-auth authz", resp, http.StatusFound)
 	callbackURL := resp.Header.Get("Location")
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if !strings.HasPrefix(callbackURL, base+"/auth/callback?code=") {
 		t.Fatalf("post-auth authz Location not callback: %q", callbackURL)
 	}
@@ -204,7 +202,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	if got := resp.Header.Get("Location"); got != "/" {
 		t.Fatalf("/auth/callback Location: want '/', got %q", got)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// --- Assertion 1: lecrm_session set on workspace subdomain, NOT on parent.
 	workspaceURL := &url.URL{Scheme: "http", Host: workspaceHost, Path: "/"}
@@ -282,7 +280,7 @@ func TestE2EOIDCFlow(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
 		t.Fatalf("decode /auth/me: %v", err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if me.UserID == "" || me.WorkspaceID == "" {
 		t.Fatalf("assertion #4 FAIL: /auth/me missing fields: %+v", me)
 	}
@@ -314,7 +312,7 @@ func startAPI(t *testing.T, binPath string) func() {
 	cmd.Stderr = logFile
 
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		t.Fatalf("start lecrm-api: %v", err)
 	}
 
@@ -378,22 +376,28 @@ func requireStatus(t *testing.T, label string, resp *http.Response, want int) {
 	}
 }
 
-func requireComponent(t *testing.T, label string, resp *http.Response, want string) {
+// requireComponentVia issues the HTTP request and asserts the JSON
+// component in a single call. Keeping the request and close together
+// in one helper makes the body-lifecycle visible to the bodyclose
+// linter — the previous pattern (mustDo followed by a separate assert
+// helper) had the close hidden behind a helper boundary.
+func requireComponentVia(t *testing.T, c *http.Client, label, method, urlStr string, body []byte, headers http.Header, wantComp string) {
 	t.Helper()
+	resp := mustDo(t, c, method, urlStr, body, headers)
+	defer func() { _ = resp.Body.Close() }()
 	requireStatus(t, label, resp, http.StatusOK)
-	body, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("%s: read body: %v", label, err)
 	}
 	var j struct {
 		Component string `json:"component"`
 	}
-	if err := json.Unmarshal(body, &j); err != nil {
-		t.Fatalf("%s: decode json: %v\nbody=%s", label, err, body)
+	if err := json.Unmarshal(raw, &j); err != nil {
+		t.Fatalf("%s: decode json: %v\nbody=%s", label, err, raw)
 	}
-	if j.Component != want {
-		t.Fatalf("%s: want component %q, got %q\nbody=%s", label, want, j.Component, body)
+	if j.Component != wantComp {
+		t.Fatalf("%s: want component %q, got %q\nbody=%s", label, wantComp, j.Component, raw)
 	}
 }
 

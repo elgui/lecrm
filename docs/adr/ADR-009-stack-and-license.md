@@ -400,3 +400,18 @@ These scope cuts protect the 13-week ceiling. The council expects week 7-8 (meta
 13. **NEW — Ubicloud PgBouncer auth_query mode verification** at Phase 2 onboarding. If Ubicloud uses static auth_file, single config-file compromise exposes all workspace credentials.
 14. **NEW — ADR-007 follow-ups:** add `lecrm_provisioner` credential and Authentik admin credential to secret manifest; add `security.workspace_id_mismatch` event to audit catalogue; formalise audit-log fail-closed semantics on the mutation path.
 15. **NEW — Leo pipeline timing.** ADR-008 TO RESOLVE-7 (Leo's pipeline absorbing the wider v0 timeline) closes here: tracking moves to `docs/STRATEGIC-OVERVIEW.md` post-stack-ADR revision (TO RESOLVE-8 above).
+
+---
+
+## Week-2 Go ramp checkpoint outcome (2026-05-14)
+
+The three litmus tests from §1.1 were run on the `apps/api` scaffolding produced in commits 63be520 → 0ba5916. Postgres on the local socket was admin-locked under the session's no-sudo policy, so the live integration test ships as a build-tagged test (`-tags integration`) that can be run when the local compose stack is up; the in-process tests cover the same code paths with a stub `Resolver` and exercise the typed-context + middleware + handler composition end-to-end.
+
+- **Test 1 (sqlc handler):** PASS — ~30 minutes elapsed. `apps/api/sqlc.yaml` generates `internal/sqlcgen/` from `packages/db/queries/workspaces.sql` against the existing `packages/db/migrations` schema; the `/v1/_test/workspaces` handler (`internal/workspace/handlers.go`) calls `sqlcgen.New(pool).ListWorkspacesForTest(ctx)` and marshals the typed rows to JSON. Build-tagged integration test `TestTestListHandler_Integration` exercises the live pgxpool path.
+- **Test 2 (workspace middleware):** PASS — ~25 minutes elapsed. `internal/workspace/context.go` uses an unexported `ctxKey struct{}` (per Go idiom — not a string key) with a typed `WithWorkspace` setter and `WorkspaceFromContext(ctx) (*Context, error)` getter. `internal/workspace/middleware.go` resolves the subdomain via a `Resolver` interface (live implementation `PoolResolver` goes through sqlc). Eight unit tests cover round-trip, missing-context error, the string-key shadowing anti-pattern, unknown-slug 404, root-domain 400, multi-label-subdomain 400, and `subdomainOf` parsing edge cases.
+- **Test 3 (lint + vet clean):** PASS — ~15 minutes elapsed. `go vet ./...` and `golangci-lint run ./...` both report zero issues. Pre-existing `errcheck`/`bodyclose` findings in `internal/auth/e2e_test.go` were fixed at the source (refactor of `requireComponent` → `requireComponentVia` so the bodyclose linter can see the body lifecycle); no `//nolint:` directives were added. Project-level exclusion is scoped only to `internal/sqlcgen/` (generated code) — a structural policy, not noise suppression.
+- **Decision:** CONTINUE Go.
+- **Decided by:** Guillaume
+- **Decided on:** 2026-05-14
+- **Notes:** Claude Code produced idiomatic Go on first prompt across all three deliverables — unexported context-key type, pgxpool acquisition, chi router groups with middleware composition, sqlc query+overrides config. The only Go-adjacent friction was an `sqlc` override duplication that double-imported the `uuid` package; the fix (collapse to two string-form `go_type` overrides) was a config edit, not a language issue. Total elapsed across all three tests was ~70 minutes — well inside the 90 + 90 + 30 = 210 minute combined budget. Per §1.1 the decision is binding for v0; no relitigation at week 5 (the metadata-engine ADR-010 work now proceeds on the Go stack).
+
