@@ -1,0 +1,95 @@
+// Command lecrm-api is the leCRM v0 HTTP server: REST endpoints under
+// /v1/* and (post-Sprint-2) the embedded React SPA under /*.
+//
+// At Day-2 this binary serves only the /auth/* OIDC flow and a healthz
+// probe; REST handlers land in Sprint 7.
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gbconsult/lecrm/apps/api/internal/auth"
+	"github.com/gbconsult/lecrm/apps/api/internal/config"
+	"github.com/gbconsult/lecrm/apps/api/internal/db"
+	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
+)
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+
+	if err := run(logger); err != nil {
+		logger.Error("fatal", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("config: %w", err)
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	pool, err := db.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("database: %w", err)
+	}
+	defer pool.Close()
+	logger.Info("database connected")
+
+	// Build the OIDC provider. Redirect URI is a wildcard-on-the-
+	// subdomain pattern from Authentik's POV; at runtime the actual
+	// redirect URI is the workspace-specific URL the browser hit.
+	redirectURI := fmt.Sprintf("https://*.%s%s", cfg.CookieDomainTLD, cfg.OIDC.CallbackPath)
+	provider, err := auth.NewProvider(ctx, cfg.OIDC.Issuer, cfg.OIDC.ClientID, cfg.OIDC.ClientSecret, redirectURI, cfg.OIDC.Scopes, cfg.SessionSecret)
+	if err != nil {
+		return fmt.Errorf("oidc provider: %w", err)
+	}
+	logger.Info("oidc provider ready", "issuer", cfg.OIDC.Issuer)
+
+	authH := &auth.Handler{
+		Provider:      provider,
+		Store:         auth.NewStore(pool),
+		SessionSecret: cfg.SessionSecret,
+		DomainTLD:     cfg.CookieDomainTLD,
+		CookieSecure:  cfg.CookieSecure,
+		Logger:        logger,
+	}
+
+	srv := &http.Server{
+		Addr:              cfg.HTTPAddr,
+		Handler:           httpserver.NewRouter(logger, authH),
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	go func() {
+		logger.Info("listening", "addr", cfg.HTTPAddr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("listen error", "err", err)
+			cancel()
+		}
+	}()
+
+	<-ctx.Done()
+	logger.Info("shutdown initiated")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout())
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+	logger.Info("shutdown complete")
+	return nil
+}
