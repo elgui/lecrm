@@ -1,10 +1,11 @@
 ---
 id: 20260510-162158-1023
 title: "leCRM v0 — Secrets management baseline: sops + age (Track H)"
-status: later
+status: done
 priority: p1
 created: 2026-05-10
 updated: 2026-05-14
+done: 2026-05-14
 tags: [secrets, sops, age, ops, v0]
 category: project
 group: lecrm-v0-sprint-3
