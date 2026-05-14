@@ -4,11 +4,12 @@ title: leCRM v0 — Brevo Transactional API integration (Track B)
 status: later
 priority: p1
 created: 2026-05-10
-updated: 2026-05-11
+updated: 2026-05-14
 tags: [email, brevo, integration, v0]
 category: project
 group: lecrm-v0-build
-order: 1
+group_order: 3
+order: 2
 plan: true
 ---
 

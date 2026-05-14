@@ -4,11 +4,12 @@ title: leCRM v0 — Embedded Metabase reporting (Track D)
 status: later
 priority: p2
 created: 2026-05-10
-updated: 2026-05-11
+updated: 2026-05-14
 tags: [reporting, metabase, v0]
 category: project
 group: lecrm-v0-build
-order: 2
+group_order: 3
+order: 4
 plan: true
 ---
 

@@ -4,10 +4,11 @@ title: "leCRM v0 — Backup baseline: WAL-G + GPG + Hetzner Object Storage (Trac
 status: later
 priority: p1
 created: 2026-05-10
-updated: 2026-05-11
+updated: 2026-05-14
 tags: [backup, ops, wal-g, v0]
 category: project
 group: lecrm-v0-build
+group_order: 3
 order: 3
 plan: true
 ---

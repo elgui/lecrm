@@ -4,11 +4,12 @@ title: "leCRM v0 — Secrets management baseline: sops + age (Track H)"
 status: later
 priority: p1
 created: 2026-05-10
-updated: 2026-05-11
+updated: 2026-05-14
 tags: [secrets, sops, age, ops, v0]
 category: project
 group: lecrm-v0-build
-order: 4
+group_order: 3
+order: 1
 plan: true
 ---
 

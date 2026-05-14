@@ -7,6 +7,7 @@ created: 2026-05-14
 updated: 2026-05-14
 category: engineering
 group: lecrm-v0-scaffolding
+group_order: 1
 order: 4
 ---
 

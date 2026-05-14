@@ -4,9 +4,10 @@ title: "leCRM v0 — Week-2 Go ramp checkpoint (BINDING decision gate: continue 
 status: later
 priority: p0
 created: 2026-05-10
-updated: 2026-05-10
+updated: 2026-05-14
 category: engineering
 group: lecrm-v0-scaffolding
+group_order: 1
 order: 2
 ---
 
