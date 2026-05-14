@@ -1,0 +1,62 @@
+# Authentik 2025.10 — v0 IDP per ADR-009 §7.1.
+#
+# Decision recorded in the first scaffold commit: Authentik chosen over
+# Zitadel Cloud EU for v0. The (issuer, sub) user-key tuple per ADR-009
+# §7.1 keeps the v0→v1 IDP migration a mapping table, not a destructive
+# rewrite. The 4-hour migration-cost threshold for switching to Zitadel
+# Cloud is not exceeded at v0 (zero users).
+#
+# Authentik 2025.10 removed the hard Redis dependency; Postgres-backed
+# caching is the default. This Compose file therefore omits a Redis
+# service.
+#
+# v0 status: stub. The OIDC client (`lecrm-api`) is provisioned by Sprint
+# 1 final commit (currently Day-1 deferred). Google Workspace OIDC
+# upstream is wired in Sprint 3 alongside the secrets baseline.
+#
+# Admin interface is intentionally bound to localhost only in this stub;
+# the production overlay restricts it via Caddy IP allowlist or VPN.
+
+services:
+  authentik-server:
+    image: ghcr.io/goauthentik/server:2025.10
+    container_name: lecrm-authentik-server
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?required}
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD:?required}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${AUTHENTIK_BOOTSTRAP_PASSWORD:?required}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${AUTHENTIK_BOOTSTRAP_EMAIL:?required}
+      # 2025.10 cache backend = postgres; no Redis URL needed.
+      AUTHENTIK_CACHE__URL: ""
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9443:9443"
+    networks:
+      - lecrm
+    depends_on:
+      - authentik-worker
+
+  authentik-worker:
+    image: ghcr.io/goauthentik/server:2025.10
+    container_name: lecrm-authentik-worker
+    restart: unless-stopped
+    command: worker
+    environment:
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?required}
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRES_PASSWORD:?required}
+      AUTHENTIK_CACHE__URL: ""
+    networks:
+      - lecrm
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true

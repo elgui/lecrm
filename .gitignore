@@ -8,3 +8,24 @@
 .DS_Store
 *.swp
 *.swo
+
+# Go build artifacts (added pre-emptively for Sprint 2 onward)
+/bin/
+/vendor/
+*.test
+*.out
+coverage.txt
+
+# Node / Vite artifacts (apps/web — Sprint 2 onward)
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+
+# SOPS-decrypted .env should never be committed (encrypted .env.enc is fine)
+.env
+.env.*
+!.env.example
+!.env.*.enc
+
+# Smoke-test transient artifacts
+/tmp/lecrm-smoke-*

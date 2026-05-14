@@ -1,0 +1,50 @@
+# Postgres 17 — primary data plane.
+#
+# Wired against ADR-009 §2 (schema-per-tenant via per-workspace Postgres
+# role; lecrm_provisioner SECURITY DEFINER provisions tenants). The
+# bootstrap migration in packages/db/migrations/0001_init.sql creates the
+# lecrm_provisioner role and the lecrm_provision_workspace function.
+#
+# v0 status: stub. Booted via `docker compose -f deploy/compose/postgres.yml up`
+# once the SOPS-encrypted .env file lands in Sprint 3
+# (tasket 20260510-162158-1023). Production target is OVH self-hosted at
+# Phase 1, Ubicloud Managed Postgres or OVH Managed Postgres at Phase 2.
+#
+# pgcrypto is required by the provisioning function (gen_random_bytes).
+# It is installed in 0001_init.sql via CREATE EXTENSION; the image ships
+# it but it is not loaded into a fresh database by default.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: lecrm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres                     # superuser for migrations
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?required}
+      POSTGRES_DB: lecrm
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Bootstrap migration is mounted as a one-shot init script. It runs
+      # only on a fresh data directory; idempotency in the provision
+      # function means re-runs in production are handled by Atlas via the
+      # `cmd/lecrm-migrate` pre-deploy job.
+      - ../../packages/db/migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"                     # bind localhost only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lecrm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lecrm
+
+volumes:
+  postgres_data:
+
+networks:
+  lecrm:
+    name: lecrm
+    driver: bridge

@@ -1,0 +1,81 @@
+# LGTM observability stack — Loki + Grafana + Tempo + Prometheus + OTel
+# Collector. Per ADR-009 §7.3 v0 observability. Memory budget ~1.1 GB;
+# fits comfortably on an OVH CX22-equivalent VPS.
+#
+# v0 status: stub. Wired during Sprint 11 (tasket 20260510-162158-d1ba's
+# downstream observability work). At v1+ migrates to Grafana Cloud EU
+# (Frankfurt) free tier first, then Pro tier ($19/mo + usage).
+#
+# All metrics MUST be labelled with `workspace_id` (ADR-009 §7.3) for
+# per-tenant anomaly detection.
+
+services:
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: lecrm-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?required}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - lecrm
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: lecrm-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - lecrm
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: lecrm-tempo
+    restart: unless-stopped
+    command: -config.file=/etc/tempo.yaml
+    volumes:
+      - tempo_data:/var/tempo
+    networks:
+      - lecrm
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: lecrm-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - prometheus_data:/prometheus
+    networks:
+      - lecrm
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    container_name: lecrm-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yml"]
+    networks:
+      - lecrm
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+
+volumes:
+  grafana_data:
+  loki_data:
+  tempo_data:
+  prometheus_data:
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true

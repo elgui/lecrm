@@ -1,0 +1,51 @@
+# Caddyfile — leCRM v0 edge.
+#
+# Caddy terminates TLS and proxies all traffic to the single
+# `cmd/lecrm-api` binary, which internally routes /v1/* to REST handlers
+# and /* to the embedded SPA (ADR-009 §5.1).
+#
+# DNS-01 wildcard cert (Cloudflare DNS API token, SOPS-encrypted .env)
+# covers *.lecrm.fr (production) and *.lecrm.test (local). The
+# `cloudflare.dns` module is included in the custom Caddy build documented
+# in deploy/README.md.
+#
+# v0 status: stub. Production overlay sets the CSP header and the
+# IP-allowlist on the Authentik admin route during Sprint 1 final commit.
+
+{
+        # ACME / DNS-01 — Cloudflare. Token lives in SOPS-encrypted .env.
+        # email gbconsult@example.com   # TODO: replace before first cert
+        # acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+}
+
+# Wildcard cert per workspace subdomain.
+*.lecrm.fr, *.lecrm.test {
+        tls {
+                dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        }
+
+        # CSP per ADR-009 §5.2. unsafe-inline on style-src is a
+        # shadcn/Tailwind necessity; scripts MUST be 'self' only.
+        header {
+                Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+                X-Content-Type-Options "nosniff"
+                Referrer-Policy "strict-origin-when-cross-origin"
+                Strict-Transport-Security "max-age=31536000; includeSubDomains"
+                -Server
+        }
+
+        # All traffic to lecrm-api on the internal Compose network.
+        # /v1/* lands on REST handlers; /* lands on //go:embed dist/* SPA.
+        reverse_proxy lecrm-api:8080
+}
+
+# Authentik admin & OIDC endpoints behind an IP allowlist.
+# In production this domain is fronted by Caddy with the
+# `@trusted_ips` matcher (added in the production overlay, Sprint 1
+# final commit).
+auth.lecrm.fr, auth.lecrm.test {
+        tls {
+                dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+        }
+        reverse_proxy authentik-server:9000
+}
