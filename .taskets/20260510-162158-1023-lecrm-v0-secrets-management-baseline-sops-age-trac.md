@@ -7,7 +7,7 @@ created: 2026-05-10
 updated: 2026-05-14
 tags: [secrets, sops, age, ops, v0]
 category: project
-group: lecrm-v0-build
+group: lecrm-v0-sprint-3
 group_order: 3
 order: 1
 plan: true

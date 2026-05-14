@@ -6,8 +6,8 @@ priority: p0
 created: 2026-05-14
 updated: 2026-05-14
 category: engineering
-group: lecrm-v0-execution-discipline
-group_order: 2
+group: lecrm-v0-sprint-3
+group_order: 3
 order: 2
 ---
 

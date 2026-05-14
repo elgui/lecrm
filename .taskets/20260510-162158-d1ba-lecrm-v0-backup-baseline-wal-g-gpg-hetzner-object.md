@@ -7,9 +7,9 @@ created: 2026-05-10
 updated: 2026-05-14
 tags: [backup, ops, wal-g, v0]
 category: project
-group: lecrm-v0-build
-group_order: 3
-order: 3
+group: lecrm-v0-sprint-11
+group_order: 11
+order: 2
 plan: true
 ---
 

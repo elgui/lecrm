@@ -7,7 +7,7 @@ created: 2026-05-10
 updated: 2026-05-14
 category: tooling
 group: lecrm-v2-exploration
-group_order: 5
+group_order: 30
 order: 1
 ---
 

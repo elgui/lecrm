@@ -1,11 +1,12 @@
 ---
 id: 20260514-114231-8a67
-title: "leCRM v0 — Integrator-handoff capabilities (protects the Distribution moat)"
-status: later
+title: leCRM v0 — Integrator-handoff capabilities (protects the Distribution moat)
+status: superseded
 priority: p1
 created: 2026-05-14
 updated: 2026-05-14
 category: engineering
+review: "superseded-by: dc1b/731a/fa6b — split into Sprint 8/9/11 phases for sprint-aligned grouping (2026-05-14)"
 group: lecrm-v0-execution-discipline
 group_order: 2
 order: 5

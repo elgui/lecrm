@@ -6,9 +6,9 @@ priority: p1
 created: 2026-05-14
 updated: 2026-05-14
 category: engineering
-group: lecrm-v0-execution-discipline
-group_order: 2
-order: 4
+group: lecrm-v0-sprint-10
+group_order: 10
+order: 1
 ---
 
 ## Read this cold — full context inline

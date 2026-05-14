@@ -8,7 +8,7 @@ updated: 2026-05-14
 tags: [sequences, email, deliverability, v1]
 category: project
 group: lecrm-v1-build
-group_order: 4
+group_order: 20
 order: 1
 plan: true
 ---
