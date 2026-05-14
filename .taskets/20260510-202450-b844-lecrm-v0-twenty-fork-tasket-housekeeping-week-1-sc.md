@@ -1,12 +1,13 @@
 ---
 id: 20260510-202450-b844
 title: leCRM v0 — Twenty-fork tasket housekeeping + Week 1 scaffolding (Parts A+B, fresh session)
-status: later
+status: done
 priority: p0
 created: 2026-05-10
 updated: 2026-05-14
+done: 2026-05-14
 category: engineering
-review: "part-a-complete: housekeeping pass done in commit 6f490e0 on 2026-05-10. Skip straight to Part B (Week 1 scaffolding). The 9 lecrm-v0-build sub-taskets have been classified (3 deleted, 6 re-scoped with new bodies, 2 meta-taskets were already done)."
+review: "part-a-complete: housekeeping pass done in commit 6f490e0 on 2026-05-10. Part B completed across 63be520 (monorepo skeleton + Apache 2.0 + provision function), 71f94db (DB 0002_identity.sql + smoke test), f32c815 (Go OIDC RP + per-subdomain cookie), b4bfe9d (OIDC E2E against Authentik 2025.10), 098664f (build-tagged Go test for the full flow), and this session (apps/web Vite+React 19+TanStack+shadcn scaffold, .github/workflows/ci.yml, deploy/Dockerfile multi-stage). Remaining acceptance items — pnpm-lock.yaml on the first CI run, OVH VPS provisioning, CI green on a no-op PR — are downstream-of-commit work tracked in subsequent taskets."
 group: lecrm-v0-scaffolding
 group_order: 1
 order: 1
