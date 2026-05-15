@@ -4,7 +4,7 @@
 **Date:** 2026-05-14
 **Owner:** Guillaume
 **Tasket:** `20260514-114210-9b41` (lecrm-v0-sprint-3)
-**Related:** [ADR-009 §1, §9](adr/ADR-009-stack-and-license.md) — stack and schedule gates; [ADR-001](adr/ADR-001-tenancy-model.md) — schema-per-tenant; tasket `20260514-114217-3c84` — ADR-010 (metadata-engine pattern); tasket `20260514-114245-d3a8` — G3 metadata-engine scope verify; tasket `20260514-114238-bf09` — G4 Google OAuth submission; tasket `20260510-202450-a5d3` — G1 stack decision (CONTINUE Go, locked 2026-05-14)
+**Related:** [ADR-009 §1, §9](adr/ADR-009-stack-and-license.md) — stack and schedule gates; [ADR-001](adr/ADR-001-tenancy-model.md) — schema-per-tenant; [ADR-010](adr/ADR-010-metadata-engine.md) — metadata-engine pattern (**JSONB-primary**, committed 2026-05-15); tasket `20260514-114217-3c84` — ADR-010 authoring tasket; tasket `20260514-114245-d3a8` — G3 metadata-engine scope sanity check (semantics adjusted by ADR-010 §7); tasket `20260514-114238-bf09` — G4 Google OAuth submission; tasket `20260510-202450-a5d3` — G1 stack decision (CONTINUE Go, locked 2026-05-14)
 
 > This document operationalises the PRD flags **`solo-builder-capacity-bound`** and **`v0-capability-constraints`** ([prd.md L45/L48, L224/L227](../{output_folder}/planning-artifacts/prd.md)). It commits to what v0 WILL test (minimal but sufficient) and what it WON'T (no full E2E, no chaos, no performance baseline) — and which quality risks are NON-negotiable regardless of capacity.
 
@@ -126,15 +126,9 @@ testfixtures/rbac
 
 **Where this lands.** RBAC scaffold begins Sprint 7 ([sprint-plan L119](sprint-plan.md)); the full suite hardens Sprint 9 alongside the feature ([sprint-plan L170](sprint-plan.md)).
 
-### 4.3 (c) JSONB metadata-engine mutation paths — **conditional on ADR-010 outcome**
+### 4.3 (c) JSONB metadata-engine mutation paths — **load-bearing per ADR-010**
 
-**Conditionality.** ADR-010 (tasket `20260514-114217-3c84`) commits at Wk 4-5 to either:
-- **DDL primary path** (per-tenant `ALTER TABLE` to add custom properties), OR
-- **JSONB fallback** (`custom_fields JSONB` column).
-
-If ADR-010 lands on **DDL**, category (c) becomes lightweight (a schema-drift test per tenant, a query-correctness test for the generated SQL) — still required but mechanically simple.
-
-If ADR-010 lands on **JSONB** — which the PRD framing names as the load-bearing-through-v1 outcome ([prd.md L196-197](../{output_folder}/planning-artifacts/prd.md)) — category (c) is non-negotiable and load-bearing for v0 quality.
+[ADR-010](adr/ADR-010-metadata-engine.md) (committed 2026-05-15) selected **JSONB-primary** on a generic `objects` table per workspace schema. Category (c) is therefore load-bearing for v0 quality, not conditional. The DDL-branch sub-section that previously appeared here is retired with the ADR's "decision is binary" framing.
 
 **Risk model under JSONB.** Three classes of failure:
 1. **Concurrent mutation:** two HTTP requests update different keys in the same JSONB row; last-write-wins overwrites a sibling key. Failure: silent data loss.
@@ -155,14 +149,12 @@ testfixtures/metadata
       runs EXPLAIN ANALYZE; fails if rows_scanned exceeds maxRowsScanned
 ```
 
-**Minimum test count (JSONB branch).** **≥8 metadata-engine tests:**
+**Minimum test count.** **≥8 metadata-engine tests:**
 - ≥3 concurrent-mutation cases (2 writers / 5 writers / 20 writers).
-- ≥3 schema-drift cases (rename, type change, deletion-then-recreation).
-- ≥2 query-plan-guard cases (one indexed query, one non-indexed but bounded-cardinality query).
+- ≥3 schema-drift cases (rename, type change, deletion-then-recreation against `custom_property_definitions`).
+- ≥2 query-plan-guard cases (one GIN-indexed `data @> ...` query, one non-indexed but bounded-cardinality query).
 
-**Minimum test count (DDL branch).** **≥3 tests** — schema-drift per tenant, generated-SQL correctness, locking-under-concurrent-reads (uses Postgres `pg_stat_activity` to detect AccessExclusiveLock contention).
-
-**Where this lands.** Sprint 8 if JSONB is chosen ([sprint-plan L130](sprint-plan.md)).
+**Where this lands.** Sprint 8 ([sprint-plan L130](sprint-plan.md)).
 
 ### 4.4 (d) OAuth token lifecycle
 
@@ -202,7 +194,7 @@ The mock binds to `127.0.0.1:0` and the test config points the OAuth client at `
 **No line-coverage target at v0.** A line-coverage gate at the solo-builder scale creates incentive to write thin tests that exercise lines without exercising behaviour. The four non-negotiable categories above are behaviour-coverage gates; they are the budget.
 
 **What CI reports per PR.**
-- Pass/fail count per non-negotiable category, with a hard floor (≥15 isolation, ≥30 RBAC, ≥8 or ≥3 metadata depending on ADR-010, ≥10 OAuth).
+- Pass/fail count per non-negotiable category, with a hard floor (≥15 isolation, ≥30 RBAC, ≥8 metadata, ≥10 OAuth).
 - Endpoint-registry diff: any new tenant-filtered endpoint without a corresponding isolation + RBAC entry fails CI.
 
 **Nightly run.** Full integration tests against a Postgres testcontainer with seeded data scaled to ~3x design-partner sizing (≈30k contacts, ≈10k deals). Surfaces query-plan regressions before they hit production.
@@ -227,10 +219,10 @@ The CI configuration enforces this via required-status-check on the integration 
 ## 7. Cross-references and TO RESOLVE
 
 **Cross-references.**
-- ADR-010 (tasket `20260514-114217-3c84`) commits the metadata-engine pattern at Wk 4-5 — re-read this section when ADR-010 lands; (c) becomes either the lightweight DDL form or the load-bearing JSONB form.
-- G3 metadata-engine scope verify (tasket `20260514-114245-d3a8`) at Wk 6 — if G3 forces a fallback from DDL to JSONB, the test count in (c) jumps from ≥3 to ≥8 and that's a binding change to this strategy.
+- [ADR-010](adr/ADR-010-metadata-engine.md) — metadata-engine pattern, JSONB-primary, committed 2026-05-15. Section §4.3 above is the corresponding regression spec.
+- G3 metadata-engine scope sanity check (tasket `20260514-114245-d3a8`) at Wk 6 — adjusted by ADR-010 §7: G3 is now a JSONB-scope sanity check (is the work staying inside the 3.25d projection?), not a DDL→JSONB switch. The ≥8 metadata test count is the binding floor regardless of G3 outcome.
 - G4 Google OAuth submission (tasket `20260514-114238-bf09`) Wk 5-6 — (d) fixture should be built parallel to the submission so the lifecycle tests exist when production-review approves.
-- Sprint plan ([docs/sprint-plan.md](sprint-plan.md)) names the sprint in which each fixture lands: tenantpair Sprint 7 ([L107](sprint-plan.md)), RBAC scaffold Sprint 7 ([L119](sprint-plan.md)), metadata Sprint 8 if JSONB ([L130](sprint-plan.md)), OAuth Sprint 10 ([L198](sprint-plan.md)), backup restore-test Sprint 12 ([L212](sprint-plan.md)).
+- Sprint plan ([docs/sprint-plan.md](sprint-plan.md)) names the sprint in which each fixture lands: tenantpair Sprint 7 ([L107](sprint-plan.md)), RBAC scaffold Sprint 7 ([L119](sprint-plan.md)), metadata Sprint 8 ([L130](sprint-plan.md)), OAuth Sprint 10 ([L198](sprint-plan.md)), backup restore-test Sprint 12 ([L212](sprint-plan.md)).
 
 **TO RESOLVE.**
 

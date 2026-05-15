@@ -1,14 +1,15 @@
 ---
 id: 20260514-114217-3c84
-title: "leCRM v0 — ADR-010 (metadata-engine pattern), authored PRE-Wk 5"
-status: later
+title: leCRM v0 — ADR-010 (metadata-engine pattern), authored PRE-Wk 5
+status: done
 priority: p0
 created: 2026-05-14
-updated: 2026-05-14
+updated: 2026-05-15
 category: engineering
-group: lecrm-v0-sprint-4
-group_order: 4
-order: 1
+group: lecrm-v0-scaffolding-v2
+group_order: 1
+order: 2
+done: 2026-05-15
 ---
 
 ## Read this cold — full context inline

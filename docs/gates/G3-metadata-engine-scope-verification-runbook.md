@@ -1,14 +1,17 @@
 ---
 title: G3 Schedule Gate — Metadata-Engine Scope Verification Runbook
-status: prep complete; verification blocked until end-of-Wk-6 timing AND ADR-010 DOR satisfied
+status: prep complete; ADR-010 DOR satisfied (committed 2026-05-15, JSONB-primary); verification still blocked until end-of-Wk-6 timing
 tasket: 20260514-114245-d3a8 (G3 schedule gate)
 adr-source: docs/adr/ADR-009-stack-and-license.md §9 G3
-adr-target: docs/adr/ADR-010-metadata-engine.md (does not exist yet; authored by tasket 20260514-114217-3c84 at Sprint 4 / Wk 4)
+adr-target: docs/adr/ADR-010-metadata-engine.md (committed 2026-05-15 by tasket 20260514-114217-3c84; **JSONB-primary** — see semantics-shift note below)
 created: 2026-05-14
+updated: 2026-05-15 (ADR-010 commit shifts G3 from pattern-switch gate to JSONB-scope sanity check; runbook §5.2.2 is the live path, §5.2.1 is historical)
 target-firing-window: end of Sprint 6 / Wk 6 (~2026-06-23, contingent on Wk-1 baseline 2026-05-12)
 NOT-before: Sprint 6 close. Premature firing falsifies the gate's evidence basis (incomplete picture per the tasket body).
 NOT-after: Sprint 7 open. Late firing flips the gate from "scope-check" to "sunk-cost rationalisation".
 ---
+
+> **Semantics shift after ADR-010 commit (2026-05-15).** This runbook was prepared on the assumption that ADR-010 might choose DDL-primary, making G3 the DDL→JSONB switch point. ADR-010 instead pinned **JSONB-primary** from line 1 (see ADR-010 §1-2). The live path for this gate is therefore §5.2.2 below (JSONB-scope sanity check: is cumulative metadata-engine work staying inside the 3.25d projection?). Section §5.2.1 (DDL → JSONB fallback) is **historical** — preserved as a record of the gate's original design, not as live procedure. If the verification finds JSONB-primary is bleeding scope, §5.2.2 prescribes the simplification (strip any per-tenant ambition that crept in beyond ADR-010 §3-5).
 
 # G3 — Metadata-Engine Scope Verification Runbook
 
@@ -98,7 +101,11 @@ If either question is no, the result is RED.
 
 The fallback is **specific** per ADR-009 §9 G3: JSONB `data` column on a generic `objects` table **per workspace schema**. Not "JSONB on tenant.contacts.custom_fields" — a separate generic table. This matters because the fallback's whole point is "no per-tenant DDL ambition, no migrations on custom-property creation".
 
-#### 5.2.1 If ADR-010 chose DDL-primary
+#### 5.2.1 If ADR-010 chose DDL-primary — **HISTORICAL (dead path after ADR-010 commit 2026-05-15)**
+
+ADR-010 selected JSONB-primary, so this sub-branch will not fire. Section preserved for runbook completeness and as a record of the gate's original design. The live RED-branch path is §5.2.2.
+
+
 
 Schema shape (per workspace schema, where `lecrm_<workspace_uuid>` is the workspace schema name):
 
@@ -126,7 +133,7 @@ Typed access helpers in `apps/api/internal/metadata/` should provide:
 - `Set(ctx, objectType, parentType, parentID, data map[string]any) error`
 - `Find(ctx, objectType, jsonbQuery JSONBQuery) ([]Object, error)` — JSONB path predicates
 
-#### 5.2.2 If ADR-010 chose JSONB-primary and IT is the one bleeding scope
+#### 5.2.2 If ADR-010 chose JSONB-primary and IT is the one bleeding scope — **LIVE PATH (per ADR-010 commit 2026-05-15)**
 
 The fallback is **even simpler**: same shape as 5.2.1 but with all per-tenant ambition stripped (e.g., if the JSONB-primary design tried to keep a registered-properties metadata table, drop it; if it had typed views per object type, drop those too). Pure unstructured `data jsonb` with typed-access helpers. Document this explicitly in the ADR-010 addendum: "JSONB-primary as authored was over-engineered; reduced to unstructured per workspace schema."
 

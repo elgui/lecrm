@@ -4,7 +4,7 @@ title: "leCRM v0 — Integrator handoff Phase 2: versioned methodology config ar
 status: later
 priority: p1
 created: 2026-05-14
-updated: 2026-05-14
+updated: 2026-05-15
 tags: [integrator-handoff, distribution-moat, methodology-config, sprint-9]
 category: engineering
 group: lecrm-v0-sprint-9
@@ -26,7 +26,7 @@ Without this, every new client is a hand-tweaked copy of the previous and diverg
 ## Prerequisite (DOR)
 
 - Phase 1 done — `lecrm tenant create` CLI shipped (`20260514-204646-dc1b`).
-- ADR-010 committed — methodology config storage shape depends on metadata-engine pattern (DDL-primary vs JSONB-primary chosen at `20260514-114217-3c84`, Sprint 4).
+- ADR-010 committed — **DONE (2026-05-15, JSONB-primary on `objects` table per workspace schema; see [ADR-010](../docs/adr/ADR-010-metadata-engine.md) §3-5).** Methodology config storage shape is therefore JSONB rows in `objects` with `object_type = 'methodology_config'`.
 - Multi-user RBAC live (Sprint 8 sibling — feature 7).
 - Pipeline Kanban view feature-complete (Sprint 8 sibling — feature 2).
 
@@ -42,16 +42,16 @@ Design + implement a per-tenant config schema that captures Léo's 5-element met
 
 Config must be:
 
-- **Stored versioned** — git-tracked YAML or DB rows with version history; whichever aligns with ADR-010's chosen pattern.
+- **Stored versioned** — DB rows in the per-workspace `objects` table per [ADR-010](../docs/adr/ADR-010-metadata-engine.md). One row per config version with `object_type = 'methodology_config'`, `data` holding the full 5-element payload, plus a `version_seq INT` discriminator captured inside `data` (or as a sibling column added at provisioning time). The CLI reads the latest by `MAX(version_seq)` and writes a new row rather than updating in place. Validation against `custom_property_definitions` per ADR-010 §4.
 - **Authorable by Léo without engineer involvement** — CLI is fine for v0; admin UI lands v1+.
-- **Diffable** — `lecrm config diff <client1> <client2>` shows divergence.
-- **Replayable** — apply config from client1 onto a new client2 tenant in one step.
+- **Diffable** — `lecrm config diff <client1> <client2>` shows divergence (diff at the JSONB-payload level; the CLI does the diff in Go, not in SQL).
+- **Replayable** — apply config from client1 onto a new client2 tenant in one step (CLI INSERTs a new `methodology_config` row in client2's `objects` table with the same `data` payload, bumping `version_seq` to 1).
 
 One **example config** (Léo's standard CRM-integrator template) committed to the repo as the reference implementation.
 
 ## Done When
 
-- [ ] Config schema implemented per ADR-010's pattern (DDL or JSONB)
+- [ ] Config schema implemented as JSONB rows in the per-workspace `objects` table per [ADR-010](../docs/adr/ADR-010-metadata-engine.md) §3 (`object_type = 'methodology_config'`, `data` holds the 5-element payload, `version_seq` discriminator)
 - [ ] `lecrm config show <tenant>` / `lecrm config diff <t1> <t2>` / `lecrm config replay <src> <dst>` CLI verbs working
 - [ ] One example config (Léo's standard template) checked into repo
 - [ ] Replay tested end-to-end: clone client X's config onto a fresh client Y tenant, verify identical state
@@ -63,4 +63,5 @@ One **example config** (Léo's standard CRM-integrator template) committed to th
 - Sibling Phase 1 (`20260514-204646-dc1b`), Phase 3 (Sprint 11 — audit surface)
 - `docs/sprint-plan.md` §Sprint 9 (Wk 9)
 - `${PAI_DATA_DIR}/35_CLIENTS/Leo/README.md` — Léo's integrator methodology (5-element schema)
-- Tasket `20260514-114217-3c84` — ADR-010 (storage pattern this consumes)
+- [ADR-010](../docs/adr/ADR-010-metadata-engine.md) — metadata-engine pattern (JSONB-primary on `objects` table, committed 2026-05-15)
+- Tasket `20260514-114217-3c84` — ADR-010 authoring tasket (`done` once Step 3 alignment lands)
