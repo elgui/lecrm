@@ -127,3 +127,50 @@ func TestClearSessionCookie_MatchesScopedSetCookie(t *testing.T) {
 		t.Fatalf("clear MaxAge = %d, want < 0", clr.MaxAge)
 	}
 }
+
+// TestCrossWorkspaceCookieLeakRejected is the ADR-009 §5.2 cross-tenant
+// isolation proof: a session cookie issued for workspace "acme" carries
+// Domain=acme.lecrm.fr; a cookie issued for workspace "other" carries
+// Domain=other.lecrm.fr. These are distinct domains — the browser will
+// never send "acme"'s cookie on a request to "other.lecrm.fr" (and
+// vice versa). Any attempt to hand-roll a parent-domain cookie is rejected
+// by BuildSessionCookie before any value is set.
+func TestCrossWorkspaceCookieLeakRejected(t *testing.T) {
+	const tld = "lecrm.fr"
+
+	acmeCookie, err := BuildSessionCookie(CookieScope{
+		WorkspaceSubdomain: "acme",
+		DomainTLD:          tld,
+		Secure:             true,
+	}, "acme-session-value")
+	if err != nil {
+		t.Fatalf("build acme cookie: %v", err)
+	}
+
+	otherCookie, err := BuildSessionCookie(CookieScope{
+		WorkspaceSubdomain: "other",
+		DomainTLD:          tld,
+		Secure:             true,
+	}, "other-session-value")
+	if err != nil {
+		t.Fatalf("build other cookie: %v", err)
+	}
+
+	if acmeCookie.Domain == otherCookie.Domain {
+		t.Fatalf("cross-workspace leak: both workspaces issued the same cookie Domain %q", acmeCookie.Domain)
+	}
+	if acmeCookie.Domain != "acme.lecrm.fr" {
+		t.Fatalf("acme cookie Domain = %q, want %q", acmeCookie.Domain, "acme.lecrm.fr")
+	}
+	if otherCookie.Domain != "other.lecrm.fr" {
+		t.Fatalf("other cookie Domain = %q, want %q", otherCookie.Domain, "other.lecrm.fr")
+	}
+
+	// Confirm neither domain equals the parent TLD (wildcard leak guard).
+	if acmeCookie.Domain == tld {
+		t.Fatalf("acme cookie Domain leaked to parent %q", tld)
+	}
+	if otherCookie.Domain == tld {
+		t.Fatalf("other cookie Domain leaked to parent %q", tld)
+	}
+}

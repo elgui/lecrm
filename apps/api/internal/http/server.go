@@ -37,6 +37,7 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 	r.Use(slogMiddleware(deps.Logger))
 	r.Use(chimw.Recoverer)
 	r.Use(chimw.Timeout(30 * time.Second))
+	r.Use(cspMiddleware)
 
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
