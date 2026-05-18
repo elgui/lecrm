@@ -112,7 +112,7 @@ The decision is recorded as an Architecture Decision Note appended to ADR-009 (d
 
 | Work item | Notes |
 |---|---|
-| **G2 fires PROACTIVELY** — tasket `20260514-114217-3c84` | ADR-010 authored at Wk 4, not Wk 5; binary decision DDL-primary OR JSONB-primary; if JSONB chosen, ADR-010 carries the load-bearing-through-v1 paragraph verbatim |
+| **G2 fired proactively at Wk 3** — tasket `20260514-114217-3c84` `done` (2026-05-15). ADR-010 selected JSONB-primary on `objects` table per workspace schema. Load-bearing-through-v1 paragraph in ADR-010 §6. | |
 | Metadata-engine implementation begins | Pattern set by ADR-010 |
 | Contact / Company / Deal entity work begins (feature 1) | Domain models + sqlc query files |
 | React 19 frontend slice live | TanStack Router + TanStack Query + shadcn/ui imports; first route renders against the API |
@@ -124,10 +124,10 @@ The decision is recorded as an Architecture Decision Note appended to ADR-009 (d
 
 | Work item | Notes |
 |---|---|
-| Metadata engine implementation continues | DDL-primary or JSONB depending on ADR-010 |
+| Metadata engine implementation continues per ADR-010 (JSONB-primary on `objects` + `custom_property_definitions` per workspace schema) | |
 | Custom properties on Contact + Deal (feature 6) | First feature consuming the metadata engine |
 | **G4 prep** — tasket `20260514-114238-bf09` | Privacy policy + ToS pages live at a stable URL on a verified domain (e.g. `gbconsult.me/lecrm/privacy`); domain verified in Google Search Console; demo video draft script |
-| **JSONB regression test coverage** IF ADR-010 chose JSONB | Concurrent mutation, schema drift, query correctness — non-negotiable test category (c) |
+| **JSONB regression test coverage** (non-negotiable test category (c), load-bearing per ADR-010) | Concurrent mutation, schema drift against `custom_property_definitions`, GIN-index query correctness — ≥8 tests per `docs/test-strategy.md` §4.3 |
 
 **Schedule gates:** G4 prep work (the gate itself fires Sprint 6 at the latest).
 
@@ -137,12 +137,12 @@ The decision is recorded as an Architecture Decision Note appended to ADR-009 (d
 |---|---|
 | Contact / Company / Deal CRUD with custom properties live | API + frontend |
 | Pipeline Kanban skeleton (feature 2) | Drag-and-drop wired via DnD Kit on TanStack Table |
-| **G3 verification fires end of sprint** — tasket `20260514-114245-d3a8` | Count actual days of metadata-engine effort honestly; if >5d cumulative, execute JSONB fallback per ADR-009 §9 G3 (JSONB `data` column on generic `objects` table per workspace schema) |
+| **G3 verification fires end of sprint** — tasket `20260514-114245-d3a8` | JSONB-scope sanity check per G3 runbook §5.2.2 (LIVE path): is cumulative JSONB metadata-engine work staying inside the 3.25d projection? Are non-negotiable (c) tests passing? Runbook §5.2.1 (DDL→JSONB switch) is historical. |
 | **G4 submission fires by end of sprint** — tasket `20260514-114238-bf09` | Demo video uploaded; OAuth consent screen production-ready; production review submitted via Google Cloud Console; submission ID + date logged; follow-up polling tasket created if no response in 2 wk |
 
 **Schedule gates:** **G3** (verify), **G4** (submit). Sibling taskets land: `d3a8`, `bf09`.
 
-**G3 fallback consequences:** if G3 forces JSONB fallback at this sprint, downstream tasket `8a67` Phase 2 (methodology config) must reconcile to the JSONB shape; test-strategy non-negotiable category (c) becomes load-bearing rather than conditional.
+**G3 outcome already determined by ADR-010:** ADR-010 committed JSONB-primary 2026-05-15 (proactive G2). Downstream alignment landed in commit `e875fb8`: tasket `731a` Phase 2 (methodology config) body updated; test-strategy category (c) already load-bearing; G3 runbook §5.2.1 marked historical. Sprint 6 G3 fire is the JSONB-scope sanity check only.
 
 ### Sprint 7 (Wk 7) — Standard CRUD complete + audit + service tokens
 
@@ -231,7 +231,7 @@ The decision is recorded as an Architecture Decision Note appended to ADR-009 (d
 | Work item | Notes |
 |---|---|
 | DP onboarding completes | First paying client live |
-| Slack absorption for any G1-G4 fallback consequences | E.g., if G3 forced JSONB fallback, finalize JSONB regression coverage gaps |
+| Slack absorption for any G1-G4 consequences | E.g., finalize JSONB regression coverage gaps per category (c) (ADR-010 JSONB-primary already decided) |
 | Manual exploratory test pass per test-strategy | Happy paths across all 8 features in production |
 | **First paying Design Partner live** | v0 ships |
 
@@ -280,7 +280,7 @@ Sprints 3-13 schedule the same features and trigger the same gates as Branch A. 
 ### Sprint 4 (Wk 4) — G2 (proactive) + early CRUD + frontend slice
 
 **Re-pricing:**
-- G2 (ADR-010) decision is the same. DDL-primary path uses Atlas for the migrations (same as Go branch — Atlas is language-agnostic). JSONB fallback uses Drizzle's `jsonb` column type with Zod runtime schemas.
+- G2 (ADR-010) decision is the same: JSONB-primary (per ADR-010, same as Go branch). Drizzle's `jsonb` column type with Zod runtime schemas. Atlas handles the migrations — language-agnostic, same as Go.
 - Drizzle's relational query patterns are nicer than sqlc for the Contact↔Company↔Deal JOINs that Sprint 7 needs. Likely ~1 day saved over the build.
 - RBAC test fixture begins in Vitest (not `go test`); same shape (3+ role types per test tenant).
 
@@ -456,7 +456,7 @@ This re-sequencing is intentional and consistent with the FEASIBILITY-MEMO §3 t
 
 - **Léo intake timing.** "First paying DP" is the v0 target as a *result*, not a hard date. Sprint 12-13 is the realistic earliest moment. The plan flags this rather than committing.
 - **G4 OAuth approval window vs Sprint 10 Gmail-sync work.** If G4 hasn't approved by mid-Sprint 10, the polling tasket escalates. The build can continue against the 100-user Testing cap, but the DP onboarding (Sprint 12) blocks until production scopes are live. If Google delays force a Wk 13+ deploy, that's the documented failure mode from the PRD Exec Summary — "Léo channel + sovereign codebase outlast schedule slips; the 11-13 week window and tenant trust do not."
-- **JSONB-bleed honesty.** If G3 forces JSONB fallback, the test-strategy non-negotiable category (c) becomes load-bearing through v1, and v2 inherits either a permanent JSONB acceptance or a dedicated migration epic (not a sprint — live tenant data backfill plus read-path rewrite). This is named in ADR-010's required verbatim paragraph if JSONB is chosen.
+- **JSONB-bleed honesty.** ADR-010 committed JSONB-primary 2026-05-15. Test-strategy non-negotiable category (c) is load-bearing through v1. v2 inherits either permanent JSONB acceptance or a dedicated migration epic (not a sprint — live tenant data backfill plus read-path rewrite). G3 runbook §5.2.1 (DDL→JSONB switch) is historical; §5.2.2 (scope sanity check) is the live path. This is documented in ADR-010 §6 verbatim paragraph.
 
 ---
 
