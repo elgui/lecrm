@@ -1,0 +1,59 @@
+# lecrm-migrate — Compose pre-deploy job (ADR-009 §8.2).
+#
+# Runs cmd/lecrm-migrate before lecrm-api starts. Ordering guarantee:
+#   migrate exits 0  →  api starts
+#
+# The image is built from apps/migrate/Dockerfile (multi-stage). In local
+# dev the binary can be run directly; this file is the production path.
+#
+# Required env vars (provided by SOPS-decrypted .env.operator):
+#   LECRM_PROVISIONER_DSN  — Postgres DSN for the lecrm_provisioner role
+#   LECRM_MIGRATIONS_DIR   — path inside the container to migration files
+#                            (default: /migrations; bind-mounted from host)
+#
+# The migrate service is declared with `restart: no` so a failed migration
+# stops the deployment rather than looping.
+
+services:
+  migrate:
+    image: ghcr.io/gbconsult/lecrm-migrate:${LECRM_IMAGE_TAG:-latest}
+    container_name: lecrm-migrate
+    restart: "no"
+    command: ["apply"]
+    environment:
+      LECRM_PROVISIONER_DSN: ${LECRM_PROVISIONER_DSN:?required}
+      LECRM_MIGRATIONS_DIR: /migrations
+    volumes:
+      - ../../packages/db/migrations:/migrations:ro
+    networks:
+      - lecrm
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: ghcr.io/gbconsult/lecrm-api:${LECRM_IMAGE_TAG:-latest}
+    container_name: lecrm-api
+    restart: unless-stopped
+    environment:
+      LECRM_DATABASE_URL: ${LECRM_DATABASE_URL:?required}
+      LECRM_SESSION_SECRET: ${LECRM_SESSION_SECRET:?required}
+      LECRM_OIDC_ISSUER: ${LECRM_OIDC_ISSUER:?required}
+      LECRM_OIDC_CLIENT_ID: ${LECRM_OIDC_CLIENT_ID:?required}
+      LECRM_OIDC_CLIENT_SECRET: ${LECRM_OIDC_CLIENT_SECRET:?required}
+      LECRM_COOKIE_DOMAIN_TLD: ${LECRM_COOKIE_DOMAIN_TLD:-lecrm.fr}
+      LECRM_COOKIE_SECURE: ${LECRM_COOKIE_SECURE:-true}
+    ports:
+      - "127.0.0.1:${LECRM_API_HOST_PORT:-8080}:8080"
+    networks:
+      - lecrm
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true
