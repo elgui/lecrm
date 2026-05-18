@@ -1,0 +1,13 @@
+{
+  "_comment": "Endpoint registry for the CI guard in apps/api/internal/http/coverage_test.go. Every /v1/* route in the chi router MUST have an entry here. Missing entries fail CI. See docs/test-strategy.md §4.1 TR-3.",
+  "version": 1,
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/v1/_test/workspaces",
+      "isolation_test": "TestIsolation_TenantA_ContextMatchesSlugA",
+      "rbac_test": "n/a — unauthenticated test-only endpoint; removed before first Design Partner onboard (Sprint 11)",
+      "notes": "ADR-009 §1.1 Week-2 Go-ramp checkpoint. Returns workspace context from middleware + sqlc-generated list of all workspaces. Not a tenant-filtered query by design; production CRUD endpoints in Sprint 4+ are filtered."
+    }
+  ]
+}

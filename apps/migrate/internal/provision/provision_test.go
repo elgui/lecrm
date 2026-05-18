@@ -18,6 +18,30 @@ import (
 	"github.com/gbconsult/lecrm/apps/migrate/internal/provision"
 )
 
+// connectWithRetry retries pgx.Connect until it succeeds or maxWait elapses.
+// Postgres briefly resets connections while applying init scripts and restarting.
+func connectWithRetry(ctx context.Context, connStr string, maxWait time.Duration) (*pgx.Conn, error) {
+	deadline := time.Now().Add(maxWait)
+	var (
+		conn *pgx.Conn
+		err  error
+	)
+	for {
+		conn, err = pgx.Connect(ctx, connStr)
+		if err == nil {
+			return conn, nil
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("after %s: %w", maxWait, err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
 // initSQLPath returns the absolute path to 0001_init.sql, navigating
 // from this source file to the repository root.
 func initSQLPath(t *testing.T) string {
@@ -73,7 +97,9 @@ func TestProvisionWorkspace_FreshAndIdempotent(t *testing.T) {
 
 	connStr := startPostgres(ctx, t)
 
-	conn, err := pgx.Connect(ctx, connStr)
+	// Retry for up to 15 s: postgres briefly resets connections while applying
+	// init scripts and restarting, even after testcontainers signals "ready".
+	conn, err := connectWithRetry(ctx, connStr, 15*time.Second)
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
