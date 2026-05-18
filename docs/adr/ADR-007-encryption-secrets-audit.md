@@ -153,6 +153,9 @@ CREATE INDEX idx_audit_event_type ON audit_log(event_type);
 | `gdpr.erasure.complete` | as above + confirmation, backup_rolloff_date | erasure | 5 years |
 | `admin.impersonation.start` | actor_user_id (gbconsult-admin), workspace_id, justification | data | 3 years |
 | `admin.impersonation.end` | as above + duration | data | 3 years |
+| `metadata.property.upsert` | `parent_type` (string: `contact` \| `deal`), `parent_id` (uuid), `property_keys` (string[]) | data | 3 years |
+
+**`metadata.property.upsert` emitter:** `apps/api/internal/metadata/Set` on every successful custom-property upsert. Per ADR-009 §7.2 fail-closed invariant, the JSONB write and this audit INSERT share a single Postgres transaction; an audit write failure rolls back the metadata write entirely.
 
 **CNIL retention rationale:** auth events 1 year (legitimate interest, security-defensibility); data events 3 years (typical SaaS standard); erasure events 5 years (proves compliance with the request). Excessive retention is itself a GDPR violation, so a retention cron purges expired rows daily.
 

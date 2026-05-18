@@ -181,7 +181,7 @@ Functionally equivalent to the chosen pattern at v0 scale, with one downside: it
 ## TO RESOLVE
 
 1. **Provisioning function extension.** Extend `core.lecrm_provision_workspace` (or add a sibling provisioning step) to create the workspace's `objects` and `custom_property_definitions` tables + indexes alongside the schema and role. Tracked as a Sprint 4 implementation tasket.
-2. **Audit-log catalogue addition.** Add `metadata.property.upsert` event with fields `parent_type`, `parent_id`, `property_keys` (string[]) to ADR-007 §3 catalogue. Emitted on every successful `Set`. Follow-up to ADR-007.
+2. ~~**Audit-log catalogue addition.**~~ **Resolved (Sprint 4).** `metadata.property.upsert` added to ADR-007 §3 catalogue and implemented in `apps/api/internal/metadata/set.go`. The JSONB write and audit emission share a single Postgres transaction; audit failure rolls back the metadata write (ADR-009 §7.2 fail-closed invariant). Fail-closed integration test in `apps/api/internal/metadata/fail_closed_test.go`.
 3. **G3 runbook annotation.** Update `docs/gates/G3-metadata-engine-scope-verification-runbook.md` to flag §5.2.1 as historical (DDL→JSONB switch path that is dead code per this ADR) and §5.2.2 as the live path (JSONB-scope sanity check). Done as part of Step 3 of authoring tasket `20260514-114217-3c84`.
 4. **Downstream tasket alignment** (Step 3 of authoring tasket `20260514-114217-3c84`):
    - Tasket `20260514-114210-9b41` (test-strategy) — non-negotiable category (c) "JSONB metadata mutation regression path" was conditional on this ADR's outcome; now load-bearing. Minimum test count to be specified in that tasket's `done`-state amendment.
