@@ -42,9 +42,9 @@ func connectWithRetry(ctx context.Context, connStr string, maxWait time.Duration
 	}
 }
 
-// initSQLPath returns the absolute path to 0001_init.sql, navigating
-// from this source file to the repository root.
-func initSQLPath(t *testing.T) string {
+// migrationPaths returns absolute paths to the given migration filenames,
+// navigating from this source file to the repository root.
+func migrationPaths(t *testing.T, names ...string) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -52,11 +52,15 @@ func initSQLPath(t *testing.T) string {
 	}
 	// thisFile is apps/migrate/internal/provision/provision_test.go
 	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	p := filepath.Join(repoRoot, "packages", "db", "migrations", "0001_init.sql")
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("init SQL not found at %s: %v", p, err)
+	paths := make([]string, len(names))
+	for i, name := range names {
+		p := filepath.Join(repoRoot, "packages", "db", "migrations", name)
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("migration not found at %s: %v", p, err)
+		}
+		paths[i] = p
 	}
-	return p
+	return paths
 }
 
 func startPostgres(ctx context.Context, t *testing.T) string {
@@ -64,13 +68,17 @@ func startPostgres(ctx context.Context, t *testing.T) string {
 
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 
-	initSQL := initSQLPath(t)
+	migrations := migrationPaths(t,
+		"0001_init.sql",
+		"0002_identity.sql",
+		"0003_metadata_engine.sql",
+	)
 
 	ctr, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(initSQL),
+		tcpostgres.WithInitScripts(migrations...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres container: %v", err)
@@ -140,6 +148,16 @@ func TestProvisionWorkspace_FreshAndIdempotent(t *testing.T) {
 	riverSchema := "river_" + idHex
 	assertSchemaExists(ctx, t, conn, riverSchema)
 
+	// ADR-010 §3: objects table + both indexes
+	assertTableExists(ctx, t, conn, result.RoleName, "objects")
+	assertIndexExists(ctx, t, conn, result.RoleName, "objects_type_parent_idx")
+	assertIndexExists(ctx, t, conn, result.RoleName, "objects_data_gin_idx")
+
+	// ADR-010 §4: custom_property_definitions table + unique constraint
+	assertTableExists(ctx, t, conn, result.RoleName, "custom_property_definitions")
+	assertUniqueConstraintExists(ctx, t, conn, result.RoleName, "custom_property_definitions",
+		[]string{"parent_type", "property_key"})
+
 	// --- Idempotent re-invocation ---
 	result2, err := provision.Run(ctx, conn, "acme", logger)
 	if err != nil {
@@ -154,6 +172,12 @@ func TestProvisionWorkspace_FreshAndIdempotent(t *testing.T) {
 	if result2.RoleName != result.RoleName {
 		t.Errorf("re-invocation changed RoleName: got %q want %q", result2.RoleName, result.RoleName)
 	}
+
+	// Tables and indexes must still exist after idempotent re-invocation.
+	assertTableExists(ctx, t, conn, result2.RoleName, "objects")
+	assertIndexExists(ctx, t, conn, result2.RoleName, "objects_type_parent_idx")
+	assertIndexExists(ctx, t, conn, result2.RoleName, "objects_data_gin_idx")
+	assertTableExists(ctx, t, conn, result2.RoleName, "custom_property_definitions")
 }
 
 func assertWorkspacesRow(ctx context.Context, t *testing.T, conn *pgx.Conn, r provision.Result) {
@@ -221,5 +245,86 @@ func assertSchemaExists(ctx context.Context, t *testing.T, conn *pgx.Conn, schem
 		if owner != wsRole {
 			t.Errorf("schema %q owner = %q; want %q", schemaName, owner, wsRole)
 		}
+	}
+}
+
+func assertTableExists(ctx context.Context, t *testing.T, conn *pgx.Conn, schemaName, tableName string) {
+	t.Helper()
+	var count int
+	err := conn.QueryRow(ctx,
+		`SELECT count(*) FROM information_schema.tables
+		 WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'`,
+		schemaName, tableName,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("assertTableExists %s.%s: %v", schemaName, tableName, err)
+	}
+	if count != 1 {
+		t.Errorf("table %s.%s not found", schemaName, tableName)
+	}
+}
+
+func assertIndexExists(ctx context.Context, t *testing.T, conn *pgx.Conn, schemaName, indexName string) {
+	t.Helper()
+	var count int
+	err := conn.QueryRow(ctx,
+		`SELECT count(*) FROM pg_indexes
+		 WHERE schemaname = $1 AND indexname = $2`,
+		schemaName, indexName,
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("assertIndexExists %s.%s: %v", schemaName, indexName, err)
+	}
+	if count != 1 {
+		t.Errorf("index %s.%s not found", schemaName, indexName)
+	}
+}
+
+// assertUniqueConstraintExists checks that a UNIQUE constraint spanning the given columns
+// exists on the named table (schema-qualified). Column order must match the constraint definition.
+func assertUniqueConstraintExists(ctx context.Context, t *testing.T, conn *pgx.Conn, schemaName, tableName string, cols []string) {
+	t.Helper()
+	// Build an ordered array of column names for this table's unique constraints and compare.
+	rows, err := conn.Query(ctx, `
+		SELECT array_agg(a.attname ORDER BY x.ordinality)
+		FROM   pg_constraint c
+		JOIN   pg_class      r ON r.oid = c.conrelid
+		JOIN   pg_namespace  n ON n.oid = r.relnamespace
+		CROSS  JOIN LATERAL unnest(c.conkey) WITH ORDINALITY x(attnum, ordinality)
+		JOIN   pg_attribute  a ON a.attrelid = r.oid AND a.attnum = x.attnum
+		WHERE  c.contype = 'u'
+		  AND  n.nspname  = $1
+		  AND  r.relname  = $2
+		GROUP  BY c.oid`, schemaName, tableName)
+	if err != nil {
+		t.Fatalf("assertUniqueConstraintExists query for %s.%s: %v", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	found := false
+	for rows.Next() {
+		var colNames []string
+		if err := rows.Scan(&colNames); err != nil {
+			t.Fatalf("scan unique constraint cols: %v", err)
+		}
+		if len(colNames) == len(cols) {
+			match := true
+			for i, c := range cols {
+				if colNames[i] != c {
+					match = false
+					break
+				}
+			}
+			if match {
+				found = true
+				break
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("assertUniqueConstraintExists rows: %v", err)
+	}
+	if !found {
+		t.Errorf("unique constraint on %s.%s%v not found", schemaName, tableName, cols)
 	}
 }
