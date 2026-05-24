@@ -158,6 +158,12 @@ jobs:
       - name: Install Atlas CLI
         uses: ariga/setup-atlas@v0
 
+      # Build the atlas-action shim binary locally — pinned versions
+      # past a certain age are not available on atlasbinaries.com /
+      # release.ariga.io, so the action shim fails its download step.
+      - name: Build atlas-action shim
+        uses: ariga/atlas-action/setup@v1.15.3
+
       - name: Atlas migrate lint
         uses: ariga/atlas-action/migrate/lint@v1.15.3
         with:
