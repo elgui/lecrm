@@ -158,17 +158,17 @@ jobs:
       - name: Install Atlas CLI
         uses: ariga/setup-atlas@v0
 
-      # Build the atlas-action shim binary locally — pinned versions
-      # past a certain age are not available on atlasbinaries.com /
-      # release.ariga.io, so the action shim fails its download step.
-      - name: Build atlas-action shim
-        uses: ariga/atlas-action/setup@v1.15.3
-
+      # Direct CLI invocation rather than the ariga/atlas-action wrapper:
+      # the wrapper's newer versions require `dir-name` (an Atlas Cloud
+      # project slug) and we don't use Atlas Cloud. `--latest 1` lints
+      # only the most recently added migration file — typical PR-gate
+      # behavior without needing a base-ref diff.
       - name: Atlas migrate lint
-        uses: ariga/atlas-action/migrate/lint@v1.15.3
-        with:
-          dir: file://packages/db/migrations
-          dev-url: docker://postgres/17/dev?search_path=public
+        run: |
+          atlas migrate lint \
+            --dir file://packages/db/migrations \
+            --dev-url 'docker://postgres/17/dev?search_path=public' \
+            --latest 1
 
   # --------------------------------------------------------------- Web SPA
   web:
