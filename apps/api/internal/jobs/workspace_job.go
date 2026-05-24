@@ -62,7 +62,7 @@ func RunWorkspaceJob[T any](
 	if err != nil {
 		return zero, fmt.Errorf("jobs: connect as workspace role %q: %w", roleName, err)
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	// Defense-in-depth: verify the connection is scoped to the correct
 	// workspace schema before any data operation (ADR-009 §8.3).

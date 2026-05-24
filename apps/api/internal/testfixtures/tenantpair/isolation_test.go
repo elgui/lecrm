@@ -68,7 +68,7 @@ func TestIsolation_TenantA_ContextMatchesSlugA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", testEndpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d want 200", resp.StatusCode)
@@ -91,7 +91,7 @@ func TestIsolation_TenantB_ContextMatchesSlugB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET %s: %v", testEndpoint, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status: got %d want 200", resp.StatusCode)
@@ -126,7 +126,7 @@ func TestIsolation_ATenantIDNotLeakedToB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET as B: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body := decodeListResponse(t, resp.Body)
 	if body.Workspace.ID == pair.A.ID.String() {
@@ -142,7 +142,7 @@ func TestIsolation_BTenantIDNotLeakedToA(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET as A: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body := decodeListResponse(t, resp.Body)
 	if body.Workspace.ID == pair.B.ID.String() {
@@ -159,7 +159,7 @@ func TestIsolation_UnknownSubdomain_Returns404(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET with unknown subdomain: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown subdomain: got status %d; want 404", resp.StatusCode)
@@ -174,7 +174,7 @@ func TestIsolation_NoSubdomain_Returns400(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET with no subdomain: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("no subdomain: got status %d; want 400", resp.StatusCode)
@@ -201,7 +201,7 @@ func TestIsolation_SequentialInterleavedRequests(t *testing.T) {
 			t.Fatalf("step %d GET as %s: %v", i, step.tenant.Slug, err)
 		}
 		body := decodeListResponse(t, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		if body.Workspace.Slug != step.wantSlug {
 			t.Errorf("step %d: workspace.slug = %q; want %q (request as %s leaked to wrong context)",
@@ -227,7 +227,7 @@ func TestIsolation_ParallelConcurrentRequests(t *testing.T) {
 			errs <- fmt.Sprintf("GET as %s: %v", tenant.Slug, err)
 			return
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body := decodeListResponse(t, resp.Body)
 		if body.Workspace.Slug != tenant.Slug {
 			errs <- fmt.Sprintf("ISOLATION LEAK: concurrent request as %s got slug %q",

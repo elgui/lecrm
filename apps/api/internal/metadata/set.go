@@ -9,6 +9,7 @@ package metadata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -47,7 +48,7 @@ func (s *Store) Get(ctx context.Context, parentType string, parentID uuid.UUID) 
 		` WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = $2`
 	var rawJSON []byte
 	if err := s.pool.QueryRow(ctx, q, parentType, parentID).Scan(&rawJSON); err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return map[string]any{}, nil
 		}
 		return nil, fmt.Errorf("metadata.Get: %w", err)

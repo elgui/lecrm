@@ -51,7 +51,7 @@ func AssertNoCrossRead(t *testing.T, pair *Pair, src, dst *Tenant, endpoint stri
 	if err != nil {
 		t.Fatalf("AssertNoCrossRead: GET %s as %s: %v", endpoint, dst.Slug, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -80,7 +80,7 @@ func AssertNoCrossList(t *testing.T, pair *Pair, src, dst *Tenant, listEndpoint 
 	if err != nil {
 		t.Fatalf("AssertNoCrossList: GET %s as %s: %v", listEndpoint, dst.Slug, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -125,7 +125,7 @@ func AssertNoCrossMutation(t *testing.T, pair *Pair, _, dst *Tenant, mutationMet
 	if err != nil {
 		t.Fatalf("AssertNoCrossMutation: %s %s as %s: %v", mutationMethod, url, dst.Slug, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("AssertNoCrossMutation FAIL: expected 404 from %s %s as %s; got %d "+

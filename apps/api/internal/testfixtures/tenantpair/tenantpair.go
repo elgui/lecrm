@@ -147,7 +147,7 @@ func Provision(t *testing.T) *Pair {
 	if err != nil {
 		t.Fatalf("tenantpair: provision acme-b: %v", err)
 	}
-	conn.Close(ctx)
+	_ = conn.Close(ctx)
 
 	// Shared superuser pool — used by the HTTP handlers and by test DB
 	// assertions (e.g. to seed or read fixture data).
