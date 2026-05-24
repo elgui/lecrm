@@ -155,8 +155,13 @@ jobs:
           # the default shallow clone has no base.
           fetch-depth: 0
 
+      # Pin to Atlas v0.37 — v0.38+ moved `atlas migrate lint` behind
+      # the Atlas Pro tier (https://atlasgo.io/blog-v038#change-in-v038-atlas-migrate-lint).
+      # v0.37 is the last release where lint runs unauthenticated.
       - name: Install Atlas CLI
         uses: ariga/setup-atlas@v0
+        with:
+          version: v0.37.0
 
       # Direct CLI invocation rather than the ariga/atlas-action wrapper:
       # the wrapper's newer versions require `dir-name` (an Atlas Cloud
