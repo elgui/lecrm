@@ -44,9 +44,9 @@ jobs:
         run: go test -race -count=1 -timeout 5m ./...
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.62.2
+          version: v2.12.2
           working-directory: apps/api
           args: --timeout=5m
 
@@ -111,9 +111,9 @@ jobs:
         run: go test -race -count=1 -timeout 5m -tags=integration ./...
 
       - name: golangci-lint (apps/admin)
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.62.2
+          version: v2.12.2
           working-directory: apps/admin
           args: --timeout=5m
 
