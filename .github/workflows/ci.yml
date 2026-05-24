@@ -150,9 +150,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Atlas migrate lint diffs new files against the base ref;
+          # the default shallow clone has no base.
+          fetch-depth: 0
+
+      - name: Install Atlas CLI
+        uses: ariga/setup-atlas@v0
 
       - name: Atlas migrate lint
-        uses: ariga/atlas-action/migrate/lint@v1
+        uses: ariga/atlas-action/migrate/lint@v1.15.3
         with:
           dir: file://packages/db/migrations
           dev-url: docker://postgres/17/dev?search_path=public
