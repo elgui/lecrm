@@ -237,13 +237,13 @@ func callWrapper(ctx context.Context, conn *pgx.Conn, id uuid.UUID, slug, adminE
 // machine-parseable WORKSPACE_ID=<uuid> line that CI's smoke test parses
 // for the cleanup step (T5).
 func emitResult(stdout io.Writer, id uuid.UUID, slug, roleName string) {
-	fmt.Fprintf(stdout, "%s %q provisioned. role=%s\n", OperatorNoun, slug, roleName)
-	fmt.Fprintf(stdout, "WORKSPACE_ID=%s\n", id)
+	_, _ = fmt.Fprintf(stdout, "%s %q provisioned. role=%s\n", OperatorNoun, slug, roleName)
+	_, _ = fmt.Fprintf(stdout, "WORKSPACE_ID=%s\n", id)
 	// AC-I-13 / T3 — RBAC seeding status line. Written to stdout, NOT to
 	// core.audit_log. Replaces with `ok (N roles applied)` when RBAC ships.
 	// TODO(rbac): swap to `[PROVISION] RBAC seeding: ok (3 roles applied)`
 	// once the RBAC-seeding sibling story lands.
-	fmt.Fprintln(stdout, "[PROVISION] RBAC seeding: skipped (not implemented in v0)")
+	_, _ = fmt.Fprintln(stdout, "[PROVISION] RBAC seeding: skipped (not implemented in v0)")
 }
 
 // uuidNoHyphens returns the lowercase hex form expected by the SQL
@@ -266,7 +266,9 @@ func pgxIdent(name string) string {
 	// the only producer is the SECURITY DEFINER function.
 	for i := 0; i < len(name); i++ {
 		c := name[i]
-		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_') {
+		isLower := c >= 'a' && c <= 'z'
+		isDigit := c >= '0' && c <= '9'
+		if !isLower && !isDigit && c != '_' {
 			return `"invalid_identifier"`
 		}
 	}

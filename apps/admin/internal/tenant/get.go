@@ -29,12 +29,12 @@ func Get(ctx context.Context, conn *pgx.Conn, slug string, stdout io.Writer) err
 	case err != nil:
 		return New(ErrKindDBConnect, "query tenant: %v", err)
 	}
-	fmt.Fprintf(stdout, "%s_ID:      %s\n", OperatorNoun, t.ID)
-	fmt.Fprintf(stdout, "SLUG:           %s\n", t.Slug)
-	fmt.Fprintf(stdout, "ROLE:           %s\n", t.RoleName)
-	fmt.Fprintf(stdout, "ADMIN_EMAIL:    %s\n", t.AdminEmail)
-	fmt.Fprintf(stdout, "CREATOR_EMAIL:  %s\n", t.CreatorEmail)
-	fmt.Fprintf(stdout, "CREATED_AT:     %s\n", t.CreatedAt.UTC().Format(time.RFC3339))
-	fmt.Fprintf(stdout, "FEATURES:       %v\n", t.Features)
+	_, _ = fmt.Fprintf(stdout, "%s_ID:      %s\n", OperatorNoun, t.ID)
+	_, _ = fmt.Fprintf(stdout, "SLUG:           %s\n", t.Slug)
+	_, _ = fmt.Fprintf(stdout, "ROLE:           %s\n", t.RoleName)
+	_, _ = fmt.Fprintf(stdout, "ADMIN_EMAIL:    %s\n", t.AdminEmail)
+	_, _ = fmt.Fprintf(stdout, "CREATOR_EMAIL:  %s\n", t.CreatorEmail)
+	_, _ = fmt.Fprintf(stdout, "CREATED_AT:     %s\n", t.CreatedAt.UTC().Format(time.RFC3339))
+	_, _ = fmt.Fprintf(stdout, "FEATURES:       %v\n", t.Features)
 	return nil
 }

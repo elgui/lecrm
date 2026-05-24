@@ -140,7 +140,7 @@ func runCreate(c *cli.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	_, err = tenant.Create(ctx, conn, opts, os.Stdout)
 	return err
@@ -159,7 +159,7 @@ func runVerify(c *cli.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	result, err := tenant.Verify(ctx, conn, opts, os.Stdout)
 	if err != nil {
@@ -177,7 +177,7 @@ func runList(c *cli.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 	return tenant.List(ctx, conn, os.Stdout)
 }
 
@@ -191,7 +191,7 @@ func runGet(c *cli.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 	return tenant.Get(ctx, conn, slug, os.Stdout)
 }
 

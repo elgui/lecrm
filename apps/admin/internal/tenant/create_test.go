@@ -5,6 +5,7 @@ package tenant_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -81,8 +82,8 @@ func TestCreateDuplicateLoud(t *testing.T) {
 	if err == nil {
 		t.Fatal("Create (duplicate): expected error, got nil")
 	}
-	se, ok := err.(*tenant.StructErr)
-	if !ok {
+	var se *tenant.StructErr
+	if !errors.As(err, &se) {
 		t.Fatalf("expected *tenant.StructErr, got %T", err)
 	}
 	if se.Kind != tenant.ErrKindSlugConflict {
@@ -249,8 +250,8 @@ func TestCreateRejectsInvalidSlug(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected slug_invalid error")
 	}
-	se, ok := err.(*tenant.StructErr)
-	if !ok || se.Kind != tenant.ErrKindSlugInvalid {
+	var se *tenant.StructErr
+	if !errors.As(err, &se) || se.Kind != tenant.ErrKindSlugInvalid {
 		t.Fatalf("expected slug_invalid StructErr, got %T %v", err, err)
 	}
 }

@@ -2,6 +2,7 @@ package tenant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -55,7 +56,7 @@ func Verify(ctx context.Context, conn *pgx.Conn, opts VerifyOptions, stdout io.W
 	err := conn.QueryRow(ctx,
 		`SELECT id, role_name FROM core.workspaces WHERE slug = $1`, opts.Slug).Scan(&id, &roleName)
 	switch {
-	case err == pgx.ErrNoRows:
+	case errors.Is(err, pgx.ErrNoRows):
 		return VerifyResult{}, New(ErrKindSlugConflict,
 			"%s %q not found in registry", OperatorNoun, opts.Slug)
 	case err != nil:
@@ -71,14 +72,14 @@ func Verify(ctx context.Context, conn *pgx.Conn, opts VerifyOptions, stdout io.W
 		if failDetail == "" {
 			result.Passed++
 			if passDetail != "" {
-				fmt.Fprintf(stdout, "[OK] %s %s (%s)\n", c.Code, label, passDetail)
+				_, _ = fmt.Fprintf(stdout, "[OK] %s %s (%s)\n", c.Code, label, passDetail)
 			} else {
-				fmt.Fprintf(stdout, "[OK] %s %s\n", c.Code, label)
+				_, _ = fmt.Fprintf(stdout, "[OK] %s %s\n", c.Code, label)
 			}
 			continue
 		}
 		result.Failed++
-		fmt.Fprintf(stdout, "[FAIL] %s %s — %s\n", c.Code, label, failDetail)
+		_, _ = fmt.Fprintf(stdout, "[FAIL] %s %s — %s\n", c.Code, label, failDetail)
 		if !opts.AllFailures {
 			return result, nil
 		}

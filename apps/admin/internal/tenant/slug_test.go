@@ -1,6 +1,9 @@
 package tenant
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 // TestValidateSlug covers AC-V1 (Story 8.1) — the regex must accept the
 // integrator's real-world tenant slugs and reject every common mistake
@@ -38,8 +41,8 @@ func TestValidateSlug(t *testing.T) {
 				t.Fatalf("ValidateSlug(%q) returned nil; want error", tc.slug)
 			}
 			if !tc.wantValid {
-				se, ok := err.(*StructErr)
-				if !ok {
+				var se *StructErr
+				if !errors.As(err, &se) {
 					t.Fatalf("ValidateSlug(%q): expected *StructErr, got %T", tc.slug, err)
 				}
 				if se.Kind != ErrKindSlugInvalid {

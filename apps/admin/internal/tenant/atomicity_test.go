@@ -5,6 +5,7 @@ package tenant_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -143,8 +144,8 @@ func TestAtomicityCreateBypass(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected slug-conflict from pre-check")
 	}
-	se, ok := err.(*tenant.StructErr)
-	if !ok || se.Kind != tenant.ErrKindSlugConflict {
+	var se *tenant.StructErr
+	if !errors.As(err, &se) || se.Kind != tenant.ErrKindSlugConflict {
 		t.Fatalf("expected slug_conflict, got %T %v", err, err)
 	}
 }

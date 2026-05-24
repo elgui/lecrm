@@ -36,14 +36,14 @@ func List(ctx context.Context, conn *pgx.Conn, stdout io.Writer) error {
 	}
 	defer rows.Close()
 
-	fmt.Fprintf(stdout, "%s\tSLUG\tROLE\tADMIN_EMAIL\tCREATOR_EMAIL\tCREATED_AT\tFEATURES\n", OperatorNoun+"_ID")
+	_, _ = fmt.Fprintf(stdout, "%s\tSLUG\tROLE\tADMIN_EMAIL\tCREATOR_EMAIL\tCREATED_AT\tFEATURES\n", OperatorNoun+"_ID")
 	count := 0
 	for rows.Next() {
 		var t TenantSummary
 		if err := rows.Scan(&t.ID, &t.Slug, &t.RoleName, &t.AdminEmail, &t.CreatorEmail, &t.CreatedAt, &t.Features); err != nil {
 			return New(ErrKindDBConnect, "scan row: %v", err)
 		}
-		fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\t%v\n",
+		_, _ = fmt.Fprintf(stdout, "%s\t%s\t%s\t%s\t%s\t%s\t%v\n",
 			t.ID, t.Slug, t.RoleName, t.AdminEmail, t.CreatorEmail,
 			t.CreatedAt.UTC().Format(time.RFC3339), t.Features)
 		count++
@@ -51,6 +51,6 @@ func List(ctx context.Context, conn *pgx.Conn, stdout io.Writer) error {
 	if err := rows.Err(); err != nil {
 		return New(ErrKindDBConnect, "iterate tenants: %v", err)
 	}
-	fmt.Fprintf(stdout, "# %d %s(s)\n", count, OperatorNoun)
+	_, _ = fmt.Fprintf(stdout, "# %d %s(s)\n", count, OperatorNoun)
 	return nil
 }

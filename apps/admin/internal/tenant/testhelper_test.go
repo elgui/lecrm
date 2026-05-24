@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,7 +143,7 @@ func dropBySlug(t *testing.T, conn *pgx.Conn, slug string) {
 
 	var id uuid.UUID
 	err := conn.QueryRow(ctx, `SELECT id FROM core.workspaces WHERE slug = $1`, slug).Scan(&id)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return
 	}
 	if err != nil {

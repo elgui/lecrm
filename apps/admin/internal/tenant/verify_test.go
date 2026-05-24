@@ -5,6 +5,7 @@ package tenant_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -47,7 +48,7 @@ func TestVerifyInvariants(t *testing.T) {
 	// AC-VFY-4: every line must start with [OK] or [FAIL] + INV-XX.
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	for _, line := range lines {
-		if !(strings.HasPrefix(line, "[OK] INV-") || strings.HasPrefix(line, "[FAIL] INV-")) {
+		if !strings.HasPrefix(line, "[OK] INV-") && !strings.HasPrefix(line, "[FAIL] INV-") {
 			t.Errorf("non-conforming verify line: %q", line)
 		}
 	}
@@ -70,8 +71,8 @@ func TestVerifyMissingSlug(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for unknown slug")
 	}
-	se, ok := err.(*tenant.StructErr)
-	if !ok || se.Kind != tenant.ErrKindSlugConflict {
+	var se *tenant.StructErr
+	if !errors.As(err, &se) || se.Kind != tenant.ErrKindSlugConflict {
 		t.Fatalf("expected slug_conflict StructErr, got %T %v", err, err)
 	}
 }
