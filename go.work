@@ -1,4 +1,7 @@
 go 1.25.0
 
+use ./apps/admin
+
 use ./apps/api
+
 use ./apps/migrate

@@ -53,6 +53,12 @@ BEGIN
 END
 $$;
 
+-- Allow lecrm_provisioner to CREATE objects inside the core schema
+-- (functions, tables, etc.). Required so subsequent migrations applied by
+-- lecrm-migrate as the lecrm_provisioner role (per deploy/compose/migrate.yml)
+-- can add SECURITY DEFINER wrappers and registry tables in core. Idempotent.
+GRANT CREATE ON SCHEMA core TO lecrm_provisioner;
+
 -- core.workspaces — global workspace registry. Tenant data lives in
 -- per-workspace schemas; this table is the only place workspace_id is
 -- enumerated.

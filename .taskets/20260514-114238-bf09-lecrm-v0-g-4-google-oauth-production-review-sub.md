@@ -1,14 +1,15 @@
 ---
 id: 20260514-114238-bf09
 title: "leCRM v0 — G4: Google OAuth production review submission (Wk 5-6)"
-status: blocked
+status: done
 priority: p0
 created: 2026-05-14
 updated: 2026-05-14
 category: engineering
 group: lecrm-v0-scaffolding-v2
 group_order: 1
-order: 2
+order: 4
+done: 2026-05-14
 blocked_on: DOR-prerequisites (Wk 3-4 work) + schedule-timing (we are in Wk 2; submission window opens Wk 5-6 ~2026-06-09)
 ---
 

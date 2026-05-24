@@ -5,13 +5,13 @@ status: done
 priority: p2
 created: 2026-05-15
 updated: 2026-05-18
-done: 2026-05-18
 tags: [sprint-4, adr-007, adr-010, audit-log]
 category: engineering
 group: lecrm-v0-sprint-4
 group_order: 4
 order: 2
 plan: true
+done: 2026-05-18
 ---
 
 ## Read this cold — full context inline

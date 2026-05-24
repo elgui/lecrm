@@ -60,6 +60,90 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd apps/api && govulncheck ./...
 
+  # ---------------------------------------------------- Go admin (Story 8.1)
+  build-admin:
+    name: build-admin
+    runs-on: ubuntu-latest
+    # Story 8.1 / D8 — service-container Postgres 16 (NOT testcontainers).
+    # The migration self-bootstraps the lecrm_provisioner role on top of
+    # the postgres superuser (0001_init.sql:36-43); apps/admin tests
+    # connect as that superuser.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      LECRM_PROVISIONER_DSN: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: go mod verify (apps/admin)
+        working-directory: apps/admin
+        run: go mod verify
+
+      - name: Apply DB migrations via lecrm-migrate (custom, NOT goose)
+        working-directory: apps/migrate
+        run: |
+          go run ./cmd/lecrm-migrate apply \
+            --migrations-dir ../../packages/db/migrations
+
+      - name: go test ./... (apps/admin)
+        working-directory: apps/admin
+        # Integration tests are guarded by //go:build integration and run
+        # only when LECRM_PROVISIONER_DSN is set (above).
+        run: go test -race -count=1 -timeout 5m -tags=integration ./...
+
+      - name: golangci-lint (apps/admin)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
+          working-directory: apps/admin
+          args: --timeout=5m
+
+      - name: Smoke — lecrm-admin tenant create + verify
+        working-directory: apps/admin
+        # Smoke happens AFTER the unit/integration suite proves the binary
+        # behaves under test. Smoke uses the same DSN, provisions a
+        # throw-away tenant, verifies all in-scope invariants, and tears
+        # down via raw SQL (tenant delete subcommand is out of scope per
+        # Story 8.1).
+        run: |
+          SLUG="ci-smoke-${GITHUB_RUN_ID}"
+          OUT=$(go run ./cmd/lecrm-admin tenant create \
+            --slug "$SLUG" --admin-email ci@example.com)
+          echo "$OUT"
+          WORKSPACE_ID=$(echo "$OUT" | sed -n 's/^WORKSPACE_ID=\(.*\)$/\1/p' | head -n 1)
+          if [ -z "$WORKSPACE_ID" ]; then
+            echo "smoke: failed to capture WORKSPACE_ID"; exit 1
+          fi
+          go run ./cmd/lecrm-admin tenant verify --slug "$SLUG"
+          UUID_NOHYPHENS=$(echo "$WORKSPACE_ID" | tr -d '-')
+          psql "$LECRM_PROVISIONER_DSN" -v ON_ERROR_STOP=1 <<SQL
+          DROP SCHEMA IF EXISTS workspace_${UUID_NOHYPHENS} CASCADE;
+          DROP SCHEMA IF EXISTS river_${UUID_NOHYPHENS} CASCADE;
+          DELETE FROM core.audit_log WHERE workspace_id = '${WORKSPACE_ID}';
+          DELETE FROM core.workspaces WHERE slug = '${SLUG}';
+          DROP ROLE IF EXISTS workspace_${UUID_NOHYPHENS};
+          SQL
+          echo PASS
+
   # ----------------------------------------------------------- Atlas + DB
   atlas:
     name: atlas-migrate-lint
@@ -128,3 +212,26 @@ jobs:
           tags: lecrm-api:ci
           # Only build, do not push from CI. Promotion lives in the
           # deploy workflow (Sprint 1 final commit per ADR-009 §10).
+
+  # ---------------------------------------------------- Admin image (8.1)
+  docker-admin:
+    name: docker-admin-build
+    runs-on: ubuntu-latest
+    needs: [build-admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build lecrm-admin image (distroless, Story 8.1 AC-D5)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: false
+          tags: lecrm-admin:ci
+          # Build-only here. Dokku push on main merges happens via a
+          # separate deploy workflow once Guillaume has provisioned the
+          # lecrm-admin Dokku app on 54.37.157.49 (see
+          # docs/integrator-handoff.md "Production Dokku deployment").

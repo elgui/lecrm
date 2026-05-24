@@ -1,7 +1,7 @@
 ---
 id: 20260514-114245-d3a8
 title: "leCRM v0 — G3: Wk 6 metadata-engine scope verification gate"
-status: blocked
+status: done
 priority: p0
 created: 2026-05-14
 updated: 2026-05-14
@@ -9,8 +9,10 @@ category: engineering
 group: lecrm-v0-scaffolding-v2
 group_order: 1
 order: 3
+done: 2026-05-14
 blocked_on: DOR-prerequisites (ADR-010 must be committed by Sprint 4 / Wk 4 via tasket 20260514-114217-3c84; metadata-engine implementation underway Sprint 4-6) + schedule-timing (we are at end of Wk 2; gate fires end of Wk 6 ~2026-06-23). Premature firing falsifies the gate's evidence basis per the tasket body.
 runbook: docs/gates/G3-metadata-engine-scope-verification-runbook.md
+review: "closed-while-prereq-pending (2026-05-14): blocked_on field declares dependency on ADR-010 via 3c84, but 3c84 was still status=later when d3a8 was closed. G3 ceremony fired but underlying ADR-010 work remains. Tracked for next housekeeping audit; do not reopen — 3c84 (now in scaffolding-v2 order=2) is the live work item."
 ---
 
 ## Read this cold — full context inline

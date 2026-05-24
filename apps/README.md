@@ -6,6 +6,7 @@ Go module workspace (`go.work` at repo root, added when the first
 
 | Path | Role | Runs as | Notes |
 |---|---|---|---|
+| `admin/cmd/lecrm-admin/` | Integrator-handoff CLI: `tenant create/verify/list/get`. No HTTP listener (Dokku `proxy:disable`). | `lecrm_provisioner` (Tier-0). | Sprint 8 / Story 8.1 — see [`docs/integrator-handoff.md`](../docs/integrator-handoff.md) |
 | `api/cmd/lecrm-api/` | Main HTTP server: REST under `/v1/*`, embedded SPA under `/*` via `//go:embed dist/*`. | Application role (no DDL). | Sprint 2 |
 | `mcp/cmd/lecrm-mcp/` | MCP adapter. Separate Compose service; same Go module so `CrmAdapter` interface and sqlc types are shared. | Constrained role (read-only by default). | Sprint 9 skeleton, Sprint 13 wire format |
 | `migrate/cmd/lecrm-migrate/` | Atlas runner invoked as Compose pre-deploy job. | `lecrm_provisioner` (Tier-0). | Sprint 3 |

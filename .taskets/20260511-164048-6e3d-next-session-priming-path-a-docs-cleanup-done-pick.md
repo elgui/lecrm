@@ -1,12 +1,13 @@
 ---
 id: 20260511-164048-6e3d
 title: Next-session priming — path (a) docs cleanup done; pick (b) resume PRD or (c) Week-1 scaffolding
-status: later
+status: done
 priority: p0
 created: 2026-05-11
-updated: 2026-05-11
+updated: 2026-05-14
 tags: [priming, orientation, session-handoff]
 category: tooling
+done: 2026-05-14
 ---
 
 Read this first. The 2026-05-11 session executed path (a) of the previous priming (`20260511-160906-2fc8`) — docs cleanup — and committed it in `fee1c54`. Strategic and technical posture are now consistent across `docs/`. Pick the next thread below.
