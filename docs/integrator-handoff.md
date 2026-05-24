@@ -49,8 +49,12 @@ key (`~/.ssh/id_*.pub`) and have him add it via
 Append to `~/.zshrc` (or `~/.bashrc`):
 
 ```bash
-alias gb-tenant='ssh dokku@54.37.157.49 run lecrm-admin /app/lecrm-admin tenant'
+alias gb-tenant='ssh dokku@54.37.157.49 run lecrm-admin tenant'
 ```
+
+`dokku run lecrm-admin` already invokes the image's ENTRYPOINT (`/app/lecrm-admin`),
+so the alias must NOT repeat the binary path — passing it again makes urfave/cli
+treat `/app/lecrm-admin` as a subcommand and exit with `No help topic for ...`.
 
 Open a new terminal. Verify:
 
@@ -144,6 +148,18 @@ dokku config:set lecrm-admin \
 # 3. Push the image (CI does this on main merges; manual is fine too)
 git push dokku-prod main
 ```
+
+**Dokku-specific gotchas observed during the first deploy on 54.37.157.49:**
+
+- The repo root has no `Dockerfile`; the admin image lives at
+  `apps/admin/Dockerfile`. Tell Dokku where to find it:
+  `dokku builder-dockerfile:set lecrm-admin dockerfile-path apps/admin/Dockerfile`.
+- lecrm-admin is a one-shot CLI, not a long-running service. Dokku's
+  default `web` process tries to keep it alive and marks the deploy
+  failed when it exits. Disable the web process so the image is built
+  but never auto-started: `dokku ps:scale lecrm-admin web=0`.
+  Operator invocations via `dokku run lecrm-admin tenant ...` spin up
+  fresh one-shot containers.
 
 The image refuses to start if any `LECRM_API_*` env var is present
 (AC-D5 — Winston's R2 condition for same-image binary co-location).
