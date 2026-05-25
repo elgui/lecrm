@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -168,7 +167,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionValue, err := EncodeSession(Session{UserID: userID, WorkspaceID: workspaceID}, h.SessionSecret)
+	sessionValue, err := EncodeSessionV2(Session{UserID: userID, WorkspaceID: workspaceID}, subdomain, h.SessionSecret)
 	if err != nil {
 		h.error(w, "encode session", err)
 		return
@@ -201,10 +200,31 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // purely from the session cookie. No DB lookup beyond the cookie's HMAC
 // verification.
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	s, ok := SessionFromRequest(r, h.SessionSecret)
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, needsUpgrade, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
 	if !ok {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
 		return
+	}
+	if needsUpgrade {
+		if upgraded, encErr := EncodeSessionV2(s, subdomain, h.SessionSecret); encErr == nil {
+			if cookie, buildErr := BuildSessionCookie(CookieScope{
+				WorkspaceSubdomain: subdomain,
+				DomainTLD:          h.DomainTLD,
+				Secure:             h.CookieSecure,
+			}, upgraded); buildErr == nil {
+				http.SetCookie(w, cookie)
+			}
+		}
+		if h.Logger != nil {
+			h.Logger.Info("session upgraded from V1 to V2",
+				"user_id", s.UserID,
+				"workspace_slug", subdomain)
+		}
 	}
 	body := map[string]string{
 		"user_id":      s.UserID.String(),
@@ -235,9 +255,33 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// SessionFromRequestV2 reads the session cookie and decodes it using the
+// two-layer V2 format bound to workspaceSlug. If the cookie is a V1
+// token, it falls back to V1 decoding and sets needsUpgrade=true so the
+// caller can re-issue a V2 cookie.
+func SessionFromRequestV2(r *http.Request, workspaceSlug string, secret []byte) (s Session, needsUpgrade bool, ok bool) {
+	c, err := r.Cookie(SessionCookieName)
+	if err != nil {
+		return Session{}, false, false
+	}
+	s, err = DecodeSessionV2(c.Value, workspaceSlug, secret)
+	if err == nil {
+		return s, false, true
+	}
+	// V2 failed — try V1 (transparent migration window).
+	s, err = DecodeSession(c.Value, secret)
+	if err != nil {
+		return Session{}, false, false
+	}
+	return s, true, true
+}
+
 // SessionFromRequest reads and verifies the session cookie. Returns
 // (Session{}, false) on any failure — callers do not need to
 // distinguish "no cookie" from "tampered cookie" from "expired".
+//
+// Deprecated: use SessionFromRequestV2 which validates workspace binding.
+// Retained for callers that don't have workspace slug in scope.
 func SessionFromRequest(r *http.Request, secret []byte) (Session, bool) {
 	c, err := r.Cookie(SessionCookieName)
 	if err != nil {
@@ -257,6 +301,3 @@ func (h *Handler) error(w http.ResponseWriter, ctx string, err error) {
 	http.Error(w, fmt.Sprintf("%s: %v", ctx, err), http.StatusInternalServerError)
 }
 
-// _ guards against unused-import drift while the Sprint 7 audit wiring
-// is still pending; remove when context propagation lands.
-var _ = context.Background
