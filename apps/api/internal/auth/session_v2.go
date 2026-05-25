@@ -43,6 +43,10 @@ type innerPayload struct {
 // Inner payload (AES-256-GCM, encrypted with per-workspace derived key):
 //
 //	{uid, wid, iat, exp}
+//
+// Note: s is passed by value. Auto-populated fields (IssuedAt, ExpiresAt,
+// JTI) are set on the copy, not the caller's original. To retrieve the
+// final values, decode the returned token.
 func EncodeSessionV2(s Session, workspaceSlug string, secret []byte) (string, error) {
 	if s.UserID == uuid.Nil || s.WorkspaceID == uuid.Nil {
 		return "", errors.New("session requires non-zero UserID and WorkspaceID")
@@ -196,9 +200,12 @@ func DecodeSessionV2(token string, workspaceSlug string, secret []byte) (Session
 }
 
 // deriveKey uses HKDF-SHA256 to produce a 32-byte AES key from the
-// master secret and workspace slug (domain separation).
+// master secret and workspace slug (domain separation). The salt
+// includes a fixed prefix so the same slug in different environments
+// (dev/staging/prod) produces different keys even if the master secret
+// is accidentally shared.
 func deriveKey(secret []byte, workspaceSlug string) ([]byte, error) {
-	hk := hkdf.New(sha256.New, secret, []byte(workspaceSlug), []byte(hkdfInfoKey))
+	hk := hkdf.New(sha256.New, secret, []byte("lecrm-"+workspaceSlug), []byte(hkdfInfoKey))
 	key := make([]byte, 32)
 	if _, err := io.ReadFull(hk, key); err != nil {
 		return nil, err

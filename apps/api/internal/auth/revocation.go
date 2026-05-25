@@ -7,7 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,8 +56,7 @@ type RevocationCache struct {
 	logger          *slog.Logger
 	refreshInterval time.Duration
 
-	// atomicFilter is an *bloomFilter swapped atomically on refresh.
-	atomicFilter unsafe.Pointer
+	atomicFilter atomic.Pointer[bloomFilter]
 
 	mu           sync.RWMutex
 	userRevoked  map[uuid.UUID]int64 // user_id → revoked_at unix
@@ -79,7 +77,7 @@ func NewRevocationCache(pool *pgxpool.Pool, logger *slog.Logger, refreshInterval
 		stopCh:          make(chan struct{}),
 	}
 	empty := newBloomFilter(100, 6)
-	atomic.StorePointer(&rc.atomicFilter, unsafe.Pointer(empty))
+	rc.atomicFilter.Store(empty)
 	return rc
 }
 
@@ -123,7 +121,7 @@ func (rc *RevocationCache) refresh(ctx context.Context) {
 	for _, jti := range jtis {
 		bf.add(jti[:])
 	}
-	atomic.StorePointer(&rc.atomicFilter, unsafe.Pointer(bf))
+	rc.atomicFilter.Store(bf)
 
 	users, err := rc.loadUserRevocations(ctx)
 	if err != nil {
@@ -184,7 +182,7 @@ func (rc *RevocationCache) IsRevoked(ctx context.Context, jti uuid.UUID, userID 
 	}
 	rc.mu.RUnlock()
 
-	bf := (*bloomFilter)(atomic.LoadPointer(&rc.atomicFilter))
+	bf := rc.atomicFilter.Load()
 	if !bf.test(jti[:]) {
 		return false, nil
 	}

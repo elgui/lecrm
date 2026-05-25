@@ -27,9 +27,11 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 10 * time.Minute
 
-	// PgBouncer compatibility: simple protocol avoids prepared statements,
-	// preventing N×T statement-cache bloat in multi-tenant schemas and
-	// enabling transaction-mode pooling.
+	// Simple protocol avoids prepared statements, preventing N×T
+	// statement-cache bloat in multi-tenant schemas. Required for
+	// PgBouncer transaction-mode pooling (not yet deployed, but safe
+	// without it — pgx falls back to inline parameter binding). No
+	// existing queries rely on prepared-statement type inference.
 	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)

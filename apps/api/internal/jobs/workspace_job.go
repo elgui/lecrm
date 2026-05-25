@@ -48,6 +48,13 @@ type CredentialResolver interface {
 // a deterministic int4 for any UUID. The lock is database-wide: two
 // connections in the same database contending for the same key will
 // serialize.
+//
+// Collision note: hashtext returns int4 (~4B values). With N workspaces,
+// birthday-problem collisions are negligible for <50 tenants but grow
+// with scale. Collisions cause false serialization (correctness is not
+// affected, only throughput). At scale, consider switching to
+// pg_advisory_lock(('x' || left(md5($1), 15))::bit(64)::bigint) for
+// the full int8 key space.
 func acquireAdvisoryLock(ctx context.Context, db dbExecutor, workspaceID uuid.UUID) error {
 	_, err := db.Exec(ctx, "SELECT pg_advisory_lock(hashtext($1))", workspaceID.String())
 	if err != nil {
@@ -125,12 +132,11 @@ func withSafeExec(
 		return fnErr
 	}
 
-	// Post-job defense-in-depth: detect search_path drift.
+	// Post-job defense-in-depth: search_path drift means data may have
+	// been written to the wrong schema — treat as a hard error.
 	if driftErr := verifySearchPath(ctx, db, roleName); driftErr != nil {
-		slog.WarnContext(ctx, "jobs: search_path drifted during job execution",
-			slog.String("workspace_id", workspaceID.String()),
-			slog.String("error", driftErr.Error()),
-		)
+		return fmt.Errorf("jobs: search_path drifted during job execution for workspace %s: %w",
+			workspaceID, driftErr)
 	}
 
 	return nil

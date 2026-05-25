@@ -4,6 +4,8 @@
 -- invalidation without rotating the global session secret.
 -- Council architecture review 2026-05-24, Approach B (Postgres + bloom filter).
 
+BEGIN;
+
 CREATE TABLE core.session_revocations (
     jti        UUID        PRIMARY KEY,
     user_id    UUID        NOT NULL,
@@ -26,3 +28,5 @@ CREATE TABLE core.user_revocations (
 COMMENT ON TABLE core.user_revocations IS
     'User-level revocation: all sessions issued before revoked_at are invalid. '
     'Used for account compromise scenario (revoke-all).';
+
+COMMIT;

@@ -56,7 +56,20 @@ INSERT INTO core.reserved_slugs (slug, reason) VALUES
   ('status',    'infrastructure — status page'),
   ('grafana',   'infrastructure — monitoring'),
   ('metrics',   'infrastructure — monitoring'),
-  ('internal',  'infrastructure — internal services')
+  ('internal',  'infrastructure — internal services'),
+  ('cdn',       'infrastructure — content delivery'),
+  ('assets',    'infrastructure — static assets'),
+  ('static',    'infrastructure — static files'),
+  ('websocket', 'infrastructure — websocket endpoint'),
+  ('ws',        'infrastructure — websocket shorthand'),
+  ('wss',       'infrastructure — secure websocket'),
+  ('dashboard', 'infrastructure — dashboard'),
+  ('console',   'infrastructure — console'),
+  ('panel',     'infrastructure — control panel'),
+  ('login',     'infrastructure — login page'),
+  ('signup',    'infrastructure — signup page'),
+  ('register',  'infrastructure — registration'),
+  ('docs',      'infrastructure — documentation')
 ON CONFLICT (slug) DO NOTHING;
 
 COMMIT;

@@ -301,8 +301,8 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.Store != nil && h.Store.pool != nil {
-		if err := RevokeSession(r.Context(), h.Store.pool, targetJTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+	if h.Store != nil && h.Store.Pool() != nil {
+		if err := RevokeSession(r.Context(), h.Store.Pool(), targetJTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
 			h.error(w, "revoke session", err)
 			return
 		}
@@ -327,8 +327,8 @@ func (h *Handler) RevokeAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.Store != nil && h.Store.pool != nil {
-		if err := RevokeAllUserSessions(r.Context(), h.Store.pool, s.UserID); err != nil {
+	if h.Store != nil && h.Store.Pool() != nil {
+		if err := RevokeAllUserSessions(r.Context(), h.Store.Pool(), s.UserID); err != nil {
 			h.error(w, "revoke all sessions", err)
 			return
 		}
@@ -377,6 +377,11 @@ func SessionFromRequest(r *http.Request, secret []byte) (Session, bool) {
 
 // isRevoked checks whether the session has been revoked. Returns false
 // (allow) when no RevocationChecker is configured.
+//
+// SECURITY NOTE: fail-open by design — if the revocation DB query fails,
+// the session is allowed through. This prioritizes availability over
+// strict security. A DB outage should not lock out all users. The error
+// is logged at WARN level with "revocation_check_failed" for alerting.
 func (h *Handler) isRevoked(ctx context.Context, s Session) bool {
 	if h.Revocations == nil {
 		return false
@@ -384,7 +389,11 @@ func (h *Handler) isRevoked(ctx context.Context, s Session) bool {
 	revoked, err := h.Revocations.IsRevoked(ctx, s.JTI, s.UserID, s.IssuedAt)
 	if err != nil {
 		if h.Logger != nil {
-			h.Logger.Error("revocation check failed", "err", err, "jti", s.JTI)
+			h.Logger.WarnContext(ctx, "revocation_check_failed: fail-open, session allowed",
+				"err", err,
+				"jti", s.JTI,
+				"user_id", s.UserID,
+			)
 		}
 		return false
 	}
@@ -394,10 +403,10 @@ func (h *Handler) isRevoked(ctx context.Context, s Session) bool {
 // revokeJTI records the session's JTI in the revocation store. Failures
 // are logged but do not block the response (logout still clears the cookie).
 func (h *Handler) revokeJTI(ctx context.Context, s Session) {
-	if h.Store == nil || h.Store.pool == nil {
+	if h.Store == nil || h.Store.Pool() == nil {
 		return
 	}
-	if err := RevokeSession(ctx, h.Store.pool, s.JTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+	if err := RevokeSession(ctx, h.Store.Pool(), s.JTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
 		if h.Logger != nil {
 			h.Logger.Error("failed to revoke JTI on logout", "err", err, "jti", s.JTI)
 		}
