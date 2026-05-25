@@ -1,11 +1,15 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Handler bundles the dependencies for the /auth/* routes.
@@ -17,6 +21,7 @@ type Handler struct {
 	CookieSecure  bool   // true in prod, false in plain-http dev
 	CallbackPath  string // e.g. "/auth/callback"
 	Logger        *slog.Logger
+	Revocations   RevocationChecker // nil = no revocation checking
 }
 
 // redirectURIFor returns the workspace-specific OAuth callback URL the
@@ -55,6 +60,8 @@ func (h *Handler) Register(m interface {
 	m.Get("/auth/callback", h.Callback)
 	m.Get("/auth/me", h.Me)
 	m.Post("/auth/logout", h.Logout)
+	m.Post("/auth/revoke", h.Revoke)
+	m.Post("/auth/revoke-all", h.RevokeAll)
 }
 
 // Login starts an OIDC authorization-code flow. The workspace is
@@ -210,6 +217,10 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
 		return
 	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
 	if needsUpgrade {
 		if upgraded, encErr := EncodeSessionV2(s, subdomain, h.SessionSecret); encErr == nil {
 			if cookie, buildErr := BuildSessionCookie(CookieScope{
@@ -234,13 +245,17 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// Logout clears the session cookie with a matching Domain so the
-// browser actually drops it.
+// Logout clears the session cookie and revokes the current session's JTI
+// so replayed copies of the cookie are rejected.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
 	if err != nil {
 		http.Error(w, "unknown workspace", http.StatusNotFound)
 		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if ok && s.JTI != (uuid.UUID{}) {
+		h.revokeJTI(r.Context(), s)
 	}
 	c, err := ClearSessionCookie(CookieScope{
 		WorkspaceSubdomain: subdomain,
@@ -252,6 +267,72 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, c)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Revoke invalidates a specific session by JTI. The caller must be
+// authenticated and can only revoke their own sessions.
+func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+
+	var body struct {
+		JTI string `json:"jti"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	targetJTI, err := uuid.Parse(body.JTI)
+	if err != nil {
+		http.Error(w, "invalid jti", http.StatusBadRequest)
+		return
+	}
+
+	if h.Store != nil && h.Store.pool != nil {
+		if err := RevokeSession(r.Context(), h.Store.pool, targetJTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+			h.error(w, "revoke session", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RevokeAll invalidates all sessions for the authenticated user.
+func (h *Handler) RevokeAll(w http.ResponseWriter, r *http.Request) {
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+
+	if h.Store != nil && h.Store.pool != nil {
+		if err := RevokeAllUserSessions(r.Context(), h.Store.pool, s.UserID); err != nil {
+			h.error(w, "revoke all sessions", err)
+			return
+		}
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -292,6 +373,35 @@ func SessionFromRequest(r *http.Request, secret []byte) (Session, bool) {
 		return Session{}, false
 	}
 	return s, true
+}
+
+// isRevoked checks whether the session has been revoked. Returns false
+// (allow) when no RevocationChecker is configured.
+func (h *Handler) isRevoked(ctx context.Context, s Session) bool {
+	if h.Revocations == nil {
+		return false
+	}
+	revoked, err := h.Revocations.IsRevoked(ctx, s.JTI, s.UserID, s.IssuedAt)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Error("revocation check failed", "err", err, "jti", s.JTI)
+		}
+		return false
+	}
+	return revoked
+}
+
+// revokeJTI records the session's JTI in the revocation store. Failures
+// are logged but do not block the response (logout still clears the cookie).
+func (h *Handler) revokeJTI(ctx context.Context, s Session) {
+	if h.Store == nil || h.Store.pool == nil {
+		return
+	}
+	if err := RevokeSession(ctx, h.Store.pool, s.JTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+		if h.Logger != nil {
+			h.Logger.Error("failed to revoke JTI on logout", "err", err, "jti", s.JTI)
+		}
+	}
 }
 
 func (h *Handler) error(w http.ResponseWriter, ctx string, err error) {

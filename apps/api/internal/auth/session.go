@@ -26,6 +26,7 @@ import (
 type Session struct {
 	UserID      uuid.UUID `json:"uid"`
 	WorkspaceID uuid.UUID `json:"wid"`
+	JTI         uuid.UUID `json:"jti,omitempty"`
 	IssuedAt    int64     `json:"iat"`
 	ExpiresAt   int64     `json:"exp"`
 }

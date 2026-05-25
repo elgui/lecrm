@@ -27,6 +27,7 @@ const (
 type innerPayload struct {
 	UserID      uuid.UUID `json:"uid"`
 	WorkspaceID uuid.UUID `json:"wid"`
+	JTI         uuid.UUID `json:"jti"`
 	IssuedAt    int64     `json:"iat"`
 	ExpiresAt   int64     `json:"exp"`
 }
@@ -55,10 +56,14 @@ func EncodeSessionV2(s Session, workspaceSlug string, secret []byte) (string, er
 	if s.ExpiresAt == 0 {
 		s.ExpiresAt = time.Now().Add(MaxAge).Unix()
 	}
+	if s.JTI == uuid.Nil {
+		s.JTI = uuid.New()
+	}
 
 	inner := innerPayload{
 		UserID:      s.UserID,
 		WorkspaceID: s.WorkspaceID,
+		JTI:         s.JTI,
 		IssuedAt:    s.IssuedAt,
 		ExpiresAt:   s.ExpiresAt,
 	}
@@ -184,6 +189,7 @@ func DecodeSessionV2(token string, workspaceSlug string, secret []byte) (Session
 	return Session{
 		UserID:      inner.UserID,
 		WorkspaceID: inner.WorkspaceID,
+		JTI:         inner.JTI,
 		IssuedAt:    inner.IssuedAt,
 		ExpiresAt:   inner.ExpiresAt,
 	}, nil
