@@ -1,6 +1,6 @@
 {
   "_comment": "Endpoint registry for the CI guard in apps/api/internal/http/coverage_test.go. Every /v1/* route in the chi router MUST have an entry here. Missing entries fail CI. See docs/test-strategy.md §4.1 TR-3.",
-  "version": 1,
+  "version": 2,
   "endpoints": [
     {
       "method": "GET",
@@ -8,6 +8,55 @@
       "isolation_test": "TestIsolation_TenantA_ContextMatchesSlugA",
       "rbac_test": "n/a — unauthenticated test-only endpoint; removed before first Design Partner onboard (Sprint 11)",
       "notes": "ADR-009 §1.1 Week-2 Go-ramp checkpoint. Returns workspace context from middleware + sqlc-generated list of all workspaces. Not a tenant-filtered query by design; production CRUD endpoints in Sprint 4+ are filtered."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/metadata/definitions",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: list custom property definitions for a parent_type. Workspace-scoped via middleware."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/metadata/definitions",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: create a custom property definition."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/metadata/definitions/{id}",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: delete a custom property definition. Cascades to strip key from objects."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/contacts/{id}/properties",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: get custom properties for a contact."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/contacts/{id}/properties",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: set custom properties for a contact. Audit-logged fail-closed."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals/{id}/properties",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: get custom properties for a deal."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/deals/{id}/properties",
+      "isolation_test": "TestMetadata_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 5 feature 6: set custom properties for a deal. Audit-logged fail-closed."
     }
   ]
 }

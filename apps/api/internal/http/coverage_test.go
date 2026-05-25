@@ -28,6 +28,7 @@ import (
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
+	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -75,6 +76,7 @@ func TestEndpointRegistry_AllV1RoutesAreRegistered(t *testing.T) {
 		AuthHandler:     &auth.Handler{DomainTLD: "lecrm.test"},
 		Resolver:        &workspace.PoolResolver{},
 		TestList:        &workspace.TestListHandler{},
+		Metadata:        &metadata.Handler{Logger: logger},
 		CookieDomainTLD: "lecrm.test",
 	}
 	router := httpserver.NewRouter(deps)

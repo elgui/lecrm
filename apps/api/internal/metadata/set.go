@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,11 +24,12 @@ type Store struct {
 	pool        *pgxpool.Pool
 	schema      string    // workspace schema name (= workspace role name)
 	workspaceID uuid.UUID // for audit log workspace_id column
+	cache       *defCache
 }
 
 // New returns a Store bound to the given pool, workspace schema, and workspace ID.
 func New(pool *pgxpool.Pool, schema string, workspaceID uuid.UUID) *Store {
-	return &Store{pool: pool, schema: schema, workspaceID: workspaceID}
+	return &Store{pool: pool, schema: schema, workspaceID: workspaceID, cache: newDefCache()}
 }
 
 // Object is a row from the objects table.
@@ -67,7 +67,7 @@ func (s *Store) Get(ctx context.Context, parentType string, parentID uuid.UUID) 
 // audit event share one Postgres transaction. An audit INSERT failure rolls back
 // the objects write — the caller receives an error and no data is persisted.
 func (s *Store) Set(ctx context.Context, parentType string, parentID uuid.UUID, data map[string]any) error {
-	if err := s.validate(ctx, parentType, data); err != nil {
+	if err := s.validateStrict(ctx, parentType, data); err != nil {
 		return err
 	}
 
@@ -94,8 +94,6 @@ func (s *Store) Set(ctx context.Context, parentType string, parentID uuid.UUID, 
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	// Replace the full property bag atomically (DELETE + INSERT avoids a
-	// UNIQUE-constraint dependency that is not yet part of the schema).
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM `+objTable+` WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = $2`,
 		parentType, parentID,
@@ -109,7 +107,6 @@ func (s *Store) Set(ctx context.Context, parentType string, parentID uuid.UUID, 
 		return fmt.Errorf("metadata.Set insert: %w", err)
 	}
 
-	// Emit audit event — must succeed or the entire transaction rolls back.
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, payload) VALUES ('metadata.property.upsert', $1, $2)`,
 		uuid.NullUUID{UUID: s.workspaceID, Valid: s.workspaceID != uuid.Nil},
@@ -159,75 +156,4 @@ func (s *Store) Find(ctx context.Context, parentType string, query map[string]an
 		return nil, fmt.Errorf("metadata.Find rows: %w", err)
 	}
 	return out, nil
-}
-
-// validate checks data against custom_property_definitions for the workspace.
-// Unknown keys are allowed (v0 lenient mode); known enum properties must match allowed_values.
-func (s *Store) validate(ctx context.Context, parentType string, data map[string]any) error {
-	q := `SELECT property_key, property_type, allowed_values, required FROM ` +
-		pgx.Identifier{s.schema, "custom_property_definitions"}.Sanitize() +
-		` WHERE parent_type = $1`
-	rows, err := s.pool.Query(ctx, q, parentType)
-	if err != nil {
-		return fmt.Errorf("metadata.validate: %w", err)
-	}
-	defer rows.Close()
-
-	type defEntry struct {
-		propType string
-		allowed  []string
-		required bool
-	}
-	defs := make(map[string]defEntry)
-	for rows.Next() {
-		var key, propType string
-		var allowedRaw []byte
-		var required bool
-		if err := rows.Scan(&key, &propType, &allowedRaw, &required); err != nil {
-			return fmt.Errorf("metadata.validate scan: %w", err)
-		}
-		e := defEntry{propType: propType, required: required}
-		if len(allowedRaw) > 0 {
-			if err := json.Unmarshal(allowedRaw, &e.allowed); err != nil {
-				return fmt.Errorf("metadata.validate decode allowed_values: %w", err)
-			}
-		}
-		defs[key] = e
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("metadata.validate rows: %w", err)
-	}
-
-	for key, def := range defs {
-		if def.required {
-			if _, ok := data[key]; !ok {
-				return fmt.Errorf("metadata.Set: required property %q missing", key)
-			}
-		}
-	}
-
-	for key, val := range data {
-		def, ok := defs[key]
-		if !ok {
-			continue
-		}
-		if def.propType == "enum" && len(def.allowed) > 0 {
-			strVal, ok := val.(string)
-			if !ok {
-				return fmt.Errorf("metadata.Set: enum property %q must be a string, got %T", key, val)
-			}
-			valid := false
-			for _, av := range def.allowed {
-				if av == strVal {
-					valid = true
-					break
-				}
-			}
-			if !valid {
-				return fmt.Errorf("metadata.Set: %q is not a valid value for %q (allowed: %s)",
-					strVal, key, strings.Join(def.allowed, ", "))
-			}
-		}
-	}
-	return nil
 }

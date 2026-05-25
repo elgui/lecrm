@@ -12,6 +12,7 @@ import (
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/logging"
+	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -21,6 +22,7 @@ type RouterDeps struct {
 	AuthHandler     *auth.Handler
 	Resolver        workspace.Resolver
 	TestList        *workspace.TestListHandler
+	Metadata        *metadata.Handler
 	CookieDomainTLD string
 }
 
@@ -42,10 +44,15 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 
 	deps.AuthHandler.Register(r)
 
-	if deps.TestList != nil && deps.Resolver != nil {
+	if deps.Resolver != nil {
 		r.Group(func(r chi.Router) {
 			r.Use(workspace.Middleware(deps.Logger, deps.Resolver, deps.CookieDomainTLD))
-			r.Get("/v1/_test/workspaces", deps.TestList.ServeHTTP)
+			if deps.TestList != nil {
+				r.Get("/v1/_test/workspaces", deps.TestList.ServeHTTP)
+			}
+			if deps.Metadata != nil {
+				deps.Metadata.RegisterRoutes(r)
+			}
 		})
 	}
 
