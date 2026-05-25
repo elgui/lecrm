@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -18,15 +19,16 @@ const maxBodySize = 1 << 20 // 1 MB
 
 // Handler serves custom property definition and property CRUD endpoints.
 type Handler struct {
-	Pool   *pgxpool.Pool
-	Logger *slog.Logger
-	cache  *defCache
+	Pool      *pgxpool.Pool
+	Logger    *slog.Logger
+	cache     *defCache
+	cacheOnce sync.Once
 }
 
-func (h *Handler) ensureCache() *defCache {
-	if h.cache == nil {
+func (h *Handler) getCache() *defCache {
+	h.cacheOnce.Do(func() {
 		h.cache = newDefCache()
-	}
+	})
 	return h.cache
 }
 
@@ -35,7 +37,7 @@ func (h *Handler) storeFromCtx(r *http.Request) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewWithCache(h.Pool, ws.RoleName, ws.ID, h.ensureCache()), nil
+	return NewWithCache(h.Pool, ws.RoleName, ws.ID, h.getCache()), nil
 }
 
 // RegisterRoutes mounts all metadata routes on r.

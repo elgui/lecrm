@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -194,7 +195,7 @@ func toNumeric(f *float64) pgtype.Numeric {
 		return pgtype.Numeric{}
 	}
 	var n pgtype.Numeric
-	_ = n.Scan(*f)
+	_ = n.Scan(strconv.FormatFloat(*f, 'f', -1, 64))
 	return n
 }
 
