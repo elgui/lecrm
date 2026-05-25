@@ -41,7 +41,7 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (GetWorks
 
 const isSlugAvailable = `-- name: IsSlugAvailable :one
 SELECT NOT EXISTS (
-  SELECT 1 FROM core.workspaces w WHERE w.slug = $1 AND w.tombstoned_at IS NULL
+  SELECT 1 FROM core.workspaces w WHERE w.slug = $1
 ) AND NOT EXISTS (
   SELECT 1 FROM core.reserved_slugs r WHERE r.slug = $1
 ) AS available
