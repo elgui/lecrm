@@ -117,6 +117,14 @@ func tenantSubcommands(logger *slog.Logger) []*cli.Command {
 			},
 			Action: func(c *cli.Context) error { return runGet(c, logger) },
 		},
+		{
+			Name:  "tombstone",
+			Usage: "Soft-delete a tenant (slug becomes permanently unavailable)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+			},
+			Action: func(c *cli.Context) error { return runTombstone(c, logger) },
+		},
 	}
 }
 
@@ -193,6 +201,22 @@ func runGet(c *cli.Context, logger *slog.Logger) error {
 	}
 	defer func() { _ = conn.Close(ctx) }()
 	return tenant.Get(ctx, conn, slug, os.Stdout)
+}
+
+func runTombstone(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slug := c.String("slug")
+	if err := tenant.ValidateSlug(slug); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = tenant.Tombstone(ctx, conn, tenant.TombstoneOptions{Slug: slug}, os.Stdout)
+	return err
 }
 
 func openConn(ctx context.Context) (*pgx.Conn, error) {

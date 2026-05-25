@@ -23,6 +23,12 @@ type CoreAuditLog struct {
 	Payload     []byte             `json:"payload"`
 }
 
+type CoreReservedSlug struct {
+	Slug      string             `json:"slug"`
+	Reason    string             `json:"reason"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type CoreUser struct {
 	ID          uuid.UUID          `json:"id"`
 	Issuer      string             `json:"issuer"`
@@ -35,11 +41,15 @@ type CoreUser struct {
 }
 
 type CoreWorkspace struct {
-	ID        uuid.UUID          `json:"id"`
-	Slug      string             `json:"slug"`
-	RoleName  string             `json:"role_name"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID                          uuid.UUID          `json:"id"`
+	Slug                        string             `json:"slug"`
+	RoleName                    string             `json:"role_name"`
+	CreatedAt                   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                   pgtype.Timestamptz `json:"updated_at"`
+	AdminEmail                  string             `json:"admin_email"`
+	CreatorEmail                string             `json:"creator_email"`
+	ProvisioningFeaturesApplied []byte             `json:"provisioning_features_applied"`
+	TombstonedAt                pgtype.Timestamptz `json:"tombstoned_at"`
 }
 
 type CoreWorkspaceMember struct {

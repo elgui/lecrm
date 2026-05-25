@@ -12,6 +12,8 @@ type ErrKind string
 const (
 	ErrKindSlugInvalid     ErrKind = "slug_invalid"
 	ErrKindSlugConflict    ErrKind = "slug_conflict"
+	ErrKindSlugReserved    ErrKind = "slug_reserved"
+	ErrKindSlugTombstoned  ErrKind = "slug_tombstoned"
 	ErrKindTemplateUnknown ErrKind = "template_unknown"
 	ErrKindAPIEnvLeak      ErrKind = "api_env_leak"
 	ErrKindDBConnect       ErrKind = "db_connect"

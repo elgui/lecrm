@@ -124,6 +124,29 @@ func TestMiddleware_MultiLabelSubdomainRejected(t *testing.T) {
 	}
 }
 
+func TestMiddleware_TombstonedSlugIs404(t *testing.T) {
+	res := &stubResolver{err: ErrUnknownWorkspace}
+	h := Middleware(silentLogger(), res, "lecrm.test")(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		t.Fatal("terminal handler should not run for tombstoned slug")
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/_test/workspaces", nil)
+	req.Host = "tombstoned-tenant.lecrm.test"
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("status: got %d want 404", rr.Code)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("body decode: %v", err)
+	}
+	if body["error"] != "workspace not found" {
+		t.Fatalf("expected generic 'workspace not found' error (no info leak), got %+v", body)
+	}
+}
+
 func TestSubdomainOf(t *testing.T) {
 	cases := []struct {
 		host    string
