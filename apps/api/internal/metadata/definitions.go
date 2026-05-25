@@ -79,16 +79,16 @@ type CreateDefinitionInput struct {
 // CreateDefinition inserts a new custom property definition.
 func (s *Store) CreateDefinition(ctx context.Context, input CreateDefinitionInput) (Definition, error) {
 	if !validParentTypes[input.ParentType] {
-		return Definition{}, fmt.Errorf("metadata.CreateDefinition: invalid parent_type %q", input.ParentType)
+		return Definition{}, &ValidationError{Msg: fmt.Sprintf("invalid parent_type %q", input.ParentType)}
 	}
 	if !validPropertyTypes[input.PropertyType] {
-		return Definition{}, fmt.Errorf("metadata.CreateDefinition: invalid property_type %q", input.PropertyType)
+		return Definition{}, &ValidationError{Msg: fmt.Sprintf("invalid property_type %q", input.PropertyType)}
 	}
 	if input.PropertyKey == "" {
-		return Definition{}, fmt.Errorf("metadata.CreateDefinition: property_key is required")
+		return Definition{}, &ValidationError{Msg: "property_key is required"}
 	}
 	if input.PropertyType == "enum" && len(input.AllowedValues) == 0 {
-		return Definition{}, fmt.Errorf("metadata.CreateDefinition: enum type requires allowed_values")
+		return Definition{}, &ValidationError{Msg: "enum type requires allowed_values"}
 	}
 
 	var allowedRaw []byte

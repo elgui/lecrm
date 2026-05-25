@@ -97,8 +97,9 @@ func (h *Handler) CreateDefinition(w http.ResponseWriter, r *http.Request) {
 
 	def, err := store.CreateDefinition(r.Context(), input)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "required") {
-			writeErr(w, http.StatusBadRequest, err.Error())
+		var ve *ValidationError
+		if errors.As(err, &ve) {
+			writeErr(w, http.StatusBadRequest, ve.Error())
 			return
 		}
 		if strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "unique") {

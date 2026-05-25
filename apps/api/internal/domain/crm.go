@@ -60,8 +60,34 @@ func (d CreateDealInput) Validate() error {
 	if strings.TrimSpace(d.Title) == "" {
 		return fmt.Errorf("title is required")
 	}
-	if d.Currency != "" && len(d.Currency) != 3 {
-		return fmt.Errorf("currency must be a 3-letter ISO code, got %q", d.Currency)
+	if d.Currency != "" {
+		if len(d.Currency) != 3 {
+			return fmt.Errorf("currency must be a 3-letter ISO code, got %q", d.Currency)
+		}
+		if strings.TrimSpace(d.Currency) != d.Currency {
+			return fmt.Errorf("currency must not contain whitespace, got %q", d.Currency)
+		}
+	}
+	return nil
+}
+
+type UpdateContactInput struct {
+	FirstName string
+	LastName  string
+	Email     string
+}
+
+func (u UpdateContactInput) Validate() error {
+	if u.FirstName != "" && strings.TrimSpace(u.FirstName) == "" {
+		return fmt.Errorf("first_name must not be blank")
+	}
+	if u.LastName != "" && strings.TrimSpace(u.LastName) == "" {
+		return fmt.Errorf("last_name must not be blank")
+	}
+	if u.Email != "" {
+		if _, err := mail.ParseAddress(u.Email); err != nil {
+			return fmt.Errorf("invalid email: %w", err)
+		}
 	}
 	return nil
 }

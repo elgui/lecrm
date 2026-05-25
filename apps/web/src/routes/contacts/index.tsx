@@ -77,7 +77,7 @@ function ContactList() {
                     {contact.email ?? '-'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {contact.company_name ?? '-'}
+                    {contact.company_id ? contact.company_id.slice(0, 8) + '…' : '-'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(contact.created_at).toLocaleDateString()}

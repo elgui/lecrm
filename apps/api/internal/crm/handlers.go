@@ -417,6 +417,14 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	email := ""
+	if body.Email != nil {
+		email = *body.Email
+	}
+	if err := (domain.UpdateContactInput{FirstName: body.FirstName, LastName: body.LastName, Email: email}).Validate(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var row sqlcgen.Contact
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
 		var e error
@@ -439,6 +447,19 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, contactFromRow(row))
 }
 
+var errNotFound = errors.New("not found")
+
+func deleteRow(ctx context.Context, tx pgx.Tx, table string, id uuid.UUID) error {
+	tag, err := tx.Exec(ctx, "DELETE FROM "+table+" WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errNotFound
+	}
+	return nil
+}
+
 func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 	ws, ok := h.ws(w, r)
 	if !ok {
@@ -449,8 +470,12 @@ func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return sqlcgen.New(tx).DeleteContact(r.Context(), id)
+		return deleteRow(r.Context(), tx, "contacts", id)
 	})
+	if errors.Is(err, errNotFound) {
+		writeErr(w, http.StatusNotFound, "contact not found")
+		return
+	}
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete contact failed")
@@ -629,8 +654,12 @@ func (h *Handler) DeleteCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return sqlcgen.New(tx).DeleteCompany(r.Context(), id)
+		return deleteRow(r.Context(), tx, "companies", id)
 	})
+	if errors.Is(err, errNotFound) {
+		writeErr(w, http.StatusNotFound, "company not found")
+		return
+	}
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete company failed")
@@ -822,8 +851,12 @@ func (h *Handler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return sqlcgen.New(tx).DeleteDeal(r.Context(), id)
+		return deleteRow(r.Context(), tx, "deals", id)
 	})
+	if errors.Is(err, errNotFound) {
+		writeErr(w, http.StatusNotFound, "deal not found")
+		return
+	}
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete deal failed")
