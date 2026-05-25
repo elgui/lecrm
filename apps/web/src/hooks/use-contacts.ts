@@ -26,7 +26,7 @@ export function useUpdateContact(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<Contact>) =>
-      api.patch<Contact>(`/v1/contacts/${id}`, data),
+      api.put<Contact>(`/v1/contacts/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contacts', id] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });

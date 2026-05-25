@@ -52,16 +52,18 @@ function DealDetail() {
         </CardHeader>
         <CardContent>
           <dl className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Stage</dt>
-              <dd className="mt-1">
-                <Badge variant="secondary">{deal.stage}</Badge>
-              </dd>
-            </div>
+            {deal.stage_id && (
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Stage</dt>
+                <dd className="mt-1">
+                  <Badge variant="secondary">{deal.stage_id.slice(0, 8)}</Badge>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-sm font-medium text-muted-foreground">Amount</dt>
               <dd className="mt-1 text-sm">
-                {deal.amount !== null
+                {deal.amount !== null && deal.currency
                   ? new Intl.NumberFormat(undefined, {
                       style: 'currency',
                       currency: deal.currency,
@@ -69,10 +71,12 @@ function DealDetail() {
                   : '-'}
               </dd>
             </div>
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Currency</dt>
-              <dd className="mt-1 text-sm">{deal.currency}</dd>
-            </div>
+            {deal.currency && (
+              <div>
+                <dt className="text-sm font-medium text-muted-foreground">Currency</dt>
+                <dd className="mt-1 text-sm">{deal.currency}</dd>
+              </div>
+            )}
             <div>
               <dt className="text-sm font-medium text-muted-foreground">Created</dt>
               <dd className="mt-1 text-sm">

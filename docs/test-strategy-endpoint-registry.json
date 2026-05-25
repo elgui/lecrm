@@ -1,6 +1,6 @@
 {
   "_comment": "Endpoint registry for the CI guard in apps/api/internal/http/coverage_test.go. Every /v1/* route in the chi router MUST have an entry here. Missing entries fail CI. See docs/test-strategy.md §4.1 TR-3.",
-  "version": 2,
+  "version": 3,
   "endpoints": [
     {
       "method": "GET",
@@ -57,6 +57,111 @@
       "isolation_test": "TestMetadata_CrossTenantIsolation",
       "rbac_test": "pending — Sprint 7",
       "notes": "Sprint 5 feature 6: set custom properties for a deal. Audit-logged fail-closed."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/contacts",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: list contacts with cursor pagination. Workspace-scoped via search_path."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/contacts",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: create a contact."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/contacts/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: get a single contact by ID."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/contacts/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: update a contact."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/contacts/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: delete a contact."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/companies",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: list companies with cursor pagination."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/companies",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: create a company."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/companies/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: get a single company by ID."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/companies/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: update a company."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/companies/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: delete a company."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: list deals with cursor pagination."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/deals",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: create a deal."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: get a single deal by ID."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/deals/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: update a deal."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/deals/{id}",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 4: delete a deal."
     }
   ]
 }

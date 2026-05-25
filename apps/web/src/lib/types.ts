@@ -9,35 +9,37 @@ export interface User {
 
 export interface Contact {
   id: string;
-  workspace_id: string;
   first_name: string;
   last_name: string;
   email: string | null;
   phone: string | null;
   company_id: string | null;
-  company_name?: string;
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface Company {
   id: string;
-  workspace_id: string;
   name: string;
   domain: string | null;
+  industry: string | null;
+  size: string | null;
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export interface Deal {
   id: string;
-  workspace_id: string;
   title: string;
-  stage: string;
   amount: number | null;
-  currency: string;
+  currency: string | null;
+  stage_id: string | null;
   contact_id: string | null;
   company_id: string | null;
+  owner_id: string | null;
+  expected_close_date: string | null;
   closed_at: string | null;
   created_at: string;
   updated_at: string;

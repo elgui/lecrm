@@ -28,9 +28,23 @@ type Store struct {
 }
 
 // New returns a Store bound to the given pool, workspace schema, and workspace ID.
+// Each call creates its own defCache; use NewWithCache to share a cache across Stores.
 func New(pool *pgxpool.Pool, schema string, workspaceID uuid.UUID) *Store {
 	return &Store{pool: pool, schema: schema, workspaceID: workspaceID, cache: newDefCache()}
 }
+
+// NewWithCache returns a Store that shares an externally-managed defCache.
+// The Handler uses this to avoid creating a throwaway cache per request.
+func NewWithCache(pool *pgxpool.Pool, schema string, workspaceID uuid.UUID, cache *defCache) *Store {
+	return &Store{pool: pool, schema: schema, workspaceID: workspaceID, cache: cache}
+}
+
+// ValidationError is returned when user-supplied data fails metadata checks.
+type ValidationError struct {
+	Msg string
+}
+
+func (e *ValidationError) Error() string { return e.Msg }
 
 // Object is a row from the objects table.
 type Object struct {

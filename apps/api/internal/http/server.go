@@ -11,6 +11,7 @@ import (
 	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
+	"github.com/gbconsult/lecrm/apps/api/internal/crm"
 	"github.com/gbconsult/lecrm/apps/api/internal/logging"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
@@ -23,6 +24,7 @@ type RouterDeps struct {
 	Resolver        workspace.Resolver
 	TestList        *workspace.TestListHandler
 	Metadata        *metadata.Handler
+	CRM             *crm.Handler
 	CookieDomainTLD string
 }
 
@@ -52,6 +54,9 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.Metadata != nil {
 				deps.Metadata.RegisterRoutes(r)
+			}
+			if deps.CRM != nil {
+				deps.CRM.RegisterRoutes(r)
 			}
 		})
 	}

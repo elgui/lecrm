@@ -19,6 +19,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/config"
 	"github.com/gbconsult/lecrm/apps/api/internal/db"
+	"github.com/gbconsult/lecrm/apps/api/internal/crm"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
@@ -74,6 +75,7 @@ func run(logger *slog.Logger) error {
 	wsResolver := &workspace.PoolResolver{Pool: pool}
 	testList := &workspace.TestListHandler{Pool: pool, Logger: logger}
 	metadataH := &metadata.Handler{Pool: pool, Logger: logger}
+	crmH := &crm.Handler{Pool: pool, Logger: logger}
 
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
@@ -83,6 +85,7 @@ func run(logger *slog.Logger) error {
 			Resolver:        wsResolver,
 			TestList:        testList,
 			Metadata:        metadataH,
+			CRM:             crmH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

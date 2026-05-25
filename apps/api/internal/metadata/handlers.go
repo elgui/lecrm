@@ -14,10 +14,20 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
+const maxBodySize = 1 << 20 // 1 MB
+
 // Handler serves custom property definition and property CRUD endpoints.
 type Handler struct {
 	Pool   *pgxpool.Pool
 	Logger *slog.Logger
+	cache  *defCache
+}
+
+func (h *Handler) ensureCache() *defCache {
+	if h.cache == nil {
+		h.cache = newDefCache()
+	}
+	return h.cache
 }
 
 func (h *Handler) storeFromCtx(r *http.Request) (*Store, error) {
@@ -25,7 +35,7 @@ func (h *Handler) storeFromCtx(r *http.Request) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return New(h.Pool, ws.RoleName, ws.ID), nil
+	return NewWithCache(h.Pool, ws.RoleName, ws.ID, h.ensureCache()), nil
 }
 
 // RegisterRoutes mounts all metadata routes on r.
@@ -76,6 +86,7 @@ func (h *Handler) CreateDefinition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 	var input CreateDefinitionInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid JSON body")
@@ -171,6 +182,7 @@ func (h *Handler) SetProperties(parentType string) http.HandlerFunc {
 			return
 		}
 
+		r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeErr(w, http.StatusBadRequest, "invalid JSON body")
@@ -178,8 +190,9 @@ func (h *Handler) SetProperties(parentType string) http.HandlerFunc {
 		}
 
 		if err := store.Set(r.Context(), parentType, parentID, body); err != nil {
-			if isValidationError(err) {
-				writeErr(w, http.StatusBadRequest, err.Error())
+			var ve *ValidationError
+			if errors.As(err, &ve) {
+				writeErr(w, http.StatusBadRequest, ve.Error())
 				return
 			}
 			h.Logger.ErrorContext(r.Context(), "set properties failed", "err", err, "parent_type", parentType)
@@ -189,14 +202,6 @@ func (h *Handler) SetProperties(parentType string) http.HandlerFunc {
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
-}
-
-func isValidationError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "metadata.Set:") && !strings.Contains(msg, "metadata.Set begin:") &&
-		!strings.Contains(msg, "metadata.Set delete:") && !strings.Contains(msg, "metadata.Set insert:") &&
-		!strings.Contains(msg, "metadata.Set audit:") && !strings.Contains(msg, "metadata.Set commit:") &&
-		!strings.Contains(msg, "metadata.Set marshal:")
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

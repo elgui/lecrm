@@ -18,8 +18,8 @@ export const Route = createRoute({
   component: DealList,
 });
 
-function formatCurrency(amount: number | null, currency: string) {
-  if (amount === null) return '-';
+function formatCurrency(amount: number | null, currency: string | null) {
+  if (amount === null || !currency) return '-';
   return new Intl.NumberFormat(undefined, {
     style: 'currency',
     currency,
@@ -81,7 +81,11 @@ function DealList() {
                   </Link>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{deal.stage}</Badge>
+                  {deal.stage_id ? (
+                    <Badge variant="secondary">{deal.stage_id.slice(0, 8)}</Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatCurrency(deal.amount, deal.currency)}

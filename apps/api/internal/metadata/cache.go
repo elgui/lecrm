@@ -11,6 +11,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+func cacheKey(schema, parentType string) string {
+	return schema + ":" + parentType
+}
+
 const (
 	cacheTTL     = 5 * time.Minute
 	cacheMaxSize = 50
@@ -79,7 +83,8 @@ func (c *defCache) invalidate(parentType string) {
 
 // loadDefs fetches definitions from DB or cache for validation.
 func (s *Store) loadDefs(ctx context.Context, parentType string) (map[string]defEntry, error) {
-	if defs, ok := s.cache.get(parentType); ok {
+	key := cacheKey(s.schema, parentType)
+	if defs, ok := s.cache.get(key); ok {
 		return defs, nil
 	}
 
@@ -112,13 +117,13 @@ func (s *Store) loadDefs(ctx context.Context, parentType string) (map[string]def
 		return nil, fmt.Errorf("metadata.loadDefs rows: %w", err)
 	}
 
-	s.cache.put(parentType, defs)
+	s.cache.put(key, defs)
 	return defs, nil
 }
 
 // invalidateCache removes the cached definitions for a parent type.
 func (s *Store) invalidateCache(parentType string) {
-	s.cache.invalidate(parentType)
+	s.cache.invalidate(cacheKey(s.schema, parentType))
 }
 
 // validateStrict checks data against custom_property_definitions strictly:
@@ -133,7 +138,7 @@ func (s *Store) validateStrict(ctx context.Context, parentType string, data map[
 	for key, def := range defs {
 		if def.required {
 			if _, ok := data[key]; !ok {
-				return fmt.Errorf("metadata.Set: required property %q missing", key)
+				return &ValidationError{Msg: fmt.Sprintf("required property %q missing", key)}
 			}
 		}
 	}
@@ -142,7 +147,7 @@ func (s *Store) validateStrict(ctx context.Context, parentType string, data map[
 	for key, val := range data {
 		def, ok := defs[key]
 		if !ok {
-			return fmt.Errorf("metadata.Set: property %q is not defined", key)
+			return &ValidationError{Msg: fmt.Sprintf("property %q is not defined", key)}
 		}
 
 		if err := validateValue(key, val, def); err != nil {
@@ -156,30 +161,30 @@ func validateValue(key string, val any, def defEntry) error {
 	switch def.propType {
 	case "string":
 		if _, ok := val.(string); !ok {
-			return fmt.Errorf("metadata.Set: property %q must be a string, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("property %q must be a string, got %T", key, val)}
 		}
 	case "number":
 		switch val.(type) {
 		case float64, int, int64, float32:
 		default:
-			return fmt.Errorf("metadata.Set: property %q must be a number, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("property %q must be a number, got %T", key, val)}
 		}
 	case "boolean":
 		if _, ok := val.(bool); !ok {
-			return fmt.Errorf("metadata.Set: property %q must be a boolean, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("property %q must be a boolean, got %T", key, val)}
 		}
 	case "date":
 		s, ok := val.(string)
 		if !ok {
-			return fmt.Errorf("metadata.Set: property %q must be a date string, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("property %q must be a date string, got %T", key, val)}
 		}
-		if len(s) < 10 {
-			return fmt.Errorf("metadata.Set: property %q is not a valid date", key)
+		if _, err := time.Parse("2006-01-02", s); err != nil {
+			return &ValidationError{Msg: fmt.Sprintf("property %q is not a valid date (expected YYYY-MM-DD)", key)}
 		}
 	case "enum":
 		strVal, ok := val.(string)
 		if !ok {
-			return fmt.Errorf("metadata.Set: enum property %q must be a string, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("enum property %q must be a string, got %T", key, val)}
 		}
 		if len(def.allowed) > 0 {
 			valid := false
@@ -190,15 +195,15 @@ func validateValue(key string, val any, def defEntry) error {
 				}
 			}
 			if !valid {
-				return fmt.Errorf("metadata.Set: %q is not a valid value for %q (allowed: %s)",
-					strVal, key, strings.Join(def.allowed, ", "))
+				return &ValidationError{Msg: fmt.Sprintf("%q is not a valid value for %q (allowed: %s)",
+					strVal, key, strings.Join(def.allowed, ", "))}
 			}
 		}
 	case "json":
 		switch val.(type) {
 		case map[string]any, []any:
 		default:
-			return fmt.Errorf("metadata.Set: property %q must be a JSON object or array, got %T", key, val)
+			return &ValidationError{Msg: fmt.Sprintf("property %q must be a JSON object or array, got %T", key, val)}
 		}
 	}
 	return nil
