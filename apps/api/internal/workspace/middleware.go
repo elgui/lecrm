@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/gbconsult/lecrm/apps/api/internal/logging"
 )
 
 // Resolver looks up a workspace by its subdomain slug. It is the
@@ -47,13 +49,25 @@ func Middleware(logger *slog.Logger, resolver Resolver, cookieDomainTLD string) 
 				writeJSONError(w, http.StatusNotFound, "workspace not found")
 				return
 			case err != nil:
-				logger.ErrorContext(r.Context(), "workspace resolve failed", "err", err, "slug", slug)
+				logging.FromContext(r.Context()).Error("workspace resolve failed", "err", err, "slug", slug)
 				writeJSONError(w, http.StatusInternalServerError, "workspace resolve failed")
 				return
 			}
 
 			ws := &Context{ID: id, Slug: slug, RoleName: roleName}
-			next.ServeHTTP(w, r.WithContext(WithWorkspace(r.Context(), ws)))
+
+			ctx := WithWorkspace(r.Context(), ws)
+
+			if rl := logging.GetRequestLog(ctx); rl != nil {
+				rl.Workspace = slug
+				rl.WorkspaceID = id.String()
+			}
+
+			if l := logging.FromContext(ctx); l != slog.Default() {
+				ctx = logging.WithLogger(ctx, l.With("workspace", slug, "workspace_id", id.String()))
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

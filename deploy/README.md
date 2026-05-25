@@ -27,8 +27,10 @@ hand-off. Three external dependencies must land before
 - `compose/authentik.yml` — Authentik 2025.10 server + worker. No Redis
   service (2025.10 removed the dependency). Postgres-backed cache.
 - `compose/lgtm.yml` — Loki + Grafana + Tempo + Prometheus + OTel
-  Collector. ~1.1 GB RAM. Wired in Sprint 11; metrics labelled with
-  `workspace_id`.
+  Collector. ~1.1 GB RAM. **Deferred** — not part of the default v0
+  stack. v0 observability uses structured slog JSON to stdout + Grafana
+  Cloud free tier (see `ops/observability.md`). Kept for optional local
+  deep-debugging when needed.
 - `caddy/Caddyfile` — wildcard DNS-01 TLS, CSP header per ADR-009 §5.2,
   reverse-proxy to `lecrm-api` and `authentik-server`.
 
@@ -107,8 +109,14 @@ links that user to the `acme` workspace; `GET /auth/me` returns
 `{user_id, workspace_id}` with both populated. The test is idempotent —
 `UpsertUser` and `EnsureMember` collapse repeat runs into the same row.
 
-LGTM and the Caddy edge are deferred to Sprint 11; they boot after the
-Compose stack is the primary entry point (production deploy).
+LGTM is deferred indefinitely — the council review (2026-05-24) agreed
+the ~1.1 GB RAM cost is unjustifiable at v0 with <5 clients. Observability
+uses structured JSON slog to stdout + Grafana Cloud free tier instead
+(see `ops/observability.md`). `compose/lgtm.yml` remains for optional
+local deep-debugging.
+
+The Caddy edge is deferred to Sprint 11; it boots after the Compose stack
+is the primary entry point (production deploy).
 
 ## Decision log
 
