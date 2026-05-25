@@ -11,6 +11,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Company struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	Domain    pgtype.Text        `json:"domain"`
+	Industry  pgtype.Text        `json:"industry"`
+	Size      pgtype.Text        `json:"size"`
+	OwnerID   uuid.NullUUID      `json:"owner_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Contact struct {
+	ID        uuid.UUID          `json:"id"`
+	FirstName string             `json:"first_name"`
+	LastName  string             `json:"last_name"`
+	Email     pgtype.Text        `json:"email"`
+	Phone     pgtype.Text        `json:"phone"`
+	CompanyID uuid.NullUUID      `json:"company_id"`
+	OwnerID   uuid.NullUUID      `json:"owner_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type CoreAuditLog struct {
 	ID          int64              `json:"id"`
 	OccurredAt  pgtype.Timestamptz `json:"occurred_at"`
@@ -29,6 +52,14 @@ type CoreReservedSlug struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+// Per-session revocation entries. Checked via in-memory bloom filter; DB hit only on bloom-positive. Rows auto-expire and are cleaned by a periodic job.
+type CoreSessionRevocation struct {
+	Jti       uuid.UUID          `json:"jti"`
+	UserID    uuid.UUID          `json:"user_id"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
 type CoreUser struct {
 	ID          uuid.UUID          `json:"id"`
 	Issuer      string             `json:"issuer"`
@@ -38,6 +69,12 @@ type CoreUser struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 	LastLoginAt pgtype.Timestamptz `json:"last_login_at"`
+}
+
+// User-level revocation: all sessions issued before revoked_at are invalid. Used for account compromise scenario (revoke-all).
+type CoreUserRevocation struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
 }
 
 type CoreWorkspace struct {
@@ -58,4 +95,26 @@ type CoreWorkspaceMember struct {
 	Role        string             `json:"role"`
 	InvitedAt   pgtype.Timestamptz `json:"invited_at"`
 	JoinedAt    pgtype.Timestamptz `json:"joined_at"`
+}
+
+type Deal struct {
+	ID                uuid.UUID          `json:"id"`
+	Title             string             `json:"title"`
+	Amount            pgtype.Numeric     `json:"amount"`
+	Currency          pgtype.Text        `json:"currency"`
+	StageID           uuid.NullUUID      `json:"stage_id"`
+	ContactID         uuid.NullUUID      `json:"contact_id"`
+	CompanyID         uuid.NullUUID      `json:"company_id"`
+	OwnerID           uuid.NullUUID      `json:"owner_id"`
+	ExpectedCloseDate pgtype.Date        `json:"expected_close_date"`
+	ClosedAt          pgtype.Timestamptz `json:"closed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PipelineStage struct {
+	ID         uuid.UUID          `json:"id"`
+	Name       string             `json:"name"`
+	OrderIndex int32              `json:"order_index"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
