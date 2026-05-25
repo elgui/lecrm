@@ -1,9 +1,9 @@
 # ADR-010 — Custom-Object Metadata Engine Pattern
 
-**Status:** Accepted
+**Status:** Accepted (amended 2026-05-25 by [ADR-011](ADR-011-chatboting-connector-boundary.md) — `json` property type added; see §4a)
 **Date:** 2026-05-15 (Proposed); 2026-05-15 (Accepted after scope-research brief at `docs/research/adr-010-metadata-engine-scope.md`)
 **Deciders:** Guillaume
-**Related:** [ADR-009 §9](ADR-009-stack-and-license.md) (G2 schedule gate — this ADR fulfills it proactively from Wk 3 rather than reactively at Wk 5). [ADR-001](ADR-001-tenancy-model.md) (schema-per-tenant baseline — preserved entirely). Tasket `20260514-114217-3c84` (authoring tasket). Tasket `20260514-114245-d3a8` (G3 Wk-6 verification gate — semantics adjusted by this ADR; see §6).
+**Related:** [ADR-009 §9](ADR-009-stack-and-license.md) (G2 schedule gate — this ADR fulfills it proactively from Wk 3 rather than reactively at Wk 5). [ADR-001](ADR-001-tenancy-model.md) (schema-per-tenant baseline — preserved entirely). [ADR-011](ADR-011-chatboting-connector-boundary.md) (first connector boundary — amends §4 to add `json` property type). Tasket `20260514-114217-3c84` (authoring tasket). Tasket `20260514-114245-d3a8` (G3 Wk-6 verification gate — semantics adjusted by this ADR; see §6).
 
 ---
 
@@ -78,6 +78,19 @@ CREATE TABLE workspace_<role_name>.custom_property_definitions (
 ```
 
 This is a static, known schema — `sqlc` handles it cleanly. The API layer reads from this table on every custom-property write to validate the incoming `data` payload (enum membership, type match, required-presence). Validation is **fail-closed**: a payload that does not pass validation is rejected with `400 Bad Request`, never silently stored.
+
+#### 4a. Amendment (2026-05-25, ADR-011): `json` property type
+
+The `property_type` CHECK constraint is extended from `('string' | 'number' | 'boolean' | 'enum' | 'date')` to include **`'json'`**.
+
+**Motivation:** The chatboting connector (ADR-011) pushes structured JSONB payloads (e.g., `scoring_breakdown` with 8+ fields: `pageCountFactor`, `companySizeBonus`, `chatbotPenalty`, etc.) that lose semantic grouping if flattened into individual `number` properties. The `json` type accepts pre-validated JSONB blobs from connectors and other external sources.
+
+**Validation rule:** For `property_type = 'json'`:
+- The value must be valid JSON (object or array, not bare scalar).
+- If `allowed_values` contains a JSON Schema, the value is validated against it. If `allowed_values` is NULL, any valid JSON object/array is accepted.
+- Fail-closed: invalid JSON → 400 Bad Request.
+
+**Migration:** A post-0006 migration will `ALTER TABLE ... DROP CONSTRAINT` and recreate the CHECK with the added value on both the provisioning function and existing workspace schemas. New workspaces provisioned after the migration will include `'json'` from creation.
 
 ### 5. Typed access surface (binding)
 
@@ -189,6 +202,7 @@ Functionally equivalent to the chosen pattern at v0 scale, with one downside: it
 5. **Sprint plan reconciliation.** `docs/sprint-plan.md` Sprint 4-6 entries should reference ADR-010 JSONB-primary as the active pattern (not "DDL with JSONB fallback"). Sprint 6 row should reference G3 as a sanity check, not a switch point.
 6. **`jsonb_path_ops` re-evaluation at v1.** Once query patterns are observed in production (≥1 Design Partner live), evaluate whether `jsonb_path_ops` would be a strict improvement over `jsonb_ops` for the dominant query shape.
 7. **Janitor job for orphan `objects` rows** — deferred to post-v0. Not load-bearing at v0 scale; revisit when a Design Partner reports referential drift.
+8. **`json` property type migration** (added 2026-05-25, ADR-011). A post-0006 migration must add `'json'` to the `property_type` CHECK constraint on `custom_property_definitions` in both the provisioning function and existing workspace schemas. Tracked as a Sprint 5 tasket per ADR-011 §TO RESOLVE-1.
 
 ---
 

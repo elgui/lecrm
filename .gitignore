@@ -39,3 +39,4 @@ secrets/operator/secrets.yaml
 
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*
+.archexplorer/
