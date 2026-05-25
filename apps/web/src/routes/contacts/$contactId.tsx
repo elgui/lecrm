@@ -1,0 +1,166 @@
+import { createRoute, Link } from '@tanstack/react-router';
+import { useForm } from 'react-hook-form';
+import { useContact, useUpdateContact, useContactProperties } from '@/hooks/use-contacts';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowLeft } from 'lucide-react';
+import { Route as rootRoute } from '../__root';
+
+export const Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/contacts/$contactId',
+  component: ContactDetail,
+});
+
+interface ContactFormData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+}
+
+function ContactDetail() {
+  const { contactId } = Route.useParams();
+  const { data: contact, isLoading } = useContact(contactId);
+  const { data: properties } = useContactProperties(contactId);
+  const updateMutation = useUpdateContact(contactId);
+
+  const form = useForm<ContactFormData>({
+    values: contact
+      ? {
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+          email: contact.email ?? '',
+          phone: contact.phone ?? '',
+        }
+      : undefined,
+  });
+
+  const onSubmit = form.handleSubmit((data) => {
+    updateMutation.mutate({
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email || null,
+      phone: data.phone || null,
+    });
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 p-8">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!contact) {
+    return (
+      <div className="p-8">
+        <p className="text-destructive">Contact not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <Link
+          to="/contacts"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to contacts
+        </Link>
+        <h1 className="text-2xl font-semibold">
+          {contact.first_name} {contact.last_name}
+        </h1>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">First name</Label>
+                  <Input
+                    id="first_name"
+                    {...form.register('first_name', { required: true })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">Last name</Label>
+                  <Input
+                    id="last_name"
+                    {...form.register('last_name', { required: true })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  {...form.register('email')}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input id="phone" {...form.register('phone')} />
+              </div>
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending || !form.formState.isDirty}
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+              </Button>
+              {updateMutation.isSuccess && (
+                <p className="text-sm text-green-600">Saved</p>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Custom Properties</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {Array.isArray(properties) && properties.length > 0 ? (
+              <div className="space-y-2">
+                {(properties as Array<{ key: string; value: unknown; type: string }>).map(
+                  (prop) => (
+                    <div
+                      key={prop.key}
+                      className="flex items-center justify-between rounded-md border px-3 py-2"
+                    >
+                      <span className="text-sm font-medium">{prop.key}</span>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">{prop.type}</Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {String(prop.value)}
+                        </span>
+                      </div>
+                    </div>
+                  ),
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No custom properties defined
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

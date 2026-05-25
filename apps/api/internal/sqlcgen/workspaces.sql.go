@@ -47,6 +47,9 @@ SELECT NOT EXISTS (
 ) AS available
 `
 
+// NOTE: This check is advisory — racey with concurrent INSERT. The partial
+// unique index idx_workspaces_slug_active is the authoritative constraint.
+// Callers MUST handle the unique-violation error from INSERT as "slug taken".
 func (q *Queries) IsSlugAvailable(ctx context.Context, slug string) (pgtype.Bool, error) {
 	row := q.db.QueryRow(ctx, isSlugAvailable, slug)
 	var available pgtype.Bool
