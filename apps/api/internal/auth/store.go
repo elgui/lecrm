@@ -79,5 +79,10 @@ func (s *Store) EnsureMember(ctx context.Context, workspaceID, userID uuid.UUID)
 	return nil
 }
 
+// Pool returns the underlying connection pool for operations that need
+// direct DB access (e.g. revocation writes). Prefer typed Store methods
+// for new queries.
+func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+
 // ErrWorkspaceNotFound signals an unknown workspace slug.
 var ErrWorkspaceNotFound = errors.New("workspace not found")

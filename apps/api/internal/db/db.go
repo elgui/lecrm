@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,6 +26,13 @@ func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	cfg.MaxConns = 10
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 10 * time.Minute
+
+	// Simple protocol avoids prepared statements, preventing N×T
+	// statement-cache bloat in multi-tenant schemas. Required for
+	// PgBouncer transaction-mode pooling (not yet deployed, but safe
+	// without it — pgx falls back to inline parameter binding). No
+	// existing queries rely on prepared-statement type inference.
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

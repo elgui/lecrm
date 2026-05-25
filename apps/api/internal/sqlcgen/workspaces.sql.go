@@ -15,12 +15,20 @@ import (
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
 SELECT id, slug, role_name, created_at, updated_at
 FROM core.workspaces
-WHERE slug = $1
+WHERE slug = $1 AND tombstoned_at IS NULL
 `
 
-func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (CoreWorkspace, error) {
+type GetWorkspaceBySlugRow struct {
+	ID        uuid.UUID          `json:"id"`
+	Slug      string             `json:"slug"`
+	RoleName  string             `json:"role_name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (GetWorkspaceBySlugRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspaceBySlug, slug)
-	var i CoreWorkspace
+	var i GetWorkspaceBySlugRow
 	err := row.Scan(
 		&i.ID,
 		&i.Slug,
@@ -29,6 +37,34 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (CoreWork
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const isSlugAvailable = `-- name: IsSlugAvailable :one
+SELECT NOT EXISTS (
+  SELECT 1 FROM core.workspaces w WHERE w.slug = $1
+) AND NOT EXISTS (
+  SELECT 1 FROM core.reserved_slugs r WHERE r.slug = $1
+) AS available
+`
+
+func (q *Queries) IsSlugAvailable(ctx context.Context, slug string) (pgtype.Bool, error) {
+	row := q.db.QueryRow(ctx, isSlugAvailable, slug)
+	var available pgtype.Bool
+	err := row.Scan(&available)
+	return available, err
+}
+
+const isSlugReserved = `-- name: IsSlugReserved :one
+SELECT EXISTS (
+  SELECT 1 FROM core.reserved_slugs WHERE slug = $1
+) AS reserved
+`
+
+func (q *Queries) IsSlugReserved(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, isSlugReserved, slug)
+	var reserved bool
+	err := row.Scan(&reserved)
+	return reserved, err
 }
 
 const listWorkspacesForTest = `-- name: ListWorkspacesForTest :many
@@ -69,4 +105,15 @@ func (q *Queries) ListWorkspacesForTest(ctx context.Context) ([]ListWorkspacesFo
 		return nil, err
 	}
 	return items, nil
+}
+
+const tombstoneWorkspace = `-- name: TombstoneWorkspace :exec
+UPDATE core.workspaces
+SET tombstoned_at = now(), updated_at = now()
+WHERE slug = $1 AND tombstoned_at IS NULL
+`
+
+func (q *Queries) TombstoneWorkspace(ctx context.Context, slug string) error {
+	_, err := q.db.Exec(ctx, tombstoneWorkspace, slug)
+	return err
 }

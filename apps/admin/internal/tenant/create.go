@@ -91,12 +91,17 @@ func Create(ctx context.Context, conn *pgx.Conn, opts CreateOptions, stdout io.W
 }
 
 // createFresh is the default path. Fails loud (AC-F2) if the slug is
-// already in core.workspaces.
+// already in core.workspaces. Also rejects reserved and tombstoned slugs
+// to prevent subdomain takeover (council-architecture-review-2026-05-24).
 func createFresh(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
+		return CreateResult{}, err
+	}
+
 	var existingCreatedAt time.Time
 	var existingCreatorEmail string
 	err := conn.QueryRow(ctx,
-		`SELECT created_at, creator_email FROM core.workspaces WHERE slug = $1`, slug).
+		`SELECT created_at, creator_email FROM core.workspaces WHERE slug = $1 AND tombstoned_at IS NULL`, slug).
 		Scan(&existingCreatedAt, &existingCreatorEmail)
 	switch {
 	case err == nil:
@@ -123,9 +128,13 @@ func createFresh(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorE
 // the wrapper. The wrapper's ON CONFLICT (id) DO NOTHING path keeps DB
 // state bit-identical (AC-F3 / AC-I-10).
 func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
+		return CreateResult{}, err
+	}
+
 	var existingID uuid.UUID
 	err := conn.QueryRow(ctx,
-		`SELECT id FROM core.workspaces WHERE slug = $1`, slug).Scan(&existingID)
+		`SELECT id FROM core.workspaces WHERE slug = $1 AND tombstoned_at IS NULL`, slug).Scan(&existingID)
 	switch {
 	case err == nil:
 		// Existing workspace: re-run wrapper with the same UUID; ON CONFLICT
@@ -148,6 +157,10 @@ func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creator
 // UUIDv7 via the wrapper in the SAME transaction. If anything fails, the
 // txn rolls back and the original tenant survives intact.
 func createForceRecreate(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
+		return CreateResult{}, err
+	}
+
 	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return CreateResult{}, New(ErrKindDBConnect, "begin tx: %v", err)
@@ -157,7 +170,7 @@ func createForceRecreate(ctx context.Context, conn *pgx.Conn, slug, adminEmail, 
 	var existingID uuid.UUID
 	var existingRoleName string
 	err = tx.QueryRow(ctx,
-		`SELECT id, role_name FROM core.workspaces WHERE slug = $1`, slug).
+		`SELECT id, role_name FROM core.workspaces WHERE slug = $1 AND tombstoned_at IS NULL`, slug).
 		Scan(&existingID, &existingRoleName)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -280,4 +293,34 @@ func fallback(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// checkSlugBlocked rejects slugs that are reserved (infrastructure names)
+// or tombstoned (previously-deleted tenants). This is the subdomain takeover
+// prevention gate from council-architecture-review-2026-05-24.
+func checkSlugBlocked(ctx context.Context, conn *pgx.Conn, slug string) error {
+	var reserved bool
+	err := conn.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM core.reserved_slugs WHERE slug = $1)`, slug).Scan(&reserved)
+	if err != nil {
+		return New(ErrKindDBConnect, "check reserved slugs: %v", err)
+	}
+	if reserved {
+		return New(ErrKindSlugReserved,
+			"slug %q is reserved (infrastructure name) and cannot be provisioned", slug)
+	}
+
+	var tombstoned bool
+	err = conn.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM core.workspaces WHERE slug = $1 AND tombstoned_at IS NOT NULL)`,
+		slug).Scan(&tombstoned)
+	if err != nil {
+		return New(ErrKindDBConnect, "check tombstoned slugs: %v", err)
+	}
+	if tombstoned {
+		return New(ErrKindSlugTombstoned,
+			"slug %q was previously used by a deleted tenant and cannot be re-provisioned (subdomain takeover prevention)",
+			slug)
+	}
+	return nil
 }

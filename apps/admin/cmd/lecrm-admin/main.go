@@ -36,6 +36,7 @@ import (
 	"os"
 	"strings"
 
+	uuidPkg "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	cli "github.com/urfave/cli/v2"
 
@@ -64,6 +65,11 @@ func main() {
 				Name:        "tenant",
 				Usage:       "Tenant lifecycle subcommands",
 				Subcommands: tenantSubcommands(logger),
+			},
+			{
+				Name:        "session",
+				Usage:       "Session management subcommands",
+				Subcommands: sessionSubcommands(logger),
 			},
 		},
 		// urfave/cli v2 default error printer is fine; we surface
@@ -116,6 +122,14 @@ func tenantSubcommands(logger *slog.Logger) []*cli.Command {
 				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
 			},
 			Action: func(c *cli.Context) error { return runGet(c, logger) },
+		},
+		{
+			Name:  "tombstone",
+			Usage: "Soft-delete a tenant (slug becomes permanently unavailable)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+			},
+			Action: func(c *cli.Context) error { return runTombstone(c, logger) },
 		},
 	}
 }
@@ -195,6 +209,22 @@ func runGet(c *cli.Context, logger *slog.Logger) error {
 	return tenant.Get(ctx, conn, slug, os.Stdout)
 }
 
+func runTombstone(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slug := c.String("slug")
+	if err := tenant.ValidateSlug(slug); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = tenant.Tombstone(ctx, conn, tenant.TombstoneOptions{Slug: slug}, os.Stdout)
+	return err
+}
+
 func openConn(ctx context.Context) (*pgx.Conn, error) {
 	dsn := os.Getenv("LECRM_PROVISIONER_DSN")
 	if dsn == "" {
@@ -209,6 +239,60 @@ func openConn(ctx context.Context) (*pgx.Conn, error) {
 		return nil, tenant.New(tenant.ErrKindDBConnect, "connect: %v", err)
 	}
 	return conn, nil
+}
+
+func sessionSubcommands(logger *slog.Logger) []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:  "revoke",
+			Usage: "Revoke all sessions for a user (account compromise scenario)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "user-id", Usage: "User UUID (core.users.id)", Required: true},
+			},
+			Action: func(c *cli.Context) error {
+				return runSessionRevoke(c, logger)
+			},
+		},
+	}
+}
+
+func runSessionRevoke(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	userIDStr := c.String("user-id")
+	uid, err := parseUUID(userIDStr)
+	if err != nil {
+		return fmt.Errorf("invalid user-id: %w", err)
+	}
+
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = conn.Exec(ctx,
+		`INSERT INTO core.user_revocations (user_id, revoked_at) VALUES ($1, now())
+		 ON CONFLICT (user_id) DO UPDATE SET revoked_at = now()`,
+		uid)
+	if err != nil {
+		return fmt.Errorf("revoke user sessions: %w", err)
+	}
+	logger.Info("all sessions revoked", "user_id", uid)
+	fmt.Fprintf(c.App.Writer, "All sessions revoked for user %s\n", uid)
+	return nil
+}
+
+func parseUUID(s string) ([16]byte, error) {
+	var zero [16]byte
+	if len(s) != 36 {
+		return zero, fmt.Errorf("expected UUID format (36 chars), got %d chars", len(s))
+	}
+	// Parse using google/uuid
+	id, err := uuidPkg.Parse(s)
+	if err != nil {
+		return zero, err
+	}
+	return id, nil
 }
 
 func parseLogLevel(s string) slog.Level {

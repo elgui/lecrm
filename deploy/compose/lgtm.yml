@@ -1,13 +1,18 @@
 # LGTM observability stack — Loki + Grafana + Tempo + Prometheus + OTel
-# Collector. Per ADR-009 §7.3 v0 observability. Memory budget ~1.1 GB;
-# fits comfortably on an OVH CX22-equivalent VPS.
+# Collector. Memory budget ~1.1 GB.
 #
-# v0 status: stub. Wired during Sprint 11 (tasket 20260510-162158-d1ba's
-# downstream observability work). At v1+ migrates to Grafana Cloud EU
-# (Frankfurt) free tier first, then Pro tier ($19/mo + usage).
+# STATUS: DEFERRED. Council review (2026-05-24) decided self-hosted LGTM
+# is premature at v0 (<5 clients). v0 observability = structured slog
+# JSON to stdout + Grafana Cloud free tier. See ops/observability.md.
+#
+# This file is kept for OPTIONAL local deep-debugging only. Do NOT
+# include it in the default compose profile or production deployment.
+#
+# Reactivate at v1 (>20 workspaces) or when Grafana Cloud free tier
+# limits are exceeded.
 #
 # All metrics MUST be labelled with `workspace_id` (ADR-009 §7.3) for
-# per-tenant anomaly detection.
+# per-tenant anomaly detection when reactivated.
 
 services:
   grafana:

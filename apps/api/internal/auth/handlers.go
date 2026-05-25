@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // Handler bundles the dependencies for the /auth/* routes.
@@ -18,6 +21,7 @@ type Handler struct {
 	CookieSecure  bool   // true in prod, false in plain-http dev
 	CallbackPath  string // e.g. "/auth/callback"
 	Logger        *slog.Logger
+	Revocations   RevocationChecker // nil = no revocation checking
 }
 
 // redirectURIFor returns the workspace-specific OAuth callback URL the
@@ -56,6 +60,8 @@ func (h *Handler) Register(m interface {
 	m.Get("/auth/callback", h.Callback)
 	m.Get("/auth/me", h.Me)
 	m.Post("/auth/logout", h.Logout)
+	m.Post("/auth/revoke", h.Revoke)
+	m.Post("/auth/revoke-all", h.RevokeAll)
 }
 
 // Login starts an OIDC authorization-code flow. The workspace is
@@ -168,7 +174,7 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionValue, err := EncodeSession(Session{UserID: userID, WorkspaceID: workspaceID}, h.SessionSecret)
+	sessionValue, err := EncodeSessionV2(Session{UserID: userID, WorkspaceID: workspaceID}, subdomain, h.SessionSecret)
 	if err != nil {
 		h.error(w, "encode session", err)
 		return
@@ -201,10 +207,35 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 // purely from the session cookie. No DB lookup beyond the cookie's HMAC
 // verification.
 func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
-	s, ok := SessionFromRequest(r, h.SessionSecret)
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, needsUpgrade, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
 	if !ok {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
 		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+	if needsUpgrade {
+		if upgraded, encErr := EncodeSessionV2(s, subdomain, h.SessionSecret); encErr == nil {
+			if cookie, buildErr := BuildSessionCookie(CookieScope{
+				WorkspaceSubdomain: subdomain,
+				DomainTLD:          h.DomainTLD,
+				Secure:             h.CookieSecure,
+			}, upgraded); buildErr == nil {
+				http.SetCookie(w, cookie)
+			}
+		}
+		if h.Logger != nil {
+			h.Logger.Info("session upgraded from V1 to V2",
+				"user_id", s.UserID,
+				"workspace_slug", subdomain)
+		}
 	}
 	body := map[string]string{
 		"user_id":      s.UserID.String(),
@@ -214,13 +245,17 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
-// Logout clears the session cookie with a matching Domain so the
-// browser actually drops it.
+// Logout clears the session cookie and revokes the current session's JTI
+// so replayed copies of the cookie are rejected.
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
 	if err != nil {
 		http.Error(w, "unknown workspace", http.StatusNotFound)
 		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if ok && s.JTI != (uuid.UUID{}) {
+		h.revokeJTI(r.Context(), s)
 	}
 	c, err := ClearSessionCookie(CookieScope{
 		WorkspaceSubdomain: subdomain,
@@ -235,9 +270,99 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Revoke invalidates a specific session by JTI. The caller must be
+// authenticated and can only revoke their own sessions.
+func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+
+	var body struct {
+		JTI string `json:"jti"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+	targetJTI, err := uuid.Parse(body.JTI)
+	if err != nil {
+		http.Error(w, "invalid jti", http.StatusBadRequest)
+		return
+	}
+
+	if h.Store != nil && h.Store.Pool() != nil {
+		if err := RevokeSession(r.Context(), h.Store.Pool(), targetJTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+			h.error(w, "revoke session", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RevokeAll invalidates all sessions for the authenticated user.
+func (h *Handler) RevokeAll(w http.ResponseWriter, r *http.Request) {
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+
+	if h.Store != nil && h.Store.Pool() != nil {
+		if err := RevokeAllUserSessions(r.Context(), h.Store.Pool(), s.UserID); err != nil {
+			h.error(w, "revoke all sessions", err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// SessionFromRequestV2 reads the session cookie and decodes it using the
+// two-layer V2 format bound to workspaceSlug. If the cookie is a V1
+// token, it falls back to V1 decoding and sets needsUpgrade=true so the
+// caller can re-issue a V2 cookie.
+func SessionFromRequestV2(r *http.Request, workspaceSlug string, secret []byte) (s Session, needsUpgrade bool, ok bool) {
+	c, err := r.Cookie(SessionCookieName)
+	if err != nil {
+		return Session{}, false, false
+	}
+	s, err = DecodeSessionV2(c.Value, workspaceSlug, secret)
+	if err == nil {
+		return s, false, true
+	}
+	// V2 failed — try V1 (transparent migration window).
+	s, err = DecodeSession(c.Value, secret)
+	if err != nil {
+		return Session{}, false, false
+	}
+	return s, true, true
+}
+
 // SessionFromRequest reads and verifies the session cookie. Returns
 // (Session{}, false) on any failure — callers do not need to
 // distinguish "no cookie" from "tampered cookie" from "expired".
+//
+// Deprecated: use SessionFromRequestV2 which validates workspace binding.
+// Retained for callers that don't have workspace slug in scope.
 func SessionFromRequest(r *http.Request, secret []byte) (Session, bool) {
 	c, err := r.Cookie(SessionCookieName)
 	if err != nil {
@@ -250,6 +375,44 @@ func SessionFromRequest(r *http.Request, secret []byte) (Session, bool) {
 	return s, true
 }
 
+// isRevoked checks whether the session has been revoked. Returns false
+// (allow) when no RevocationChecker is configured.
+//
+// SECURITY NOTE: fail-open by design — if the revocation DB query fails,
+// the session is allowed through. This prioritizes availability over
+// strict security. A DB outage should not lock out all users. The error
+// is logged at WARN level with "revocation_check_failed" for alerting.
+func (h *Handler) isRevoked(ctx context.Context, s Session) bool {
+	if h.Revocations == nil {
+		return false
+	}
+	revoked, err := h.Revocations.IsRevoked(ctx, s.JTI, s.UserID, s.IssuedAt)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.WarnContext(ctx, "revocation_check_failed: fail-open, session allowed",
+				"err", err,
+				"jti", s.JTI,
+				"user_id", s.UserID,
+			)
+		}
+		return false
+	}
+	return revoked
+}
+
+// revokeJTI records the session's JTI in the revocation store. Failures
+// are logged but do not block the response (logout still clears the cookie).
+func (h *Handler) revokeJTI(ctx context.Context, s Session) {
+	if h.Store == nil || h.Store.Pool() == nil {
+		return
+	}
+	if err := RevokeSession(ctx, h.Store.Pool(), s.JTI, s.UserID, time.Unix(s.ExpiresAt, 0)); err != nil {
+		if h.Logger != nil {
+			h.Logger.Error("failed to revoke JTI on logout", "err", err, "jti", s.JTI)
+		}
+	}
+}
+
 func (h *Handler) error(w http.ResponseWriter, ctx string, err error) {
 	if h.Logger != nil {
 		h.Logger.Error("auth handler error", "ctx", ctx, "err", err)
@@ -257,6 +420,3 @@ func (h *Handler) error(w http.ResponseWriter, ctx string, err error) {
 	http.Error(w, fmt.Sprintf("%s: %v", ctx, err), http.StatusInternalServerError)
 }
 
-// _ guards against unused-import drift while the Sprint 7 audit wiring
-// is still pending; remove when context propagation lands.
-var _ = context.Background
