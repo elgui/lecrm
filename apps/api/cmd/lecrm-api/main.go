@@ -25,6 +25,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/email/brevo"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
+	"github.com/gbconsult/lecrm/apps/api/internal/reports"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -105,6 +106,20 @@ func run(logger *slog.Logger) error {
 		Logger: logger,
 	}
 
+	// Cube.dev embed-token handler (ADR-009 §9). Wired only when
+	// LECRM_CUBE_JWT_SECRET is set; the handler itself 503s if invoked
+	// without a secret so a partial deploy fails loudly.
+	reportsH := &reports.Handler{
+		JWTSecret: cfg.CubeJWTSecret,
+		TTL:       reports.DefaultTTL,
+		DecodeSession: func(r *http.Request, slug string) (auth.Session, bool) {
+			s, _, ok := auth.SessionFromRequestV2(r, slug, cfg.SessionSecret)
+			return s, ok
+		},
+		Audit:  &reports.PgAuditWriter{Pool: pool},
+		Logger: logger,
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
@@ -116,6 +131,7 @@ func run(logger *slog.Logger) error {
 			CRM:             crmH,
 			Email:           emailH,
 			Admin:           adminH,
+			Reports:         reportsH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

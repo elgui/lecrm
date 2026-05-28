@@ -1,0 +1,72 @@
+# Cube.dev — embedded reporting backend for leCRM v0 (ADR-009 §9).
+#
+# Semantic layer over the per-workspace Postgres schemas. The container
+# connects as `lecrm_cube_reader` (created in
+# packages/db/migrations/0013_workspace_ro_role.sql) and assumes the
+# per-workspace RO role via `SET LOCAL ROLE workspace_<id>_ro` on every
+# query — driven by the workspace_id claim in the embed JWT issued by
+# /v1/reports/embed-token.
+#
+# Why a single shared LOGIN role + SET ROLE rather than one connection
+# per workspace: passwords would otherwise have to live somewhere the
+# Cube container can read at runtime, which is exactly the escalation
+# vector the per-workspace role exists to close. NOLOGIN RO roles
+# eliminate the credential entirely; only membership matters.
+#
+# Memory budget: ~512 MB (Cube guidance for <100 concurrent queries).
+#
+# Network: shares the `lecrm` external network with the API and
+# Postgres; not directly exposed to the internet at v0 — Caddy adds
+# `cube.<workspace>.lecrm.fr` routing in 12b alongside the frontend.
+
+services:
+  cube:
+    image: cubejs/cube:latest
+    container_name: lecrm-cube
+    restart: unless-stopped
+    environment:
+      # ---- Database connection -----------------------------------
+      CUBEJS_DB_TYPE: postgres
+      CUBEJS_DB_HOST: postgres
+      CUBEJS_DB_PORT: "5432"
+      CUBEJS_DB_NAME: lecrm
+      CUBEJS_DB_USER: lecrm_cube_reader
+      CUBEJS_DB_PASS: ${LECRM_CUBE_DB_PASSWORD:?required}
+
+      # ---- JWT verification --------------------------------------
+      # Must match LECRM_CUBE_JWT_SECRET on the API side. Cube verifies
+      # the HS256 signature and exposes claims as securityContext to
+      # the schema's queryRewrite hook (see deploy/cube/cube.js).
+      CUBEJS_API_SECRET: ${LECRM_CUBE_JWT_SECRET:?required}
+
+      # ---- Runtime ------------------------------------------------
+      # Dev mode disabled in shared environments: it exposes a
+      # playground that ignores JWT verification.
+      CUBEJS_DEV_MODE: "false"
+      CUBEJS_LOG_LEVEL: warn
+      # Cube reads schema from /cube/conf/schema and config from
+      # /cube/conf/cube.js (mounted below).
+      CUBEJS_SCHEMA_PATH: schema
+    volumes:
+      - ../cube:/cube/conf:ro
+    ports:
+      # Localhost-only; Caddy fronts external access at the edge.
+      - "127.0.0.1:${LECRM_CUBE_HOST_PORT:-4000}:4000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - lecrm
+    depends_on: []
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true

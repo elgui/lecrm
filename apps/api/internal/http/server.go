@@ -16,6 +16,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/email"
 	"github.com/gbconsult/lecrm/apps/api/internal/logging"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
+	"github.com/gbconsult/lecrm/apps/api/internal/reports"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -29,6 +30,7 @@ type RouterDeps struct {
 	CRM             *crm.Handler
 	Email           *email.Handler
 	Admin           *admin.AuditHandler
+	Reports         *reports.Handler
 	CookieDomainTLD string
 }
 
@@ -77,6 +79,9 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.Email != nil {
 				deps.Email.RegisterRoutes(r)
+			}
+			if deps.Reports != nil {
+				deps.Reports.RegisterRoutes(r)
 			}
 		})
 	}

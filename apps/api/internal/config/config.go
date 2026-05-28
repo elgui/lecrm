@@ -23,6 +23,11 @@ type Config struct {
 	CookieDomainTLD string // e.g. "lecrm.fr" or "lecrm.test"; per-workspace subdomain is prepended at cookie time
 	CookieSecure    bool   // false in dev (no TLS); true in prod
 
+	// CubeJWTSecret signs embed tokens for the Cube.dev container
+	// (ADR-009 §9). Must match CUBEJS_API_SECRET in deploy/compose/cube.yml.
+	// Empty disables POST /v1/reports/embed-token (handler 503s).
+	CubeJWTSecret []byte
+
 	OIDC OIDCConfig
 }
 
@@ -59,6 +64,16 @@ func Load() (*Config, error) {
 		return nil, errors.New("LECRM_SESSION_SECRET must be at least 32 characters")
 	}
 	c.SessionSecret = []byte(secret)
+
+	// Optional — empty disables the reports embed-token endpoint. When
+	// set, must satisfy the same 32-byte minimum so HS256 signing has a
+	// safe key length.
+	if cube := os.Getenv("LECRM_CUBE_JWT_SECRET"); cube != "" {
+		if len(cube) < 32 {
+			return nil, errors.New("LECRM_CUBE_JWT_SECRET must be at least 32 characters when set")
+		}
+		c.CubeJWTSecret = []byte(cube)
+	}
 
 	if c.DatabaseURL == "" {
 		return nil, errors.New("LECRM_DATABASE_URL is required")
