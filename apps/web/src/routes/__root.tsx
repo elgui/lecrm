@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet, Link } from '@tanstack/react-router';
-import { Users, Building2, CircleDollarSign, BarChart3, Kanban, Settings, LogOut } from 'lucide-react';
+import { Users, Building2, CircleDollarSign, BarChart3, Kanban, Settings, UserCog, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -13,6 +14,7 @@ const NAV_ITEMS = [
 
 function RootLayout() {
   const { user, isLoading, isUnauthenticated } = useAuth();
+  const { isOwner } = useMe();
 
   if (isLoading) {
     return (
@@ -72,6 +74,16 @@ function RootLayout() {
                 Reports
               </Link>
             </>
+          )}
+          {isOwner && (
+            <Link
+              to="/settings/members"
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+              activeProps={{ className: 'active' }}
+            >
+              <UserCog className="h-4 w-4" />
+              Members
+            </Link>
           )}
         </nav>
 

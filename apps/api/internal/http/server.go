@@ -15,7 +15,9 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
 	"github.com/gbconsult/lecrm/apps/api/internal/email"
 	"github.com/gbconsult/lecrm/apps/api/internal/logging"
+	"github.com/gbconsult/lecrm/apps/api/internal/members"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
+	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/reports"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
@@ -33,6 +35,14 @@ type RouterDeps struct {
 	Email           *email.Handler
 	Admin           *admin.AuditHandler
 	Reports         *reports.Handler
+	// RBAC resolves and injects the per-request role principal. When nil,
+	// the workspace group runs without role enforcement (back-compat for
+	// tests that don't exercise authorization).
+	RBAC *rbac.Resolver
+	// Members serves the owner-only member-management endpoints and the
+	// member+ /v1/workspace/me self-service endpoint. Mounted only when
+	// RBAC is also configured.
+	Members         *members.Handler
 	CookieDomainTLD string
 }
 
@@ -77,8 +87,20 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 				deps.Metadata.RegisterRoutes(r)
 			}
 			if deps.CRM != nil {
-				deps.CRM.RegisterRoutes(r)
-				deps.CRM.RegisterANTRoutes(r)
+				// Apply role-based access control to CRM CRUD when an RBAC
+				// resolver is wired: reads require member+, writes admin+.
+				// Without a resolver the routes mount unguarded (test seam).
+				if deps.RBAC != nil {
+					r.Group(func(r chi.Router) {
+						r.Use(deps.RBAC.Resolve)
+						r.Use(rbac.RequireRoleByMethod(rbac.RoleMember, rbac.RoleAdmin))
+						deps.CRM.RegisterRoutes(r)
+						deps.CRM.RegisterANTRoutes(r)
+					})
+				} else {
+					deps.CRM.RegisterRoutes(r)
+					deps.CRM.RegisterANTRoutes(r)
+				}
 			}
 			if deps.Email != nil {
 				deps.Email.RegisterRoutes(r)
@@ -88,6 +110,20 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.ServiceTokens != nil {
 				deps.ServiceTokens.RegisterRoutes(r)
+			}
+			// Member management (owner-only) + self-service (member+).
+			// Both require the RBAC resolver to inject the principal.
+			if deps.RBAC != nil && deps.Members != nil {
+				r.Group(func(r chi.Router) {
+					r.Use(deps.RBAC.Resolve)
+					r.Use(rbac.RequireRole(rbac.RoleMember))
+					deps.Members.RegisterMeRoute(r)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(deps.RBAC.Resolve)
+					r.Use(rbac.RequireRole(rbac.RoleOwner))
+					deps.Members.RegisterRoutes(r)
+				})
 			}
 		})
 	}

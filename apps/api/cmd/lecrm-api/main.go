@@ -24,7 +24,9 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/email"
 	"github.com/gbconsult/lecrm/apps/api/internal/email/brevo"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
+	"github.com/gbconsult/lecrm/apps/api/internal/members"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
+	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/reports"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
@@ -127,6 +129,24 @@ func run(logger *slog.Logger) error {
 		Logger: logger,
 	}
 
+	// Multi-user RBAC (ADR-009 §2, Sprint 8). A single PgMemberStore
+	// backs both the authorization role lookup and member management.
+	decodeSession := func(r *http.Request, slug string) (auth.Session, bool) {
+		s, _, ok := auth.SessionFromRequestV2(r, slug, cfg.SessionSecret)
+		return s, ok
+	}
+	memberStore := &members.PgMemberStore{Pool: pool}
+	rbacResolver := &rbac.Resolver{
+		Store:         memberStore,
+		DecodeSession: decodeSession,
+		Logger:        logger,
+	}
+	membersH := &members.Handler{
+		Store:         memberStore,
+		DecodeSession: decodeSession,
+		Logger:        logger,
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
@@ -141,6 +161,8 @@ func run(logger *slog.Logger) error {
 			Email:           emailH,
 			Admin:           adminH,
 			Reports:         reportsH,
+			RBAC:            rbacResolver,
+			Members:         membersH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

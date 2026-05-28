@@ -7,6 +7,33 @@ export interface User {
   workspace_slug: string;
 }
 
+export type Role = 'member' | 'admin' | 'owner' | 'none';
+
+export interface Permissions {
+  can_read: boolean;
+  can_write: boolean;
+  can_manage_members: boolean;
+  can_manage_tokens: boolean;
+  can_delete_workspace: boolean;
+}
+
+export interface Me {
+  user_id: string;
+  role: Role;
+  actor_type: string;
+  permissions: Permissions;
+}
+
+export interface Member {
+  user_id: string;
+  email: string | null;
+  display_name: string | null;
+  role: Role;
+  invited_at: string;
+  joined_at: string | null;
+  pending: boolean;
+}
+
 export interface Contact {
   id: string;
   first_name: string;

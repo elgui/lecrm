@@ -1,6 +1,7 @@
 import { createRoute, Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { useContact, useUpdateContact, useContactProperties } from '@/hooks/use-contacts';
+import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,8 @@ function ContactDetail() {
   const { data: contact, isLoading } = useContact(contactId);
   const { data: properties } = useContactProperties(contactId);
   const updateMutation = useUpdateContact(contactId);
+  const { permissions } = useMe();
+  const canWrite = permissions.can_write;
 
   const form = useForm<ContactFormData>({
     values: contact
@@ -93,6 +96,7 @@ function ContactDetail() {
                   <Label htmlFor="first_name">First name</Label>
                   <Input
                     id="first_name"
+                    readOnly={!canWrite}
                     {...form.register('first_name', { required: true })}
                   />
                 </div>
@@ -100,6 +104,7 @@ function ContactDetail() {
                   <Label htmlFor="last_name">Last name</Label>
                   <Input
                     id="last_name"
+                    readOnly={!canWrite}
                     {...form.register('last_name', { required: true })}
                   />
                 </div>
@@ -109,21 +114,30 @@ function ContactDetail() {
                 <Input
                   id="email"
                   type="email"
+                  readOnly={!canWrite}
                   {...form.register('email')}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" {...form.register('phone')} />
+                <Input id="phone" readOnly={!canWrite} {...form.register('phone')} />
               </div>
-              <Button
-                type="submit"
-                disabled={updateMutation.isPending || !form.formState.isDirty}
-              >
-                {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-              </Button>
-              {updateMutation.isSuccess && (
-                <p className="text-sm text-green-600">Saved</p>
+              {canWrite ? (
+                <>
+                  <Button
+                    type="submit"
+                    disabled={updateMutation.isPending || !form.formState.isDirty}
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+                  </Button>
+                  {updateMutation.isSuccess && (
+                    <p className="text-sm text-green-600">Saved</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  You have read-only access. Ask an admin to make changes.
+                </p>
               )}
             </form>
           </CardContent>

@@ -13,231 +13,231 @@
       "method": "GET",
       "path": "/v1/metadata/definitions",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: list custom property definitions for a parent_type. Workspace-scoped via middleware."
     },
     {
       "method": "POST",
       "path": "/v1/metadata/definitions",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: create a custom property definition."
     },
     {
       "method": "DELETE",
       "path": "/v1/metadata/definitions/{id}",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: delete a custom property definition. Cascades to strip key from objects."
     },
     {
       "method": "GET",
       "path": "/v1/contacts/{id}/properties",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: get custom properties for a contact."
     },
     {
       "method": "PUT",
       "path": "/v1/contacts/{id}/properties",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: set custom properties for a contact. Audit-logged fail-closed."
     },
     {
       "method": "GET",
       "path": "/v1/deals/{id}/properties",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: get custom properties for a deal."
     },
     {
       "method": "PUT",
       "path": "/v1/deals/{id}/properties",
       "isolation_test": "TestMetadata_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 5 feature 6: set custom properties for a deal. Audit-logged fail-closed."
     },
     {
       "method": "GET",
       "path": "/v1/contacts",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: list contacts with cursor pagination. Workspace-scoped via search_path."
     },
     {
       "method": "POST",
       "path": "/v1/contacts",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: create a contact."
     },
     {
       "method": "GET",
       "path": "/v1/contacts/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: get a single contact by ID."
     },
     {
       "method": "PUT",
       "path": "/v1/contacts/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: update a contact."
     },
     {
       "method": "DELETE",
       "path": "/v1/contacts/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: delete a contact."
     },
     {
       "method": "GET",
       "path": "/v1/companies",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: list companies with cursor pagination."
     },
     {
       "method": "POST",
       "path": "/v1/companies",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: create a company."
     },
     {
       "method": "GET",
       "path": "/v1/companies/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: get a single company by ID."
     },
     {
       "method": "PUT",
       "path": "/v1/companies/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: update a company."
     },
     {
       "method": "DELETE",
       "path": "/v1/companies/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: delete a company."
     },
     {
       "method": "GET",
       "path": "/v1/deals",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: list deals with cursor pagination."
     },
     {
       "method": "POST",
       "path": "/v1/deals",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: create a deal."
     },
     {
       "method": "GET",
       "path": "/v1/deals/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: get a single deal by ID."
     },
     {
       "method": "PUT",
       "path": "/v1/deals/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: update a deal."
     },
     {
       "method": "DELETE",
       "path": "/v1/deals/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: delete a deal."
     },
     {
       "method": "PATCH",
       "path": "/v1/deals/{id}/stage",
       "isolation_test": "apps/api/internal/crm/pipeline_integration_test.go::TestPipeline_TransitionDealStage_CrossTenantIsolation",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 13: atomic deal-stage transition + activity row."
     },
     {
       "method": "GET",
       "path": "/v1/pipeline/stages",
       "isolation_test": "apps/api/internal/crm/pipeline_integration_test.go::TestPipeline_ListStages_ReturnsSeededStagesOrdered (per-workspace schema isolation; cross-tenant covered by TestPipeline_TransitionDealStage_CrossTenantIsolation)",
-      "rbac_test": "pending — Sprint 7",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 13: list pipeline stages for the workspace Kanban."
     },
     {
       "method": "GET",
       "path": "/v1/contacts/{id}/activities",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
     },
     {
       "method": "GET",
       "path": "/v1/companies/{id}/activities",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
     },
     {
       "method": "GET",
       "path": "/v1/deals/{id}/activities",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_ActivityCreatedAutomaticallyOnDealMutations",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
     },
     {
       "method": "GET",
       "path": "/v1/contacts/{id}/notes",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_NotesCRUDLifecycle (workspace-scoped via search_path)",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: list notes on a contact."
     },
     {
       "method": "POST",
       "path": "/v1/contacts/{id}/notes",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: create note on a contact. Emits note.added activity."
     },
     {
       "method": "GET",
       "path": "/v1/companies/{id}/notes",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: list notes on a company."
     },
     {
       "method": "POST",
       "path": "/v1/companies/{id}/notes",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: create note on a company. Emits note.added activity."
     },
     {
       "method": "GET",
       "path": "/v1/deals/{id}/notes",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: list notes on a deal."
     },
     {
       "method": "POST",
       "path": "/v1/deals/{id}/notes",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 4: create note on a deal. Emits note.added activity."
     },
     {
@@ -258,36 +258,71 @@
       "method": "GET",
       "path": "/v1/tasks",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 5: list tasks; filter by assignee_id and/or entity_type+entity_id."
     },
     {
       "method": "POST",
       "path": "/v1/tasks",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 5: create task; schedules River reminder when due_date set."
     },
     {
       "method": "PUT",
       "path": "/v1/tasks/{id}",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 5: update task. Re-enqueues reminder."
     },
     {
       "method": "PATCH",
       "path": "/v1/tasks/{id}/complete",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 5: toggle task completion (complete ↔ reopen)."
     },
     {
       "method": "DELETE",
       "path": "/v1/tasks/{id}",
       "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
-      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 7 feature 5: delete task. Cancels any scheduled reminder."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspace/me",
+      "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
+      "notes": "Sprint 8 RBAC: current user role + permissions (member+)."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workspace/members",
+      "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
+      "notes": "Sprint 8 RBAC: list members (owner only)."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workspace/members/invite",
+      "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
+      "notes": "Sprint 8 RBAC: invite by email, pending membership (owner only)."
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/workspace/members/{id}/role",
+      "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
+      "notes": "Sprint 8 RBAC: change role; owner only; cannot demote self."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workspace/members/{id}",
+      "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
+      "notes": "Sprint 8 RBAC: remove member; owner only; cannot remove self."
     }
   ]
 }
