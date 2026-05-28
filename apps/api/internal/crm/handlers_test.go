@@ -385,7 +385,7 @@ func TestToNullUUID_MalformedUUID(t *testing.T) {
 		"",
 		"12345",
 		"zzzzzzzz-zzzz-zzzz-zzzz-zzzzzzzzzzzz",
-		"11111111-2222-3333-4444",     // too short
+		"11111111-2222-3333-4444",                // too short
 		"11111111-2222-3333-4444-55555555555555", // too long
 	}
 	for _, s := range cases {
