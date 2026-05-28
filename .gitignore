@@ -44,3 +44,12 @@ secrets/operator/secrets.yaml
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*
 .archexplorer/
+
+# Local Claude Code session config (empty/personal, not project-shared)
+.claude/settings.json
+
+# Compiled admin CLI binary (built locally; not for source tree)
+apps/admin/lecrm-admin
+
+# SDL-MCP per-project graph DB
+.sdl-mcp/
