@@ -380,23 +380,52 @@ func (h *Handler) CreateContact(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	idemKey, ok := readIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	if idemKey != "" {
+		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
+			writeReplay(w, st, cached)
+			return
+		} else if !ok {
+			return
+		}
+	}
 
-	var row sqlcgen.Contact
+	var (
+		respBody   []byte
+		respStatus = http.StatusCreated
+	)
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).CreateContact(r.Context(), sqlcgen.CreateContactParams{
+		row, e := sqlcgen.New(tx).CreateContact(r.Context(), sqlcgen.CreateContactParams{
 			FirstName: body.FirstName, LastName: body.LastName,
 			Email: toText(body.Email), Phone: toText(body.Phone),
 			CompanyID: toNullUUID(body.CompanyID),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		respBody, e = json.Marshal(contactFromRow(row))
+		if e != nil {
+			return e
+		}
+		if e := emitAudit(r.Context(), tx, "contact.created", ws.ID, map[string]any{
+			"id": row.ID.String(), "email": textPtr(row.Email),
+		}); e != nil {
+			return e
+		}
+		if idemKey != "" {
+			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
+		}
+		return nil
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "create contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create contact failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, contactFromRow(row))
+	writeRaw(w, respStatus, respBody)
 }
 
 type updateContactReq struct {
@@ -436,7 +465,12 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 			Email: toText(body.Email), Phone: toText(body.Phone),
 			CompanyID: toNullUUID(body.CompanyID),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "contact.updated", ws.ID, map[string]any{
+			"id": row.ID.String(), "email": textPtr(row.Email),
+		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeErr(w, http.StatusNotFound, "contact not found")
@@ -463,6 +497,11 @@ func deleteRow(ctx context.Context, tx pgx.Tx, table string, id uuid.UUID) error
 	return nil
 }
 
+// DeleteContact does a HARD delete. Soft-delete (deleted_at filter) was
+// considered for tasket 20260525-1003 but rejected for v0: the only
+// caller today is the React admin UI and ADR-009 does not require a
+// recover path. The audit_log row is the durable trail. If a recover
+// requirement appears, add `deleted_at` columns + a filtered read view.
 func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 	ws, ok := h.ws(w, r)
 	if !ok {
@@ -473,7 +512,12 @@ func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return deleteRow(r.Context(), tx, "contacts", id)
+		if e := deleteRow(r.Context(), tx, "contacts", id); e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "contact.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		})
 	})
 	if errors.Is(err, errNotFound) {
 		writeErr(w, http.StatusNotFound, "contact not found")
@@ -588,22 +632,51 @@ func (h *Handler) CreateCompany(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	idemKey, ok := readIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	if idemKey != "" {
+		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
+			writeReplay(w, st, cached)
+			return
+		} else if !ok {
+			return
+		}
+	}
 
-	var row sqlcgen.Company
+	var (
+		respBody   []byte
+		respStatus = http.StatusCreated
+	)
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).CreateCompany(r.Context(), sqlcgen.CreateCompanyParams{
+		row, e := sqlcgen.New(tx).CreateCompany(r.Context(), sqlcgen.CreateCompanyParams{
 			Name: body.Name, Domain: toText(body.Domain),
 			Industry: toText(body.Industry), Size: toText(body.Size),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		respBody, e = json.Marshal(companyFromRow(row))
+		if e != nil {
+			return e
+		}
+		if e := emitAudit(r.Context(), tx, "company.created", ws.ID, map[string]any{
+			"id": row.ID.String(), "name": row.Name,
+		}); e != nil {
+			return e
+		}
+		if idemKey != "" {
+			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
+		}
+		return nil
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "create company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create company failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, companyFromRow(row))
+	writeRaw(w, respStatus, respBody)
 }
 
 type updateCompanyReq struct {
@@ -633,7 +706,12 @@ func (h *Handler) UpdateCompany(w http.ResponseWriter, r *http.Request) {
 			ID: id, Name: body.Name,
 			Domain: toText(body.Domain), Industry: toText(body.Industry), Size: toText(body.Size),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "company.updated", ws.ID, map[string]any{
+			"id": row.ID.String(), "name": row.Name,
+		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeErr(w, http.StatusNotFound, "company not found")
@@ -657,7 +735,12 @@ func (h *Handler) DeleteCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return deleteRow(r.Context(), tx, "companies", id)
+		if e := deleteRow(r.Context(), tx, "companies", id); e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "company.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		})
 	})
 	if errors.Is(err, errNotFound) {
 		writeErr(w, http.StatusNotFound, "company not found")
@@ -778,24 +861,53 @@ func (h *Handler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	idemKey, ok := readIdempotencyKey(w, r)
+	if !ok {
+		return
+	}
+	if idemKey != "" {
+		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
+			writeReplay(w, st, cached)
+			return
+		} else if !ok {
+			return
+		}
+	}
 
-	var row sqlcgen.Deal
+	var (
+		respBody   []byte
+		respStatus = http.StatusCreated
+	)
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).CreateDeal(r.Context(), sqlcgen.CreateDealParams{
+		row, e := sqlcgen.New(tx).CreateDeal(r.Context(), sqlcgen.CreateDealParams{
 			Title: body.Title, Amount: toNumeric(body.Amount),
 			Currency: toText(body.Currency), StageID: toNullUUID(body.StageID),
 			ContactID: toNullUUID(body.ContactID), CompanyID: toNullUUID(body.CompanyID),
 			ExpectedCloseDate: toDate(body.ExpectedCloseDate),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		respBody, e = json.Marshal(dealFromRow(row))
+		if e != nil {
+			return e
+		}
+		if e := emitAudit(r.Context(), tx, "deal.created", ws.ID, map[string]any{
+			"id": row.ID.String(), "title": row.Title, "stage_id": uuidPtr(row.StageID),
+		}); e != nil {
+			return e
+		}
+		if idemKey != "" {
+			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
+		}
+		return nil
 	})
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "create deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create deal failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, dealFromRow(row))
+	writeRaw(w, respStatus, respBody)
 }
 
 type updateDealReq struct {
@@ -830,7 +942,12 @@ func (h *Handler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 			ContactID: toNullUUID(body.ContactID), CompanyID: toNullUUID(body.CompanyID),
 			ExpectedCloseDate: toDate(body.ExpectedCloseDate),
 		})
-		return e
+		if e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "deal.updated", ws.ID, map[string]any{
+			"id": row.ID.String(), "title": row.Title, "stage_id": uuidPtr(row.StageID),
+		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		writeErr(w, http.StatusNotFound, "deal not found")
@@ -854,7 +971,12 @@ func (h *Handler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		return deleteRow(r.Context(), tx, "deals", id)
+		if e := deleteRow(r.Context(), tx, "deals", id); e != nil {
+			return e
+		}
+		return emitAudit(r.Context(), tx, "deal.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		})
 	})
 	if errors.Is(err, errNotFound) {
 		writeErr(w, http.StatusNotFound, "deal not found")

@@ -1,10 +1,11 @@
 ---
 id: 20260525-1003-entity-rest-handlers-crud
 title: "Contact + Company + Deal REST handlers with CRUD"
-status: todo
+status: done
 priority: p0
 created: 2026-05-25
 updated: 2026-05-28
+done: 2026-05-28
 category: project
 group: crm-crud-complete
 group_order: 60

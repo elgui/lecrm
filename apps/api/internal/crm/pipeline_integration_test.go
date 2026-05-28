@@ -126,6 +126,7 @@ func setupPipelineEnv(t *testing.T) *pipelineTestEnv {
 			pipelineMigrationPath(t, "0011_external_sync.sql"),
 			pipelineMigrationPath(t, "0012_email_suppression.sql"),
 			pipelineMigrationPath(t, "0013_workspace_ro_role.sql"),
+			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
 		),
 	)
 	if err != nil {
