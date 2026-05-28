@@ -1,10 +1,11 @@
 ---
 id: 20260525-1008-frontend-complete-embed-csv
 title: "Frontend feature-complete + go:embed + CSV export"
-status: todo
+status: done
 priority: p1
 created: 2026-05-25
 updated: 2026-05-28
+done: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
 group_order: 200
