@@ -81,6 +81,13 @@ func run(logger *slog.Logger) error {
 	metadataH := &metadata.Handler{Pool: pool, Logger: logger}
 	crmH := &crm.Handler{Pool: pool, Logger: logger}
 
+	// Workspace service tokens (ADR-009 §4.1). The store wires both
+	// the Bearer-token verifier (CandidateLoader) and the
+	// /v1/workspace/tokens handler.
+	tokenStore := &auth.PgServiceTokenStore{Pool: pool}
+	tokensH := &auth.ServiceTokenHandler{Store: tokenStore, Logger: logger}
+	bearerAuth := &auth.HTTPBearerAuthenticator{Loader: tokenStore}
+
 	// Email handler. Brevo credentials and the inbound webhook HMAC
 	// secret are read from env (a per-workspace secrets resolver lands
 	// post-SOPS-rollout). When BREVO_API_KEY is empty we still mount the
@@ -125,6 +132,8 @@ func run(logger *slog.Logger) error {
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
 			Logger:          logger,
 			AuthHandler:     authH,
+			ServiceTokens:   tokensH,
+			BearerAuth:      bearerAuth,
 			Resolver:        wsResolver,
 			TestList:        testList,
 			Metadata:        metadataH,

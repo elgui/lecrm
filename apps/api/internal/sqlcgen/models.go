@@ -75,6 +75,18 @@ type CoreReservedSlug struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type CoreServiceToken struct {
+	ID          uuid.UUID          `json:"id"`
+	WorkspaceID uuid.UUID          `json:"workspace_id"`
+	Name        string             `json:"name"`
+	TokenHash   string             `json:"token_hash"`
+	ActorType   string             `json:"actor_type"`
+	Scopes      []byte             `json:"scopes"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 // Per-session revocation entries. Checked via in-memory bloom filter; DB hit only on bloom-positive. Rows auto-expire and are cleaned by a periodic job.
 type CoreSessionRevocation struct {
 	Jti       uuid.UUID          `json:"jti"`

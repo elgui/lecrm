@@ -26,6 +26,23 @@ type Resolver interface {
 // middleware can return 404 without leaking driver detail.
 var ErrUnknownWorkspace = errors.New("workspace: unknown slug")
 
+// BearerAuthenticator is the optional seam used by Middleware to
+// verify an `Authorization: Bearer …` credential against the
+// resolved workspace. Implementations live in the auth package
+// (avoiding a workspace→auth import cycle). When nil, the middleware
+// passes through requests without inspecting the Authorization header
+// — session-cookie auth handled downstream.
+//
+// Authenticate returns:
+//   - actorCtx != nil → request authenticated; the context will be
+//     propagated to downstream handlers
+//   - err   != nil  → 401 written, request rejected
+//   - both nil       → no bearer present; downstream handlers fall back
+//     to session-cookie auth
+type BearerAuthenticator interface {
+	Authenticate(r *http.Request, workspaceID uuid.UUID, workspaceSlug string) (context.Context, error)
+}
+
 // Middleware reads the first label of r.Host as the workspace slug,
 // resolves it via Resolver, and attaches a *Context to the request
 // context. CookieDomainTLD is the bare TLD (e.g. "lecrm.fr" or
@@ -35,6 +52,20 @@ var ErrUnknownWorkspace = errors.New("workspace: unknown slug")
 // no leading label) get a 400. Unknown slugs get a 404 — NOT 401, to
 // avoid an enumeration oracle per ADR-009 §5.2.
 func Middleware(logger *slog.Logger, resolver Resolver, cookieDomainTLD string) func(http.Handler) http.Handler {
+	return MiddlewareWithBearer(logger, resolver, cookieDomainTLD, nil)
+}
+
+// MiddlewareWithBearer is Middleware + optional Bearer-token
+// authentication. When bearer is non-nil and the request carries an
+// Authorization header, the bearer authenticator is consulted before
+// the request reaches the next handler. A failed verification yields
+// 401 — the request never reaches the next handler.
+func MiddlewareWithBearer(
+	logger *slog.Logger,
+	resolver Resolver,
+	cookieDomainTLD string,
+	bearer BearerAuthenticator,
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			slug, ok := subdomainOf(r.Host, cookieDomainTLD)
@@ -67,7 +98,20 @@ func Middleware(logger *slog.Logger, resolver Resolver, cookieDomainTLD string) 
 				ctx = logging.WithLogger(ctx, l.With("workspace", slug, "workspace_id", id.String()))
 			}
 
-			next.ServeHTTP(w, r.WithContext(ctx))
+			r = r.WithContext(ctx)
+
+			if bearer != nil && r.Header.Get("Authorization") != "" {
+				bearerCtx, err := bearer.Authenticate(r, id, slug)
+				if err != nil {
+					writeJSONError(w, http.StatusUnauthorized, "invalid bearer token")
+					return
+				}
+				if bearerCtx != nil {
+					r = r.WithContext(bearerCtx)
+				}
+			}
+
+			next.ServeHTTP(w, r)
 		})
 	}
 }

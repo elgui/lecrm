@@ -24,6 +24,8 @@ import (
 type RouterDeps struct {
 	Logger          *slog.Logger
 	AuthHandler     *auth.Handler
+	ServiceTokens   *auth.ServiceTokenHandler
+	BearerAuth      workspace.BearerAuthenticator
 	Resolver        workspace.Resolver
 	TestList        *workspace.TestListHandler
 	Metadata        *metadata.Handler
@@ -67,7 +69,7 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 
 	if deps.Resolver != nil {
 		r.Group(func(r chi.Router) {
-			r.Use(workspace.Middleware(deps.Logger, deps.Resolver, deps.CookieDomainTLD))
+			r.Use(workspace.MiddlewareWithBearer(deps.Logger, deps.Resolver, deps.CookieDomainTLD, deps.BearerAuth))
 			if deps.TestList != nil {
 				r.Get("/v1/_test/workspaces", deps.TestList.ServeHTTP)
 			}
@@ -83,6 +85,9 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.Reports != nil {
 				deps.Reports.RegisterRoutes(r)
+			}
+			if deps.ServiceTokens != nil {
+				deps.ServiceTokens.RegisterRoutes(r)
 			}
 		})
 	}
