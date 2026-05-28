@@ -21,9 +21,21 @@ hand-off. Three external dependencies must land before
 
 ## Files
 
-- `compose/postgres.yml` — Postgres 17, runs the bootstrap migration
-  (`packages/db/migrations/0001_init.sql`) on first start; subsequent
-  schema changes are managed by Atlas via `cmd/lecrm-migrate`.
+- `compose/postgres.yml` — Postgres 17 + WAL-G sidecar, runs the
+  bootstrap migration (`packages/db/migrations/0001_init.sql`) on
+  first start; subsequent schema changes are managed by Atlas via
+  `cmd/lecrm-migrate`. The image is built from `deploy/postgres/`
+  (Postgres + WAL-G + GnuPG + the lecrm-backup public key). Backup
+  destination is OVH Object Storage; see
+  `ops/runbooks/backup-bootstrap.md` for one-time provisioning and
+  `ops/runbooks/restore.md` for restore procedures.
+- `postgres/` — image layer for the WAL-G-enabled Postgres. Holds the
+  Dockerfile, `postgresql.conf` drop-ins (archive_command,
+  archive_timeout=60), the lecrm-backup GPG public key, and the
+  wal-push/fetch/backup-push helper scripts.
+- `postgres/walg.env.example` — OVH Object Storage env template
+  (endpoint, region, IAM keys, GPG key path, brotli compression).
+  Copy → fill → SOPS-encrypt before deploy. Per ADR-006 §1.
 - `compose/authentik.yml` — Authentik 2025.10 server + worker. No Redis
   service (2025.10 removed the dependency). Postgres-backed cache.
 - `compose/lgtm.yml` — Loki + Grafana + Tempo + Prometheus + OTel

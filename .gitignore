@@ -28,6 +28,10 @@ apps/web/.vite/
 !.env.*.enc
 !.env.*.example
 
+# WAL-G environment (deploy/postgres/walg.env) — holds OVH IAM creds.
+# The .example template is committed; the decrypted form is local-only.
+deploy/postgres/walg.env
+
 # SOPS-decrypted secret manifests (tasket 20260510-162158-1023).
 # Only the encrypted `.enc.yaml` form and the `.template` form may be
 # committed. The plaintext intermediate `secrets.yaml` (between

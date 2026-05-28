@@ -1,22 +1,34 @@
-# Postgres 17 — primary data plane.
+# Postgres 17 + WAL-G — primary data plane with continuous archiving.
 #
-# Wired against ADR-009 §2 (schema-per-tenant via per-workspace Postgres
-# role; lecrm_provisioner SECURITY DEFINER provisions tenants). The
-# bootstrap migration in packages/db/migrations/0001_init.sql creates the
-# lecrm_provisioner role and the lecrm_provision_workspace function.
+# Wired against:
+#   - ADR-006 (backup/DR): WAL-G + GPG client-side encryption to OVH
+#     Object Storage; archive_timeout=60 caps RPO at ~60 s.
+#   - ADR-009 §2.5: WAL-G canonical (pgBackRest archived 2026-04).
+#   - ADR-009 §2: schema-per-tenant via lecrm_provisioner SECURITY
+#     DEFINER. The bootstrap migration in
+#     packages/db/migrations/0001_init.sql creates the role and the
+#     lecrm_provision_workspace function.
+#   - STRATEGIC-OVERVIEW §2: OVH-first hosting; the wal-g environment in
+#     deploy/postgres/walg.env.example points at OVH Object Storage.
 #
-# v0 status: stub. Booted via `docker compose -f deploy/compose/postgres.yml up`
-# once the SOPS-encrypted .env file lands in Sprint 3
-# (tasket 20260510-162158-1023). Production target is OVH self-hosted at
-# Phase 1, Ubicloud Managed Postgres or OVH Managed Postgres at Phase 2.
+# The custom image extends postgres:17-alpine with wal-g + gnupg + the
+# lecrm-backup public key (see deploy/postgres/Dockerfile).
 #
-# pgcrypto is required by the provisioning function (gen_random_bytes).
-# It is installed in 0001_init.sql via CREATE EXTENSION; the image ships
-# it but it is not loaded into a fresh database by default.
+# v0 boot:
+#   1. Copy deploy/postgres/walg.env.example → deploy/postgres/walg.env;
+#      fill in OVH bucket, per-client IAM credentials, S3 prefix.
+#   2. Encrypt walg.env with SOPS (ops/secrets/.sops.yaml rules cover
+#      deploy/**/*.env) — never commit the unencrypted file.
+#   3. docker compose -f deploy/compose/postgres.yml up --build
+#
+# Production target: per-client OVH VPS (Phase 1).
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: lecrm/postgres:${LECRM_POSTGRES_TAG:-v0}
+    build:
+      context: ../..
+      dockerfile: deploy/postgres/Dockerfile
     container_name: lecrm-postgres
     restart: unless-stopped
     environment:
@@ -31,6 +43,10 @@ services:
       # Compose pre-deploy job (ADR-009 §8.2); the docker-entrypoint
       # path is for greenfield local boot only.
       - ../../packages/db/migrations:/docker-entrypoint-initdb.d:ro
+      # WAL-G env (SOPS-decrypted at deploy time). Mount RO; the file
+      # holds OVH IAM creds + the GPG public-key path. The example
+      # lives at deploy/postgres/walg.env.example.
+      - ../postgres/walg.env:/etc/postgres/walg.env:ro
     ports:
       - "127.0.0.1:${LECRM_POSTGRES_HOST_PORT:-5432}:5432"   # bind localhost only; override in dev to avoid conflicts
     healthcheck:
@@ -38,6 +54,43 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - lecrm
+
+  # Sidecar that owns the weekly base-backup + retention job. Reuses
+  # the same image (so wal-g, gpg, and the lecrm-backup public key are
+  # all present). Connects to the primary over the lecrm network using
+  # the postgres replication protocol — no shared volume needed.
+  wal-g-backup:
+    image: lecrm/postgres:${LECRM_POSTGRES_TAG:-v0}
+    container_name: lecrm-walg-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?required}
+      PGDATABASE: lecrm
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:ro
+      - ../postgres/walg.env:/etc/postgres/walg.env:ro
+    # busybox crond runs the weekly base backup at Sunday 03:00 UTC.
+    # An immediate boot-time run guarantees a fresh client has at least
+    # one full backup before the next cron tick.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        echo "0 3 * * 0 /usr/local/bin/lecrm/backup-push.sh >> /var/log/walg-backup.log 2>&1" \
+          > /etc/crontabs/postgres
+        touch /var/log/walg-backup.log
+        chown postgres:postgres /var/log/walg-backup.log
+        su postgres -c /usr/local/bin/lecrm/backup-push.sh || true
+        exec crond -f -L /dev/stderr
     networks:
       - lecrm
 
