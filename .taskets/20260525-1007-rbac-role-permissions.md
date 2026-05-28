@@ -1,10 +1,11 @@
 ---
 id: 20260525-1007-rbac-role-permissions
 title: "Multi-user RBAC with role-based permissions"
-status: todo
+status: done
 priority: p1
 created: 2026-05-25
 updated: 2026-05-28
+done: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
 group_order: 200
