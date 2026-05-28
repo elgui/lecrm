@@ -1,14 +1,15 @@
 ---
 id: 20260514-114224-5d12
-title: "leCRM v0 — External-system-sync seam (Gmail as first instance of the pattern)"
-status: later
+title: leCRM v0 — External-system-sync seam (Gmail as first instance of the pattern)
+status: done
 priority: p1
 created: 2026-05-14
-updated: 2026-05-14
+updated: 2026-05-27
 category: engineering
 group: lecrm-v0-sprint-10
 group_order: 10
 order: 1
+done: 2026-05-27
 ---
 
 ## Read this cold — full context inline

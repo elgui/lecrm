@@ -1,9 +1,9 @@
 # ADR-010 — Custom-Object Metadata Engine Pattern
 
-**Status:** Accepted (amended 2026-05-25 by [ADR-011](ADR-011-chatboting-connector-boundary.md) — `json` property type added; see §4a)
+**Status:** Accepted (amended 2026-05-25 by [ADR-011](ADR-011-external-system-sync.md) — `json` property type added; see §4a)
 **Date:** 2026-05-15 (Proposed); 2026-05-15 (Accepted after scope-research brief at `docs/research/adr-010-metadata-engine-scope.md`)
 **Deciders:** Guillaume
-**Related:** [ADR-009 §9](ADR-009-stack-and-license.md) (G2 schedule gate — this ADR fulfills it proactively from Wk 3 rather than reactively at Wk 5). [ADR-001](ADR-001-tenancy-model.md) (schema-per-tenant baseline — preserved entirely). [ADR-011](ADR-011-chatboting-connector-boundary.md) (first connector boundary — amends §4 to add `json` property type). Tasket `20260514-114217-3c84` (authoring tasket). Tasket `20260514-114245-d3a8` (G3 Wk-6 verification gate — semantics adjusted by this ADR; see §6).
+**Related:** [ADR-009 §9](ADR-009-stack-and-license.md) (G2 schedule gate — this ADR fulfills it proactively from Wk 3 rather than reactively at Wk 5). [ADR-001](ADR-001-tenancy-model.md) (schema-per-tenant baseline — preserved entirely). [ADR-011](ADR-011-external-system-sync.md) (external-system sync abstraction — amends §4 to add `json` property type). Tasket `20260514-114217-3c84` (authoring tasket). Tasket `20260514-114245-d3a8` (G3 Wk-6 verification gate — semantics adjusted by this ADR; see §6).
 
 ---
 
