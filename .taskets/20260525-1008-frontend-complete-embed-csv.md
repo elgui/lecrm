@@ -4,9 +4,10 @@ title: "Frontend feature-complete + go:embed + CSV export"
 status: todo
 priority: p1
 created: 2026-05-25
+updated: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
-group_order: 70
+group_order: 200
 order: 2
 plan: true
 tags: [frontend, go-embed, csv-export, sprint-9]

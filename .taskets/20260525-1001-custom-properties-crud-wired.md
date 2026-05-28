@@ -4,11 +4,11 @@ title: "Custom properties CRUD wired to Contact + Deal"
 status: done
 priority: p0
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-28
 done: 2026-05-25
 category: project
 group: crm-entity-foundation
-group_order: 50
+group_order: 100
 order: 2
 plan: true
 tags: [crm, metadata, custom-properties, jsonb, sprint-5]

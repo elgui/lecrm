@@ -7,7 +7,7 @@ created: 2026-05-25
 updated: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
-group_order: 70
+group_order: 200
 order: 1
 plan: true
 tags: [auth, rbac, permissions, sprint-8]

@@ -4,11 +4,11 @@ title: "React frontend first slice — TanStack Router + Query + shadcn/ui"
 status: done
 priority: p1
 created: 2026-05-25
-updated: 2026-05-25
+updated: 2026-05-28
 done: 2026-05-25
 category: project
 group: crm-entity-foundation
-group_order: 50
+group_order: 100
 order: 3
 plan: true
 tags: [frontend, react, tanstack, shadcn, sprint-4-5]

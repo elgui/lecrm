@@ -4,11 +4,11 @@ title: leCRM v1 — Native sequences engine (Track F, post-first-client)
 status: later
 priority: p2
 created: 2026-05-10
-updated: 2026-05-14
+updated: 2026-05-28
 tags: [sequences, email, deliverability, v1]
 category: project
 group: lecrm-v1-build
-group_order: 20
+group_order: 300
 order: 1
 plan: true
 ---

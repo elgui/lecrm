@@ -4,10 +4,10 @@ title: leCRM v2 prototype — Telegram bot to Twenty GraphQL (chatbot-as-CRM-UI 
 status: later
 priority: p2
 created: 2026-05-10
-updated: 2026-05-14
+updated: 2026-05-28
 category: tooling
 group: lecrm-v2-exploration
-group_order: 30
+group_order: 400
 order: 1
 ---
 

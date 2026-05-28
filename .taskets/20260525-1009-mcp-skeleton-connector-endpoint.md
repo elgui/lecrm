@@ -7,7 +7,7 @@ created: 2026-05-25
 updated: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
-group_order: 70
+group_order: 200
 order: 3
 plan: true
 tags: [mcp, connector, chatboting, adr-011, sprint-9]
