@@ -1,10 +1,11 @@
 ---
 id: 20260528-142535-c8a3
 title: Re-issue ADR-004 (sequences architecture) for Go + river stack
-status: later
+status: done
 priority: p2
 created: 2026-05-28
 updated: 2026-05-28
+done: 2026-05-28
 tags: [adr, sequences, v1-readiness, doc]
 category: project
 group: lecrm-v1-readiness

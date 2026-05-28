@@ -1,8 +1,10 @@
 # ADR-004 — Sequences Architecture (v1 Native)
 
-**Status:** Accepted
+**Status:** Superseded by [ADR-004 rev 2](ADR-004-rev2-sequences-architecture.md) (2026-05-28).
 **Date:** 2026-05-10
 **Deciders:** Guillaume
+
+> **Superseded notice (2026-05-28).** This ADR describes the sequences engine against the NestJS + BullMQ + Redis stack. ADR-009 replaced that runtime with Go + sqlc + river + Postgres-only. The architectural intent (durable Postgres state machine, reply correlation on Message-ID, three-path reply detection, two-stage OOO classifier, suppression as source of truth) all survives — see [ADR-004 rev 2](ADR-004-rev2-sequences-architecture.md) for the Go + river expression of those decisions and the rev-1 → rev-2 delta in the rev-2 Context section. This document is retained as historical context only; do not implement from it.
 
 ---
 
