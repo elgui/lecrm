@@ -1,10 +1,11 @@
 ---
 id: 20260510-162158-29dc
 title: leCRM v0 — Cube.dev backend (per-workspace RO role + signed embed)
-status: next
+status: done
 priority: p1
 created: 2026-05-10
 updated: 2026-05-28
+done: 2026-05-28
 tags: [reporting, cube-dev, backend, v0]
 category: project
 group: lecrm-v0-sprint-12
