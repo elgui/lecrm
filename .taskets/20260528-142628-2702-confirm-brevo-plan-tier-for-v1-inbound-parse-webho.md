@@ -17,7 +17,7 @@ plan: true
 
 The v1 sequences engine depends on Brevo's **inbound parse webhook** (`apps/api/internal/email/brevo/inbound.go` — not yet implemented). Inbound parse is plan-tier-gated on Brevo: Starter does NOT include it, Standard/Business does. We need a confirmed plan path before v1 code is written, otherwise the engine has no reply-detection input.
 
-**Status `parked` until sales confirmation lands.**
+**Status `parked` until Guillaume confirms the upgrade trigger** (this is a self-research tasket, not an external-collaborator wait — see Steps).
 
 ## What needs answering
 
@@ -31,7 +31,7 @@ The v1 sequences engine depends on Brevo's **inbound parse webhook** (`apps/api/
 
 1. Check current Brevo plan tier from `https://app.brevo.com/settings/plans` (manual — paste the plan name and renewal date into the evidence section below).
 2. From Brevo docs, capture the specific feature requirement for inbound parse. Source link goes in the evidence section.
-3. Loop in Léo (`leo@vernayo.com`) — he holds the GB Consult / Vernayo budget for the email stack. Document the decision (upgrade now / upgrade on first-client / stay on Starter and use a different inbound path).
+3. Synthesize the four-bullet decision matrix (upgrade now / upgrade on first-client / stay on Starter with a different inbound provider / abort sequences feature). For each option, fill in: monthly cost delta, code-side implications, and the trigger condition. Do NOT email Léo about this — leCRM is not a Vernayo project he follows (see memory `feedback_leo_scope_lecrm`). Brevo / infra / stack decisions are Guillaume-owned; surface the matrix to Guillaume directly when the tasket runs.
 4. If the answer is "different inbound path," identify it (Postmark inbound? Mailgun routes? SES + S3?). Update ADR-003 (Brevo provider decision) accordingly — that ADR may itself need a partial revision.
 5. Record the decision as an addendum at the bottom of `docs/adr/ADR-003-email-provider-brevo.md`.
 
@@ -46,7 +46,7 @@ The Brevo pricing page and feature matrix MUST be linked in the addendum (per CL
   - Plan required for inbound parse (with source URL).
   - Upgrade trigger (e.g., "on first paying client signature").
   - Inbound webhook payload shape link.
-- Léo has confirmed the decision in writing (email / Slack thread linked in the addendum).
+- Guillaume has acknowledged the decision matrix and picked one option (no Léo loop — see Step 3).
 
 ## Evidence (fill in as you go)
 
@@ -57,11 +57,11 @@ Required plan:       [paste with source URL]
 Monthly cost delta:  [paste]
 Upgrade trigger:     [paste decision]
 Inbound payload doc: [paste URL]
-Léo confirmation:    [paste link]
+Guillaume decision:  [paste matrix-option choice + date]
 ```
 
 ## References
 
 - `docs/adr/ADR-003-email-provider-brevo.md` (current Brevo decision)
 - `docs/adr/ADR-004-sequences-architecture.md` (open dep: inbound webhook contract — see sibling tasket `lecrm-v1-readiness/order:1`)
-- LeoCollab skill — Léo owns the email stack budget conversation
+- Memory `feedback_leo_scope_lecrm` — Léo does NOT follow leCRM; infra/stack/provider questions are Guillaume-owned

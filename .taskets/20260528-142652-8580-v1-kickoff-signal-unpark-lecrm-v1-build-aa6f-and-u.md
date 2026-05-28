@@ -22,7 +22,7 @@ Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 
 1. Sibling tasket `lecrm-v1-readiness/order:1` (ADR-004 rev. 2) — `done`.
 2. Sibling tasket `lecrm-v1-readiness/order:2` (v0 ship-gate verification) — `done`.
 3. Sibling tasket `lecrm-v1-readiness/order:3` (Brevo plan tier) — `done`.
-4. First paying client signed. Source of truth: an entry in the CRM (when v0 self-hosts) or in HubSpot/Léo's pipeline today. Quote the client name and signature date in the evidence section.
+4. First paying client signed. Source of truth: an entry in the leCRM workspace once v0 self-hosts; before that, Guillaume's own notes / pipeline tracker. Quote the client name and signature date in the evidence section. (Léo's Vernayo HubSpot is NOT a source of truth for leCRM clients — leCRM has its own sales motion. See memory `feedback_leo_scope_lecrm`.)
 
 ## Steps when all preconditions hold
 
@@ -60,4 +60,4 @@ Client signal source:         [CRM record id OR HubSpot deal id]
 
 ## Why this needs its own tasket
 
-Not just a checkbox on tasket `aa6f` because the kickoff carries decisions (group_order bump, sub-plan-group creation) that should be auditable as a discrete commit and reviewable by Léo before v1 work starts.
+Not just a checkbox on tasket `aa6f` because the kickoff carries decisions (group_order bump, sub-plan-group creation) that should be auditable as a discrete commit and surfaced to Guillaume as a decision point before v1 work starts. (Earlier draft of this tasket said "reviewable by Léo" — Léo doesn't follow leCRM, see memory `feedback_leo_scope_lecrm`.)
