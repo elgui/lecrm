@@ -1,5 +1,5 @@
 import { createRootRoute, Outlet, Link } from '@tanstack/react-router';
-import { Users, Building2, CircleDollarSign, BarChart3, Settings, LogOut } from 'lucide-react';
+import { Users, Building2, CircleDollarSign, BarChart3, Kanban, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,15 +52,26 @@ function RootLayout() {
             </Link>
           ))}
           {user?.workspace_id && (
-            <Link
-              to="/reports/$workspaceId"
-              params={{ workspaceId: user.workspace_id }}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
-              activeProps={{ className: 'active' }}
-            >
-              <BarChart3 className="h-4 w-4" />
-              Reports
-            </Link>
+            <>
+              <Link
+                to="/pipeline/$workspaceId"
+                params={{ workspaceId: user.workspace_id }}
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+                activeProps={{ className: 'active' }}
+              >
+                <Kanban className="h-4 w-4" />
+                Pipeline
+              </Link>
+              <Link
+                to="/reports/$workspaceId"
+                params={{ workspaceId: user.workspace_id }}
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+                activeProps={{ className: 'active' }}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Reports
+              </Link>
+            </>
           )}
         </nav>
 

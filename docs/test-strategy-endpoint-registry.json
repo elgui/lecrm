@@ -162,6 +162,20 @@
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
       "rbac_test": "pending — Sprint 7",
       "notes": "Sprint 4: delete a deal."
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/deals/{id}/stage",
+      "isolation_test": "apps/api/internal/crm/pipeline_integration_test.go::TestPipeline_TransitionDealStage_CrossTenantIsolation",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 13: atomic deal-stage transition + activity row."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/pipeline/stages",
+      "isolation_test": "apps/api/internal/crm/pipeline_integration_test.go::TestPipeline_ListStages_ReturnsSeededStagesOrdered (per-workspace schema isolation; cross-tenant covered by TestPipeline_TransitionDealStage_CrossTenantIsolation)",
+      "rbac_test": "pending — Sprint 7",
+      "notes": "Sprint 13: list pipeline stages for the workspace Kanban."
     }
   ]
 }

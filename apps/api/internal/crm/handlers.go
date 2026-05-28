@@ -49,6 +49,9 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/deals/{id}", h.GetDeal)
 	r.Put("/v1/deals/{id}", h.UpdateDeal)
 	r.Delete("/v1/deals/{id}", h.DeleteDeal)
+	r.Patch("/v1/deals/{id}/stage", h.TransitionDealStage)
+
+	r.Get("/v1/pipeline/stages", h.ListPipelineStages)
 }
 
 // --- transaction helpers ---
@@ -863,4 +866,170 @@ func (h *Handler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ========= PIPELINE STAGES =========
+
+type pipelineStageResp struct {
+	ID         uuid.UUID `json:"id"`
+	Name       string    `json:"name"`
+	OrderIndex int32     `json:"order_index"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func pipelineStageFromRow(s sqlcgen.PipelineStage) pipelineStageResp {
+	return pipelineStageResp{
+		ID:         s.ID,
+		Name:       s.Name,
+		OrderIndex: s.OrderIndex,
+		CreatedAt:  s.CreatedAt.Time,
+	}
+}
+
+func (h *Handler) ListPipelineStages(w http.ResponseWriter, r *http.Request) {
+	ws, ok := h.ws(w, r)
+	if !ok {
+		return
+	}
+	var rows []sqlcgen.PipelineStage
+	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
+		var e error
+		rows, e = sqlcgen.New(tx).ListPipelineStages(r.Context())
+		return e
+	})
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "list pipeline stages", "err", err)
+		writeErr(w, http.StatusInternalServerError, "list pipeline stages failed")
+		return
+	}
+	out := make([]pipelineStageResp, len(rows))
+	for i, s := range rows {
+		out[i] = pipelineStageFromRow(s)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": out})
+}
+
+type transitionDealStageReq struct {
+	StageID string `json:"stage_id"`
+}
+
+// TransitionDealStage moves a deal to a new pipeline stage and atomically
+// writes a `stage_change` activity row into objects. Same-stage PATCHes
+// short-circuit (idempotent — no activity row).
+func (h *Handler) TransitionDealStage(w http.ResponseWriter, r *http.Request) {
+	ws, ok := h.ws(w, r)
+	if !ok {
+		return
+	}
+	dealID, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+	var body transitionDealStageReq
+	if !decodeBody(w, r, &body) {
+		return
+	}
+	newStageID, err := uuid.Parse(body.StageID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid stage_id")
+		return
+	}
+
+	var (
+		updated      sqlcgen.Deal
+		unchanged    bool
+		notFoundDeal bool
+		badStage     bool
+	)
+	err = writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
+		q := sqlcgen.New(tx)
+
+		newStage, e := q.GetPipelineStage(r.Context(), newStageID)
+		if errors.Is(e, pgx.ErrNoRows) {
+			badStage = true
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+
+		deal, e := q.GetDeal(r.Context(), dealID)
+		if errors.Is(e, pgx.ErrNoRows) {
+			notFoundDeal = true
+			return nil
+		}
+		if e != nil {
+			return e
+		}
+
+		if deal.StageID.Valid && deal.StageID.UUID == newStageID {
+			updated = deal
+			unchanged = true
+			return nil
+		}
+
+		oldStageID := deal.StageID
+		var oldStageName *string
+		if oldStageID.Valid {
+			old, getErr := q.GetPipelineStage(r.Context(), oldStageID.UUID)
+			if getErr == nil {
+				n := old.Name
+				oldStageName = &n
+			} else if !errors.Is(getErr, pgx.ErrNoRows) {
+				return getErr
+			}
+		}
+
+		updated, e = q.UpdateDealStage(r.Context(), sqlcgen.UpdateDealStageParams{
+			ID:      dealID,
+			StageID: uuid.NullUUID{UUID: newStageID, Valid: true},
+		})
+		if e != nil {
+			return e
+		}
+
+		activity := map[string]any{
+			"kind":           "stage_change",
+			"subject":        updated.Title,
+			"occurred_at":    time.Now().UTC().Format(time.RFC3339),
+			"new_stage":      newStageID.String(),
+			"new_stage_name": newStage.Name,
+		}
+		if oldStageID.Valid {
+			activity["old_stage"] = oldStageID.UUID.String()
+		} else {
+			activity["old_stage"] = nil
+		}
+		if oldStageName != nil {
+			activity["old_stage_name"] = *oldStageName
+		} else {
+			activity["old_stage_name"] = nil
+		}
+		data, mErr := json.Marshal(activity)
+		if mErr != nil {
+			return mErr
+		}
+
+		_, e = tx.Exec(r.Context(),
+			`INSERT INTO objects (object_type, parent_type, parent_id, data) VALUES ('activity', 'deal', $1, $2)`,
+			dealID, data,
+		)
+		return e
+	})
+
+	if badStage {
+		writeErr(w, http.StatusBadRequest, "stage not found")
+		return
+	}
+	if notFoundDeal {
+		writeErr(w, http.StatusNotFound, "deal not found")
+		return
+	}
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "transition deal stage", "err", err)
+		writeErr(w, http.StatusInternalServerError, "transition deal stage failed")
+		return
+	}
+	_ = unchanged // both branches return the deal; tracked for tests via DB assertions
+	writeJSON(w, http.StatusOK, dealFromRow(updated))
 }
