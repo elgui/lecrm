@@ -18,8 +18,10 @@ import (
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/config"
-	"github.com/gbconsult/lecrm/apps/api/internal/db"
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
+	"github.com/gbconsult/lecrm/apps/api/internal/db"
+	"github.com/gbconsult/lecrm/apps/api/internal/email"
+	"github.com/gbconsult/lecrm/apps/api/internal/email/brevo"
 	httpserver "github.com/gbconsult/lecrm/apps/api/internal/http"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
@@ -77,6 +79,23 @@ func run(logger *slog.Logger) error {
 	metadataH := &metadata.Handler{Pool: pool, Logger: logger}
 	crmH := &crm.Handler{Pool: pool, Logger: logger}
 
+	// Email handler. Brevo credentials and the inbound webhook HMAC
+	// secret are read from env (a per-workspace secrets resolver lands
+	// post-SOPS-rollout). When BREVO_API_KEY is empty we still mount the
+	// handler — sends return ErrEmptyAPIKey explicitly.
+	brevoClient := brevo.New(os.Getenv("BREVO_API_KEY"), os.Getenv("BREVO_BASE_URL"), nil)
+	emailSvc := &email.Service{
+		Provider:    brevoClient,
+		Suppression: &email.PgSuppressionStore{Pool: pool},
+		Audit:       &email.PgAuditWriter{Pool: pool},
+		Logger:      logger,
+	}
+	emailH := &email.Handler{
+		Service:       emailSvc,
+		Logger:        logger,
+		WebhookSource: email.StaticWebhookSecret([]byte(os.Getenv("BREVO_WEBHOOK_SECRET"))),
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
@@ -86,6 +105,7 @@ func run(logger *slog.Logger) error {
 			TestList:        testList,
 			Metadata:        metadataH,
 			CRM:             crmH,
+			Email:           emailH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

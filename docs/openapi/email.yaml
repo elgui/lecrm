@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: leCRM Email API
+  version: 0.1.0
+  description: |
+    Transactional email send endpoint and Brevo inbound-webhook receiver.
+
+    Implementation: `apps/api/internal/email` (Go, hand-rolled HTTP client
+    wrapping Brevo's REST API per ADR-003 and ADR-009 §4).
+
+    Authentication on the send endpoint is the workspace-scoped session
+    cookie (resolved by the workspace middleware) plus an optional
+    `X-Lecrm-Actor` header carrying the service-token actor_type claim
+    (`human_api` or `internal_service`, per ADR-009 §4.1).
+
+    The inbound webhook authenticates by HMAC-SHA256 over the raw request
+    body using the per-workspace webhook signing secret. The HMAC is
+    delivered in the `X-Sib-Webhook-Signature` header per Brevo
+    convention.
+servers:
+  - url: https://api.{workspace}.lecrm.eu
+    variables:
+      workspace:
+        default: tenant
+        description: Workspace subdomain (matches the URL path workspace id).
+paths:
+  /v1/workspaces/{id}/emails:
+    post:
+      operationId: sendTransactionalEmail
+      summary: Send a transactional email via Brevo.
+      description: |
+        Pre-flight checks the per-workspace `email_suppression` table.
+        Recipients on the suppression list are dropped silently from the
+        outbound. If every recipient is suppressed the call returns 200
+        with `skipped=true`; the event is still audit-logged.
+
+        If the workspace has tripped the bounce-rate alarm (ADR-003
+        §Mitigations item 4) the call returns 503 with a `Retry-After`
+        hint.
+
+        Every outcome emits an entry to `core.audit_log` carrying the
+        caller's `actor_type` claim (ADR-007 §3 + ADR-009 §4.1).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Workspace id; must match the resolved workspace context.
+        - name: X-Lecrm-Actor
+          in: header
+          required: false
+          schema:
+            type: string
+            enum: [human_api, internal_service]
+          description: |
+            Service-token actor_type claim. Omit to default to `human_api`
+            (session-cookie caller). `mcp_agent` and `system` are not
+            accepted on this endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendRequest'
+      responses:
+        '202':
+          description: Accepted, send dispatched to Brevo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendResponse'
+        '200':
+          description: |
+            Skipped because every recipient was on the suppression list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendResponse'
+        '400':
+          description: Validation error (missing field, malformed JSON, oversized body).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: |
+            Missing or invalid `X-Lecrm-Actor` (actor_type not in the
+            allowed set for this endpoint).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Workspace id in URL does not match the resolved workspace context.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Brevo provider error (non-transient or retries exhausted).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: |
+            Workspace sends paused by bounce-rate alarm. Includes
+            `Retry-After` header.
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds until callers may retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/email/webhooks/brevo:
+    post:
+      operationId: brevoInboundWebhook
+      summary: Brevo transactional event webhook receiver.
+      description: |
+        Receives one event per request. Verified by HMAC over the raw
+        body. Known events (`delivered`, `hardBounce`, `softBounce`,
+        `blocked`, `spam`, `unsubscribed`) are processed; unknown events
+        return 200 with a warning audit-log entry so Brevo does not
+        retry.
+
+        Suppressing events (`hardBounce`, `blocked`, `spam`,
+        `unsubscribed`) upsert the per-workspace `email_suppression`
+        table. Bounce-like events (`hardBounce`, `spam`) additionally
+        feed the 7-day rolling rate alarm; crossing the threshold emits
+        a `security.email_bounce_rate_high` audit event.
+      parameters:
+        - name: workspace
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: |
+            Workspace id used to look up the HMAC signing secret. Operators
+            configure a workspace-scoped URL on the Brevo dashboard.
+        - name: X-Sib-Webhook-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Hex-encoded HMAC-SHA256 over the raw request body.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrevoEvent'
+      responses:
+        '200':
+          description: Event accepted (or unknown-event ignored).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [accepted, ignored_unknown_event]
+        '400':
+          description: Missing workspace id, malformed body, or event payload missing `event` field.
+        '401':
+          description: Missing or invalid HMAC signature.
+        '413':
+          description: Webhook body exceeds size limit.
+        '500':
+          description: Internal failure (secret lookup, ingest error).
+
+components:
+  schemas:
+    Address:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+
+    SendRequest:
+      type: object
+      required: [from, to, subject]
+      properties:
+        from:
+          $ref: '#/components/schemas/Address'
+        to:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Address'
+        subject:
+          type: string
+        html_content:
+          type: string
+        text_content:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      description: |
+        At least one of `html_content` or `text_content` is required.
+
+    SendResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+          description: Brevo `messageId` for the dispatched email. Empty when `skipped=true`.
+        skipped:
+          type: boolean
+        skipped_recipients:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+          description: Populated when `skipped=true` (`all_recipients_suppressed`, `paused_by_alarm`).
+
+    BrevoEvent:
+      type: object
+      required: [event, email]
+      properties:
+        event:
+          type: string
+          enum: [delivered, hardBounce, softBounce, blocked, spam, unsubscribed]
+        email:
+          type: string
+          format: email
+        message-id:
+          type: string
+        date:
+          type: string
+        subject:
+          type: string
+        tag:
+          type: string
+        reason:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string

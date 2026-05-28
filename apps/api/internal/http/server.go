@@ -12,6 +12,7 @@ import (
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
+	"github.com/gbconsult/lecrm/apps/api/internal/email"
 	"github.com/gbconsult/lecrm/apps/api/internal/logging"
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
@@ -25,6 +26,7 @@ type RouterDeps struct {
 	TestList        *workspace.TestListHandler
 	Metadata        *metadata.Handler
 	CRM             *crm.Handler
+	Email           *email.Handler
 	CookieDomainTLD string
 }
 
@@ -46,6 +48,12 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 
 	deps.AuthHandler.Register(r)
 
+	// Brevo inbound webhook lives OUTSIDE the workspace-middleware group:
+	// auth is the HMAC over the request body, not a session cookie.
+	if deps.Email != nil {
+		deps.Email.RegisterWebhookRoute(r)
+	}
+
 	if deps.Resolver != nil {
 		r.Group(func(r chi.Router) {
 			r.Use(workspace.Middleware(deps.Logger, deps.Resolver, deps.CookieDomainTLD))
@@ -57,6 +65,9 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.CRM != nil {
 				deps.CRM.RegisterRoutes(r)
+			}
+			if deps.Email != nil {
+				deps.Email.RegisterRoutes(r)
 			}
 		})
 	}
