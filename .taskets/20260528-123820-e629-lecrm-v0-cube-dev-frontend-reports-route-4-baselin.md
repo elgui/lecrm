@@ -1,10 +1,11 @@
 ---
 id: 20260528-123820-e629
 title: leCRM v0 — Cube.dev frontend (Reports route + 4 baseline dashboards)
-status: next
+status: done
 priority: p1
 created: 2026-05-28
 updated: 2026-05-28
+done: 2026-05-28
 tags: [reporting, cube-dev, frontend, dashboards, v0]
 category: project
 group: lecrm-v0-sprint-12
