@@ -4,6 +4,7 @@ title: "MCP adapter skeleton + chatboting connector event endpoint"
 status: todo
 priority: p2
 created: 2026-05-25
+updated: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
 group_order: 70
@@ -14,15 +15,57 @@ tags: [mcp, connector, chatboting, adr-011, sprint-9]
 
 # MCP adapter skeleton + chatboting connector event endpoint
 
-## Pre-flight: Verify Previous Taskets
+## Shipped Status (verified 2026-05-28)
 
-Before starting, verify service tokens and entity handlers exist:
+The ADR-011 connector boundary infra landed in sprint-11. MCP adapter and
+the chatboting event endpoint are still empty.
 
-1. `grep -c 'service_tokens' packages/db/queries/*.sql` -- token queries exist
-2. `ls apps/api/internal/http/contacts.go` -- entity handlers exist
-3. `cd apps/api && go test -race -count=1 ./...` -- all tests pass
+**Already in `main`** (sprint-11 commit `eee49c36`):
 
-**If any check fails, STOP immediately and report. Do not proceed.**
+- External-system sync seam — `apps/api/internal/sync/provider.go`
+  (Provider interface, SyncDirection, registry). Gmail is the first
+  concrete provider — `apps/api/internal/sync/gmail/`.
+- ADR-011 is committed at `docs/adr/ADR-011-chatboting-connector-boundary.md`.
+- DB foundations for connector-attributed activities live in the
+  workspace `objects` table (migration `0011_external_sync.sql`).
+
+**Not shipped:**
+
+- `apps/mcp/cmd/lecrm-mcp/` is empty (only `.gitkeep`); `apps/mcp/go.mod`
+  exists but no `main.go`. MCP server binary is unimplemented.
+- `POST /v1/connectors/{source}/events` — `grep -r connectors apps/api/`
+  is empty.
+- `deploy/compose/mcp.yml` — does not exist.
+- Service-token auth — depends on tasket `1006` (OpenAPI + service
+  tokens), still `todo`.
+
+Verify the shipped surface:
+
+```bash
+test -f apps/api/internal/sync/provider.go
+test -d apps/api/internal/sync/gmail
+test -f docs/adr/ADR-011-chatboting-connector-boundary.md
+```
+
+## Pre-flight (run before starting)
+
+Service tokens are still pending — this tasket is **soft-blocked on 1006**
+for the connector endpoint's auth. The MCP adapter half can proceed
+independently if you stub the auth.
+
+```bash
+export PATH=$PATH:/usr/local/go/bin
+test -f apps/api/internal/crm/handlers.go && \
+  grep -q "RegisterRoutes" apps/api/internal/crm/handlers.go
+ls apps/mcp/cmd/lecrm-mcp/ | grep -v gitkeep   # expect empty for first run
+(cd apps/api && go build ./... && go test ./...)
+
+# Service-token check — informational, not fatal:
+grep -rn "service_token\|ServiceToken" apps/api/internal/auth/ || \
+  echo "NOTE: service tokens not yet implemented — see tasket 1006"
+```
+
+**If the Go build or tests fail, STOP and report. Otherwise proceed.**
 
 ## Context
 

@@ -4,6 +4,7 @@ title: "Multi-user RBAC with role-based permissions"
 status: todo
 priority: p1
 created: 2026-05-25
+updated: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
 group_order: 70
@@ -14,15 +15,52 @@ tags: [auth, rbac, permissions, sprint-8]
 
 # Multi-user RBAC with role-based permissions
 
-## Pre-flight: Verify Previous Group
+## Shipped Status (verified 2026-05-28)
 
-Before starting, verify the crm-crud-complete group is done:
+The DB foundation and member-bootstrap helper exist; the authorization
+layer, member-management endpoints, and frontend gating do not.
 
-1. `ls apps/api/internal/http/contacts.go apps/api/internal/http/deals.go` -- CRUD handlers exist
-2. `ls docs/openapi.yaml` -- OpenAPI spec exists
-3. `cd apps/api && go test -race -count=1 ./...` -- all tests pass
+**Already in `main`:**
 
-**If any check fails, STOP immediately and report. Do not proceed.**
+- `core.workspace_members` table with `role` column accepting
+  `'owner' | 'admin' | 'member'` — `packages/db/migrations/0002_identity.sql:35`.
+- `auth.Store.EnsureMember` — `apps/api/internal/auth/store.go:65` —
+  inserts a row at default role `'member'` on first workspace touch.
+
+Verify the shipped surface:
+
+```bash
+grep -q "CREATE TABLE IF NOT EXISTS core.workspace_members" \
+  packages/db/migrations/0002_identity.sql
+grep -q "EnsureMember" apps/api/internal/auth/store.go
+```
+
+**Residual scope** (what this tasket should actually deliver):
+
+1. `RequireRole(minRole)` middleware injecting role into request context.
+2. Member management endpoints — `GET/POST/PATCH/DELETE /v1/workspace/members*`
+   and `GET /v1/workspace/me` (current-user role + permissions).
+3. Apply RBAC to existing CRM routes (read = `member+`, write = `admin+`,
+   member-mgmt = `owner` only). Routes are mounted via
+   `crm.Handler.RegisterRoutes` in `apps/api/internal/crm/handlers.go:34`
+   — wrap them in `r.Group` with the new middleware.
+4. RBAC regression suite — 15+ tests across role × endpoint matrix; reuse
+   `apps/api/internal/testfixtures/tenantpair/` for two-workspace setup.
+5. Frontend gating — hide unauthorized controls; `/settings/members`
+   route for owners only.
+
+## Pre-flight (run before residual work)
+
+```bash
+export PATH=$PATH:/usr/local/go/bin
+test -f apps/api/internal/crm/handlers.go && \
+  grep -q "RegisterRoutes" apps/api/internal/crm/handlers.go
+test -f apps/api/internal/auth/store.go && \
+  grep -q "EnsureMember" apps/api/internal/auth/store.go
+(cd apps/api && go build ./... && go test ./...)
+```
+
+**If any check fails, STOP and report. Do not proceed.**
 
 ## Context
 

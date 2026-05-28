@@ -4,6 +4,7 @@ title: "Contact + Company + Deal REST handlers with CRUD"
 status: todo
 priority: p0
 created: 2026-05-25
+updated: 2026-05-28
 category: project
 group: crm-crud-complete
 group_order: 60
@@ -14,15 +15,50 @@ tags: [crm, rest, handlers, audit, sprint-6-7]
 
 # Contact + Company + Deal REST handlers with CRUD
 
-## Pre-flight: Verify Previous Group
+## Shipped Status (verified 2026-05-28)
 
-Before starting, verify the crm-entity-foundation group completed:
+The base CRUD surface was delivered by PR#5 — do NOT rewrite it. Residual
+scope: idempotency-key support and an explicit audit-log fail-closed layer.
 
-1. `ls packages/db/queries/contacts.sql packages/db/queries/companies.sql packages/db/queries/deals.sql` -- all query files exist
-2. `cd apps/api && go build ./...` -- compiles with sqlc generated code
-3. `git log --oneline -20 | grep -i "entity\|contact\|company\|deal"` -- entity commits exist
+**Already in `main`** (commits `1d2ec9a1` / `03646d2a` / `c0af3972`):
 
-**If any check fails, STOP immediately and report. Do not proceed.**
+- 15 endpoints live in `apps/api/internal/crm/handlers.go` (5 per entity,
+  registered via `Handler.RegisterRoutes` at line 34).
+- Cursor pagination — `encodeCursor` / `decodeCursor` (line ~225) using
+  opaque base64(JSON({id, created_at})).
+- sqlc bindings — `packages/db/queries/{contacts,companies,deals}.sql`
+  generated into `apps/api/internal/sqlcgen/`.
+- Workspace-scoped DB access via `Handler.ws()` (line 269) + `readTx` /
+  write tx helpers; cross-tenant isolation enforced by per-workspace
+  Postgres role + `SET LOCAL search_path`.
+- Frontend wiring + types — `apps/web/src/hooks/use-deals.ts` etc.
+
+Verify the shipped surface:
+
+```bash
+export PATH=$PATH:/usr/local/go/bin
+grep -cE "r\.(Get|Post|Put|Delete)\(" apps/api/internal/crm/handlers.go   # expect ≥15
+test -f packages/db/queries/contacts.sql && \
+  test -f packages/db/queries/companies.sql && \
+  test -f packages/db/queries/deals.sql
+(cd apps/api && go build ./... && go test ./internal/crm/...)
+```
+
+**Residual scope** (what this tasket should actually deliver):
+
+1. `Idempotency-Key` header on `POST` routes — no `idempotency_keys`
+   table exists; `grep -rn idempotency_keys apps/api/ packages/db/` is empty.
+2. Fail-closed audit-log transactions on every mutation — there is no
+   `apps/api/internal/audit/` package; current handlers don't emit
+   `contact.created` / `contact.updated` / `contact.deleted` events.
+3. Soft-delete decision — current `deleteRow` (handlers.go:452) is a
+   hard `DELETE`. Decide soft vs. hard; document the choice; if soft,
+   add `deleted_at` columns + filter on read paths.
+4. *Note:* `PATCH /v1/deals/:id/stage` is **out of scope** here —
+   covered by tasket `1005` (Pipeline Kanban).
+
+If the verification block above passes, start at "Residual scope" item 1.
+Otherwise STOP and report which check failed.
 
 ## Context
 

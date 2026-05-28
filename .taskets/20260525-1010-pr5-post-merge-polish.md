@@ -6,8 +6,9 @@ priority: p3
 created: 2026-05-25
 category: project
 group: crm-entity-foundation
-group_order: 99
+group_order: 50
 order: 10
+updated: 2026-05-28
 plan: false
 tags: [code-quality, review-findings, polish]
 ---
