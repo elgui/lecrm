@@ -6,6 +6,7 @@ import { Route as companiesIndexRoute } from './routes/companies/index';
 import { Route as dealsIndexRoute } from './routes/deals/index';
 import { Route as dealDetailRoute } from './routes/deals/$dealId';
 import { Route as settingsIndexRoute } from './routes/settings/index';
+import { Route as reportsRoute } from './routes/reports/$workspaceId';
 
 export const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -15,4 +16,5 @@ export const routeTree = rootRoute.addChildren([
   dealsIndexRoute,
   dealDetailRoute,
   settingsIndexRoute,
+  reportsRoute,
 ]);
