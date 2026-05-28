@@ -1,9 +1,11 @@
 ---
 id: 20260525-1006-openapi-service-tokens-contract-tests
 title: "OpenAPI 3.1 generation + service tokens + contract tests"
-status: todo
+status: done
 priority: p1
 created: 2026-05-25
+updated: 2026-05-28
+done: 2026-05-28
 category: project
 group: crm-crud-complete
 group_order: 60

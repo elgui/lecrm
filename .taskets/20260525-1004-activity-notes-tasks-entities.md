@@ -1,15 +1,17 @@
 ---
 id: 20260525-1004-activity-notes-tasks-entities
-title: "Activity log + Notes + Tasks entities and handlers"
-status: todo
+title: Activity log + Notes + Tasks entities and handlers
+status: done
 priority: p1
 created: 2026-05-25
+updated: 2026-05-28
+tags: [crm, activity, notes, tasks, river, sprint-7]
 category: project
 group: crm-crud-complete
 group_order: 60
 order: 2
 plan: true
-tags: [crm, activity, notes, tasks, river, sprint-7]
+done: 2026-05-28
 ---
 
 # Activity log + Notes + Tasks entities and handlers

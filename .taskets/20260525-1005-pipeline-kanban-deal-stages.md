@@ -1,16 +1,17 @@
 ---
 id: 20260525-1005-pipeline-kanban-deal-stages
-title: "Pipeline Kanban skeleton + Deal stage transitions"
-status: next
+title: Pipeline Kanban skeleton + Deal stage transitions
+status: done
 priority: p1
 created: 2026-05-25
 updated: 2026-05-28
+tags: [crm, pipeline, kanban, frontend, dnd-kit, sprint-6-8]
 category: project
 group: crm-crud-complete
 group_order: 60
 order: 3
 plan: true
-tags: [crm, pipeline, kanban, frontend, dnd-kit, sprint-6-8]
+done: 2026-05-28
 ---
 
 # Pipeline Kanban skeleton + Deal stage transitions
