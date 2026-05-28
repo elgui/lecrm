@@ -2,25 +2,23 @@
 #
 # Multi-stage release image for the lecrm-api binary.
 #   1. web    — Vite builds the React SPA into apps/web/dist/
-#   2. go     — Go compiles the API; //go:embed pulls in apps/web/dist/
+#   2. go     — Go compiles the API; //go:embed pulls in internal/spa/dist/
 #   3. final  — gcr.io/distroless/static:nonroot — minimal runtime
 #
 # Per ADR-009 §5.1: the SPA is embedded; one binary serves /v1/* + /*.
 
 # -------------------------------------------------------------- 1. web build
-FROM node:20-alpine AS web
-
-RUN corepack enable
+FROM oven/bun:1-alpine AS web
 
 WORKDIR /workspace/apps/web
 
 # Install dependencies first for layer caching.
-COPY apps/web/package.json apps/web/pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile=false
+COPY apps/web/package.json apps/web/bun.lock* ./
+RUN bun install --frozen-lockfile
 
 # Copy the rest of the SPA source and build.
 COPY apps/web/ ./
-RUN pnpm build
+RUN bun run build
 
 # ----------------------------------------------------------- 2. go API build
 FROM golang:1.25-alpine AS go
@@ -35,8 +33,9 @@ RUN cd apps/api && go mod download
 COPY apps/api/ ./apps/api/
 COPY packages/ ./packages/
 
-# Bring in the freshly built SPA so //go:embed dist/* finds it.
-COPY --from=web /workspace/apps/web/dist/ ./apps/web/dist/
+# Bring in the freshly built SPA so `//go:embed all:dist` (in
+# internal/spa) pulls it into the binary.
+COPY --from=web /workspace/apps/web/dist/ ./apps/api/internal/spa/dist/
 
 # Build the static binary. CGO_ENABLED=0 keeps the binary fully static
 # so the distroless:static image can run it without a libc.

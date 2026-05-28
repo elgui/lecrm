@@ -268,6 +268,40 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  # ---------- CSV export (Sprint 9, feature 8) ----------
+  /v1/contacts/export:
+    get:
+      tags: [contacts, export]
+      summary: Export all contacts as CSV (workspace-scoped, custom properties flattened)
+      parameters:
+        - $ref: '#/components/parameters/ExportFormat'
+      responses:
+        '200':
+          $ref: '#/components/responses/CsvExport'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/companies/export:
+    get:
+      tags: [companies, export]
+      summary: Export all companies as CSV (workspace-scoped)
+      parameters:
+        - $ref: '#/components/parameters/ExportFormat'
+      responses:
+        '200':
+          $ref: '#/components/responses/CsvExport'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/deals/export:
+    get:
+      tags: [deals, export]
+      summary: Export all deals as CSV (workspace-scoped, custom properties flattened)
+      parameters:
+        - $ref: '#/components/parameters/ExportFormat'
+      responses:
+        '200':
+          $ref: '#/components/responses/CsvExport'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ---------- Pipeline ----------
   /v1/pipeline/stages:
     get:
@@ -573,8 +607,26 @@ components:
       description: |
         Opaque client-supplied token; replays within 24h return the
         cached response with `Idempotency-Replayed: true`.
+    ExportFormat:
+      name: format
+      in: query
+      required: false
+      schema: { type: string, enum: [csv], default: csv }
+      description: Export serialization. Only `csv` is supported at v0.
 
   responses:
+    CsvExport:
+      description: |
+        CSV file download. `Content-Disposition` carries a dated filename
+        (e.g. `contacts_2026-05-25.csv`). Custom properties are appended as
+        `cf_`-prefixed columns.
+      headers:
+        Content-Disposition:
+          schema: { type: string }
+          description: attachment; filename="<entity>_<YYYY-MM-DD>.csv"
+      content:
+        text/csv:
+          schema: { type: string, format: binary }
     BadRequest:
       description: Malformed request
       content:

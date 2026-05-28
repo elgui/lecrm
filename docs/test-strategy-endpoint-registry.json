@@ -74,6 +74,13 @@
     },
     {
       "method": "GET",
+      "path": "/v1/contacts/export",
+      "isolation_test": "apps/api/internal/crm/export_integration_test.go::TestExport_Contacts_Isolation",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (reads require member+; export is a GET)",
+      "notes": "Sprint 9 feature 8: stream all contacts as CSV, custom properties flattened to cf_ columns. Workspace-scoped via search_path."
+    },
+    {
+      "method": "GET",
       "path": "/v1/contacts/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
@@ -109,6 +116,13 @@
     },
     {
       "method": "GET",
+      "path": "/v1/companies/export",
+      "isolation_test": "apps/api/internal/crm/export_integration_test.go::TestExport_Deals_And_Companies_Smoke",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (reads require member+; export is a GET)",
+      "notes": "Sprint 9 feature 8: stream all companies as CSV. Workspace-scoped via search_path."
+    },
+    {
+      "method": "GET",
       "path": "/v1/companies/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
@@ -141,6 +155,13 @@
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 4: create a deal."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals/export",
+      "isolation_test": "apps/api/internal/crm/export_integration_test.go::TestExport_Deals_And_Companies_Smoke",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (reads require member+; export is a GET)",
+      "notes": "Sprint 9 feature 8: stream all deals as CSV, custom properties flattened to cf_ columns. Workspace-scoped via search_path."
     },
     {
       "method": "GET",

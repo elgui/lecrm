@@ -36,18 +36,24 @@ type Handler struct {
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/contacts", h.ListContacts)
 	r.Post("/v1/contacts", h.CreateContact)
+	// Static /export segments are registered as their own routes; chi
+	// prioritises them over the /{id} wildcard so "export" is never parsed
+	// as a UUID (Sprint 9 CSV export).
+	r.Get("/v1/contacts/export", h.ExportContacts)
 	r.Get("/v1/contacts/{id}", h.GetContact)
 	r.Put("/v1/contacts/{id}", h.UpdateContact)
 	r.Delete("/v1/contacts/{id}", h.DeleteContact)
 
 	r.Get("/v1/companies", h.ListCompanies)
 	r.Post("/v1/companies", h.CreateCompany)
+	r.Get("/v1/companies/export", h.ExportCompanies)
 	r.Get("/v1/companies/{id}", h.GetCompany)
 	r.Put("/v1/companies/{id}", h.UpdateCompany)
 	r.Delete("/v1/companies/{id}", h.DeleteCompany)
 
 	r.Get("/v1/deals", h.ListDeals)
 	r.Post("/v1/deals", h.CreateDeal)
+	r.Get("/v1/deals/export", h.ExportDeals)
 	r.Get("/v1/deals/{id}", h.GetDeal)
 	r.Put("/v1/deals/{id}", h.UpdateDeal)
 	r.Delete("/v1/deals/{id}", h.DeleteDeal)

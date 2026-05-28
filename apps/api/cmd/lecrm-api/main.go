@@ -28,6 +28,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/reports"
+	"github.com/gbconsult/lecrm/apps/api/internal/spa"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -147,6 +148,16 @@ func run(logger *slog.Logger) error {
 		Logger:        logger,
 	}
 
+	// Embedded SPA (ADR-009 §5.1). One binary serves /v1/* REST and /* the
+	// React build. In a fresh checkout with no built SPA, HasSPA() is false
+	// and the handler serves a 503 placeholder — flag it loudly at startup.
+	spaH := spa.New(logger)
+	if !spaH.HasSPA() {
+		logger.Warn("no SPA build embedded; serving API only (run scripts/embed-spa.sh before building for production)")
+	} else {
+		logger.Info("embedded SPA ready")
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
@@ -163,6 +174,7 @@ func run(logger *slog.Logger) error {
 			Reports:         reportsH,
 			RBAC:            rbacResolver,
 			Members:         membersH,
+			SPA:             spaH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

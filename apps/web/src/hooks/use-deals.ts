@@ -1,6 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { Deal, PaginatedResponse } from '@/lib/types';
+import type { Deal, PaginatedResponse, PropertyDefinition } from '@/lib/types';
+
+export interface DealInput {
+  title: string;
+  amount: number | null;
+  currency: string | null;
+  stage_id: string | null;
+  contact_id: string | null;
+  company_id: string | null;
+  expected_close_date: string | null;
+}
 
 export function useDeals(cursor?: string) {
   const params = new URLSearchParams();
@@ -11,6 +21,67 @@ export function useDeals(cursor?: string) {
   return useQuery<PaginatedResponse<Deal>>({
     queryKey: ['deals', { cursor }],
     queryFn: () => api.get<PaginatedResponse<Deal>>(path),
+  });
+}
+
+export function useCreateDeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: DealInput) => api.post<Deal>('/v1/deals', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
+  });
+}
+
+export function useUpdateDeal(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<DealInput>) => api.put<Deal>(`/v1/deals/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['deals', id] });
+      qc.invalidateQueries({ queryKey: ['deals'] });
+    },
+  });
+}
+
+export function useDeleteDeal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/v1/deals/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals'] }),
+  });
+}
+
+export function useDealProperties(id: string) {
+  return useQuery<Record<string, unknown>>({
+    queryKey: ['deals', id, 'properties'],
+    queryFn: async () => {
+      const res = await api.get<{ properties: Record<string, unknown> }>(
+        `/v1/deals/${id}/properties`,
+      );
+      return res.properties ?? {};
+    },
+    enabled: !!id,
+  });
+}
+
+export function useUpdateDealProperties(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      api.put<{ status: string }>(`/v1/deals/${id}/properties`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deals', id, 'properties'] }),
+  });
+}
+
+export function useDealDefinitions() {
+  return useQuery<PropertyDefinition[]>({
+    queryKey: ['metadata', 'definitions', 'deal'],
+    queryFn: async () => {
+      const res = await api.get<{ definitions: PropertyDefinition[] }>(
+        '/v1/metadata/definitions?parent_type=deal',
+      );
+      return res.definitions ?? [];
+    },
   });
 }
 

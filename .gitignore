@@ -21,6 +21,12 @@ node_modules/
 apps/web/dist/
 apps/web/.vite/
 
+# Built SPA copied into the Go embed package (Sprint 9, go:embed). The
+# real assets are build artifacts; only the .gitkeep sentinel is tracked so
+# the //go:embed directive compiles in a fresh checkout.
+apps/api/internal/spa/dist/*
+!apps/api/internal/spa/dist/.gitkeep
+
 # SOPS-decrypted .env should never be committed (encrypted .env.enc is fine)
 .env
 .env.*

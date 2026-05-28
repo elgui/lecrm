@@ -24,17 +24,17 @@ import (
 
 // RouterDeps bundles the long-lived collaborators NewRouter needs.
 type RouterDeps struct {
-	Logger          *slog.Logger
-	AuthHandler     *auth.Handler
-	ServiceTokens   *auth.ServiceTokenHandler
-	BearerAuth      workspace.BearerAuthenticator
-	Resolver        workspace.Resolver
-	TestList        *workspace.TestListHandler
-	Metadata        *metadata.Handler
-	CRM             *crm.Handler
-	Email           *email.Handler
-	Admin           *admin.AuditHandler
-	Reports         *reports.Handler
+	Logger        *slog.Logger
+	AuthHandler   *auth.Handler
+	ServiceTokens *auth.ServiceTokenHandler
+	BearerAuth    workspace.BearerAuthenticator
+	Resolver      workspace.Resolver
+	TestList      *workspace.TestListHandler
+	Metadata      *metadata.Handler
+	CRM           *crm.Handler
+	Email         *email.Handler
+	Admin         *admin.AuditHandler
+	Reports       *reports.Handler
 	// RBAC resolves and injects the per-request role principal. When nil,
 	// the workspace group runs without role enforcement (back-compat for
 	// tests that don't exercise authorization).
@@ -42,7 +42,12 @@ type RouterDeps struct {
 	// Members serves the owner-only member-management endpoints and the
 	// member+ /v1/workspace/me self-service endpoint. Mounted only when
 	// RBAC is also configured.
-	Members         *members.Handler
+	Members *members.Handler
+	// SPA serves the embedded React build for every non-API path, with a
+	// client-side routing fallback to index.html (ADR-009 §5.1). Mounted
+	// as the router's NotFound handler. When nil, unmatched paths get
+	// chi's default plain-text 404 (test seam).
+	SPA             http.Handler
 	CookieDomainTLD string
 }
 
@@ -126,6 +131,15 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 				})
 			}
 		})
+	}
+
+	// Embedded SPA: any request that matched no API route falls through to
+	// the SPA handler, which serves a static asset or the index.html shell
+	// for client-side routing. It runs the root middleware stack (incl.
+	// CSP) but NOT the workspace middleware — serving the app shell never
+	// requires a resolved workspace.
+	if deps.SPA != nil {
+		r.NotFound(deps.SPA.ServeHTTP)
 	}
 
 	return r

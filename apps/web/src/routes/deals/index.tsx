@@ -1,7 +1,19 @@
+import * as React from 'react';
 import { createRoute, Link } from '@tanstack/react-router';
-import { useDeals } from '@/hooks/use-deals';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Plus } from 'lucide-react';
+import { useDeals, useCreateDeal } from '@/hooks/use-deals';
+import { usePipelineStages } from '@/hooks/use-pipeline-stages';
+import { useMe } from '@/hooks/use-me';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
+import { ExportButton } from '@/components/export-button';
 import {
   Table,
   TableHeader,
@@ -20,20 +32,127 @@ export const Route = createRoute({
 
 function formatCurrency(amount: number | null, currency: string | null) {
   if (amount === null || !currency) return '-';
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(amount);
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
+}
+
+const dealSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  amount: z.string(),
+  currency: z.string(),
+  stage_id: z.string(),
+  expected_close_date: z.string(),
+});
+type DealForm = z.infer<typeof dealSchema>;
+
+function CreateDealForm({ onDone }: { onDone: () => void }) {
+  const create = useCreateDeal();
+  const { data: stagesResp } = usePipelineStages();
+  const stages = stagesResp?.data;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<DealForm>({
+    resolver: zodResolver(dealSchema),
+    defaultValues: { title: '', amount: '', currency: 'EUR', stage_id: '', expected_close_date: '' },
+  });
+
+  const onSubmit = handleSubmit((data) => {
+    create.mutate(
+      {
+        title: data.title,
+        amount: data.amount ? Number(data.amount) : null,
+        currency: data.currency || null,
+        stage_id: data.stage_id || null,
+        contact_id: null,
+        company_id: null,
+        expected_close_date: data.expected_close_date || null,
+      },
+      { onSuccess: onDone },
+    );
+  });
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="pt-6">
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Title</Label>
+            <Input id="title" {...register('title')} />
+            {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount</Label>
+              <Input id="amount" type="number" step="0.01" {...register('amount')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Input id="currency" {...register('currency')} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expected_close_date">Expected close</Label>
+              <Input id="expected_close_date" type="date" {...register('expected_close_date')} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="stage_id">Stage</Label>
+            <select
+              id="stage_id"
+              {...register('stage_id')}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="">—</option>
+              {stages?.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={create.isPending}>
+              {create.isPending ? 'Creating…' : 'Create deal'}
+            </Button>
+            <Button type="button" variant="ghost" onClick={onDone}>
+              Cancel
+            </Button>
+          </div>
+          {create.isError && (
+            <p className="text-sm text-destructive">{(create.error as Error).message}</p>
+          )}
+        </form>
+      </CardContent>
+    </Card>
+  );
 }
 
 function DealList() {
   const { data, isLoading, error } = useDeals();
+  const { data: stagesResp } = usePipelineStages();
+  const stages = stagesResp?.data;
+  const { permissions } = useMe();
+  const [creating, setCreating] = React.useState(false);
+
+  const stageName = (id: string | null) =>
+    stages?.find((s) => s.id === id)?.name ?? id?.slice(0, 8) ?? null;
 
   return (
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Deals</h1>
+        <div className="flex items-center gap-2">
+          <ExportButton resource="deals" />
+          {permissions.can_write && !creating && (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New deal
+            </Button>
+          )}
+        </div>
       </div>
+
+      {creating && <CreateDealForm onDone={() => setCreating(false)} />}
 
       {isLoading && (
         <div className="space-y-3">
@@ -43,17 +162,13 @@ function DealList() {
         </div>
       )}
 
-      {error && (
-        <p className="text-destructive">
-          Failed to load deals: {error.message}
-        </p>
-      )}
+      {error && <p className="text-destructive">Failed to load deals: {error.message}</p>}
 
-      {data && data.data.length === 0 && (
+      {data && data.data.length === 0 && !creating && (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <p className="text-lg text-muted-foreground">No deals yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Deals will appear here once created via the API.
+            Create your first deal to get started.
           </p>
         </div>
       )}
@@ -82,7 +197,7 @@ function DealList() {
                 </TableCell>
                 <TableCell>
                   {deal.stage_id ? (
-                    <Badge variant="secondary">{deal.stage_id.slice(0, 8)}</Badge>
+                    <Badge variant="secondary">{stageName(deal.stage_id)}</Badge>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}

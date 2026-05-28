@@ -1,14 +1,23 @@
-import { createRoute, Link } from '@tanstack/react-router';
+import { createRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
-import { useContact, useUpdateContact, useContactProperties } from '@/hooks/use-contacts';
+import {
+  useContact,
+  useUpdateContact,
+  useDeleteContact,
+  useContactProperties,
+  useUpdateContactProperties,
+  useContactDefinitions,
+} from '@/hooks/use-contacts';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
+import { NotesPanel } from '@/components/notes-panel';
+import { TasksPanel } from '@/components/tasks-panel';
+import { CustomPropertiesEditor } from '@/components/custom-properties-editor';
 import { Route as rootRoute } from '../__root';
 
 export const Route = createRoute({
@@ -26,9 +35,13 @@ interface ContactFormData {
 
 function ContactDetail() {
   const { contactId } = Route.useParams();
+  const navigate = useNavigate();
   const { data: contact, isLoading } = useContact(contactId);
-  const { data: properties } = useContactProperties(contactId);
+  const { data: properties, isLoading: propsLoading } = useContactProperties(contactId);
+  const { data: definitions } = useContactDefinitions();
   const updateMutation = useUpdateContact(contactId);
+  const updateProps = useUpdateContactProperties(contactId);
+  const deleteMutation = useDeleteContact();
   const { permissions } = useMe();
   const canWrite = permissions.can_write;
 
@@ -52,6 +65,13 @@ function ContactDetail() {
     });
   });
 
+  const onDelete = () => {
+    if (!window.confirm('Delete this contact? This cannot be undone.')) return;
+    deleteMutation.mutate(contactId, {
+      onSuccess: () => navigate({ to: '/contacts' }),
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4 p-8">
@@ -71,17 +91,25 @@ function ContactDetail() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <Link
-          to="/contacts"
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to contacts
-        </Link>
-        <h1 className="text-2xl font-semibold">
-          {contact.first_name} {contact.last_name}
-        </h1>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <Link
+            to="/contacts"
+            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to contacts
+          </Link>
+          <h1 className="text-2xl font-semibold">
+            {contact.first_name} {contact.last_name}
+          </h1>
+        </div>
+        {canWrite && (
+          <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -111,12 +139,7 @@ function ContactDetail() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  readOnly={!canWrite}
-                  {...form.register('email')}
-                />
+                <Input id="email" type="email" readOnly={!canWrite} {...form.register('email')} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
@@ -130,9 +153,7 @@ function ContactDetail() {
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save changes'}
                   </Button>
-                  {updateMutation.isSuccess && (
-                    <p className="text-sm text-green-600">Saved</p>
-                  )}
+                  {updateMutation.isSuccess && <p className="text-sm text-green-600">Saved</p>}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -143,37 +164,18 @@ function ContactDetail() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Custom Properties</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Array.isArray(properties) && properties.length > 0 ? (
-              <div className="space-y-2">
-                {(properties as Array<{ key: string; value: unknown; type: string }>).map(
-                  (prop) => (
-                    <div
-                      key={prop.key}
-                      className="flex items-center justify-between rounded-md border px-3 py-2"
-                    >
-                      <span className="text-sm font-medium">{prop.key}</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">{prop.type}</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {String(prop.value)}
-                        </span>
-                      </div>
-                    </div>
-                  ),
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No custom properties defined
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <CustomPropertiesEditor
+          definitions={definitions}
+          values={properties}
+          isLoading={propsLoading}
+          canWrite={canWrite}
+          isSaving={updateProps.isPending}
+          saveError={updateProps.isError ? (updateProps.error as Error).message : null}
+          onSave={(data) => updateProps.mutate(data)}
+        />
+
+        <NotesPanel entityType="contact" entityId={contactId} />
+        <TasksPanel scope={{ entity_type: 'contact', entity_id: contactId }} />
       </div>
     </div>
   );

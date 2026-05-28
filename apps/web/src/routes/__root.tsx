@@ -1,5 +1,5 @@
 import { createRootRoute, Outlet, Link } from '@tanstack/react-router';
-import { Users, Building2, CircleDollarSign, BarChart3, Kanban, Settings, UserCog, LogOut } from 'lucide-react';
+import { Users, Building2, CircleDollarSign, BarChart3, Kanban, CheckSquare, Settings, UserCog, LogOut } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/contacts' as const, label: 'Contacts', icon: Users },
   { to: '/companies' as const, label: 'Companies', icon: Building2 },
   { to: '/deals' as const, label: 'Deals', icon: CircleDollarSign },
+  { to: '/tasks' as const, label: 'Tasks', icon: CheckSquare },
   { to: '/settings' as const, label: 'Settings', icon: Settings },
 ];
 

@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
+// Test config lives in vitest.config.ts so this file types against a single
+// vite version under `tsc -b` (vitest bundles its own vite, which otherwise
+// clashes with the app's when `test` is declared here).
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -16,9 +19,5 @@ export default defineConfig({
       '/v1': 'http://localhost:8080',
       '/healthz': 'http://localhost:8080',
     },
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
   },
 });

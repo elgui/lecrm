@@ -78,6 +78,42 @@ export interface CustomProperty {
   type: string;
 }
 
+export type PropertyType = 'string' | 'number' | 'boolean' | 'enum' | 'date' | 'json';
+
+export interface PropertyDefinition {
+  id: string;
+  parent_type: 'contact' | 'deal';
+  property_key: string;
+  property_type: PropertyType;
+  allowed_values?: string[];
+  required: boolean;
+}
+
+export type EntityType = 'contact' | 'company' | 'deal';
+
+export interface Note {
+  id: string;
+  entity_type: EntityType;
+  entity_id: string;
+  body: string;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string | null;
+  entity_type: EntityType | null;
+  entity_id: string | null;
+  assignee_id: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PaginatedResponse<T> {
   data: T[];
   next_cursor: string | null;
