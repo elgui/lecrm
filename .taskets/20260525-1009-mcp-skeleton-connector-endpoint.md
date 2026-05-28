@@ -1,10 +1,11 @@
 ---
 id: 20260525-1009-mcp-skeleton-connector-endpoint
 title: "MCP adapter skeleton + chatboting connector event endpoint"
-status: todo
+status: done
 priority: p2
 created: 2026-05-25
 updated: 2026-05-28
+done: 2026-05-28
 category: project
 group: crm-frontend-rbac-export
 group_order: 200
