@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Activity struct {
+	ID           uuid.UUID          `json:"id"`
+	EntityType   string             `json:"entity_type"`
+	EntityID     uuid.UUID          `json:"entity_id"`
+	ActorType    pgtype.Text        `json:"actor_type"`
+	ActorID      uuid.NullUUID      `json:"actor_id"`
+	EventType    string             `json:"event_type"`
+	SourceSystem pgtype.Text        `json:"source_system"`
+	Payload      []byte             `json:"payload"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type Company struct {
 	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
@@ -44,6 +56,17 @@ type CoreAuditLog struct {
 	ActorIp     *netip.Addr        `json:"actor_ip"`
 	RequestID   uuid.NullUUID      `json:"request_id"`
 	Payload     []byte             `json:"payload"`
+}
+
+type CoreIdempotencyKey struct {
+	Key            string             `json:"key"`
+	WorkspaceID    uuid.UUID          `json:"workspace_id"`
+	Method         string             `json:"method"`
+	Path           string             `json:"path"`
+	ResponseStatus int32              `json:"response_status"`
+	ResponseBody   []byte             `json:"response_body"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
 type CoreReservedSlug struct {
@@ -112,9 +135,32 @@ type Deal struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Note struct {
+	ID         uuid.UUID          `json:"id"`
+	EntityType string             `json:"entity_type"`
+	EntityID   uuid.UUID          `json:"entity_id"`
+	Body       string             `json:"body"`
+	AuthorID   uuid.UUID          `json:"author_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PipelineStage struct {
 	ID         uuid.UUID          `json:"id"`
 	Name       string             `json:"name"`
 	OrderIndex int32              `json:"order_index"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Task struct {
+	ID          uuid.UUID          `json:"id"`
+	Title       string             `json:"title"`
+	Description pgtype.Text        `json:"description"`
+	EntityType  pgtype.Text        `json:"entity_type"`
+	EntityID    uuid.NullUUID      `json:"entity_id"`
+	AssigneeID  uuid.NullUUID      `json:"assignee_id"`
+	DueDate     pgtype.Date        `json:"due_date"`
+	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }

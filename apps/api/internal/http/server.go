@@ -76,6 +76,7 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 			}
 			if deps.CRM != nil {
 				deps.CRM.RegisterRoutes(r)
+				deps.CRM.RegisterANTRoutes(r)
 			}
 			if deps.Email != nil {
 				deps.Email.RegisterRoutes(r)

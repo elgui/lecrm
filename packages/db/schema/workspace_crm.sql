@@ -50,3 +50,38 @@ CREATE TABLE IF NOT EXISTS deals (
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS activities (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type   TEXT NOT NULL,
+  entity_id     UUID NOT NULL,
+  actor_type    TEXT,
+  actor_id      UUID,
+  event_type    TEXT NOT NULL,
+  source_system TEXT,
+  payload       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL,
+  entity_id   UUID NOT NULL,
+  body        TEXT NOT NULL,
+  author_id   UUID NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title        TEXT NOT NULL,
+  description  TEXT,
+  entity_type  TEXT,
+  entity_id    UUID,
+  assignee_id  UUID,
+  due_date     DATE,
+  completed_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

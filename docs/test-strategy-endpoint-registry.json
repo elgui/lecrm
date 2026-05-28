@@ -176,6 +176,118 @@
       "isolation_test": "apps/api/internal/crm/pipeline_integration_test.go::TestPipeline_ListStages_ReturnsSeededStagesOrdered (per-workspace schema isolation; cross-tenant covered by TestPipeline_TransitionDealStage_CrossTenantIsolation)",
       "rbac_test": "pending — Sprint 7",
       "notes": "Sprint 13: list pipeline stages for the workspace Kanban."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/contacts/{id}/activities",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/companies/{id}/activities",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals/{id}/activities",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_ActivityCreatedAutomaticallyOnDealMutations",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: append-only entity timeline (read-only from REST)."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/contacts/{id}/notes",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_NotesCRUDLifecycle (workspace-scoped via search_path)",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: list notes on a contact."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/contacts/{id}/notes",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: create note on a contact. Emits note.added activity."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/companies/{id}/notes",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: list notes on a company."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/companies/{id}/notes",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: create note on a company. Emits note.added activity."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/deals/{id}/notes",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: list notes on a deal."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/deals/{id}/notes",
+      "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 4: create note on a deal. Emits note.added activity."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/notes/{id}",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_NotesCRUDLifecycle + TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
+      "rbac_test": "Author-only enforcement covered in TestANT_NotesCRUDLifecycle; admin override pending — Sprint 9",
+      "notes": "Sprint 7 feature 4: edit note (author only)."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/notes/{id}",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_NotesCRUDLifecycle",
+      "rbac_test": "Author-only enforcement covered in TestANT_NotesCRUDLifecycle; admin override pending — Sprint 9",
+      "notes": "Sprint 7 feature 4: delete note (author or admin)."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/tasks",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_CrossTenantIsolation_NotesAndTasksScopedToWorkspace",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 5: list tasks; filter by assignee_id and/or entity_type+entity_id."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/tasks",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 5: create task; schedules River reminder when due_date set."
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/tasks/{id}",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 5: update task. Re-enqueues reminder."
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/tasks/{id}/complete",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 5: toggle task completion (complete ↔ reopen)."
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/tasks/{id}",
+      "isolation_test": "apps/api/internal/crm/anc_integration_test.go::TestANT_TasksCRUDAndCompletionToggle",
+      "rbac_test": "pending — Sprint 9 (session middleware)",
+      "notes": "Sprint 7 feature 5: delete task. Cancels any scheduled reminder."
     }
   ]
 }

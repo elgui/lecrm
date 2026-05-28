@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gbconsult/lecrm/apps/api/internal/domain"
+	"github.com/gbconsult/lecrm/apps/api/internal/jobs"
 	"github.com/gbconsult/lecrm/apps/api/internal/sqlcgen"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
@@ -27,8 +28,9 @@ const (
 )
 
 type Handler struct {
-	Pool   *pgxpool.Pool
-	Logger *slog.Logger
+	Pool      *pgxpool.Pool
+	Logger    *slog.Logger
+	JobRunner jobs.JobRunner // optional — when nil, task reminders are skipped (v0 placeholder)
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -415,6 +417,11 @@ func (h *Handler) CreateContact(w http.ResponseWriter, r *http.Request) {
 		}); e != nil {
 			return e
 		}
+		if e := emitRESTActivity(r.Context(), tx, entityTypeContact, row.ID, "entity.created", map[string]any{
+			"first_name": row.FirstName, "last_name": row.LastName, "email": textPtr(row.Email),
+		}); e != nil {
+			return e
+		}
 		if idemKey != "" {
 			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
 		}
@@ -468,8 +475,13 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "contact.updated", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "contact.updated", ws.ID, map[string]any{
 			"id": row.ID.String(), "email": textPtr(row.Email),
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeContact, row.ID, "entity.updated", map[string]any{
+			"first_name": row.FirstName, "last_name": row.LastName, "email": textPtr(row.Email),
 		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -515,7 +527,12 @@ func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 		if e := deleteRow(r.Context(), tx, "contacts", id); e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "contact.deleted", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "contact.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeContact, id, "entity.deleted", map[string]any{
 			"id": id.String(),
 		})
 	})
@@ -666,6 +683,11 @@ func (h *Handler) CreateCompany(w http.ResponseWriter, r *http.Request) {
 		}); e != nil {
 			return e
 		}
+		if e := emitRESTActivity(r.Context(), tx, entityTypeCompany, row.ID, "entity.created", map[string]any{
+			"name": row.Name, "domain": textPtr(row.Domain),
+		}); e != nil {
+			return e
+		}
 		if idemKey != "" {
 			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
 		}
@@ -709,8 +731,13 @@ func (h *Handler) UpdateCompany(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "company.updated", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "company.updated", ws.ID, map[string]any{
 			"id": row.ID.String(), "name": row.Name,
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeCompany, row.ID, "entity.updated", map[string]any{
+			"name": row.Name, "domain": textPtr(row.Domain),
 		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -738,7 +765,12 @@ func (h *Handler) DeleteCompany(w http.ResponseWriter, r *http.Request) {
 		if e := deleteRow(r.Context(), tx, "companies", id); e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "company.deleted", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "company.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeCompany, id, "entity.deleted", map[string]any{
 			"id": id.String(),
 		})
 	})
@@ -897,6 +929,11 @@ func (h *Handler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 		}); e != nil {
 			return e
 		}
+		if e := emitRESTActivity(r.Context(), tx, entityTypeDeal, row.ID, "entity.created", map[string]any{
+			"title": row.Title, "stage_id": uuidPtr(row.StageID), "amount": numPtr(row.Amount),
+		}); e != nil {
+			return e
+		}
 		if idemKey != "" {
 			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
 		}
@@ -945,8 +982,13 @@ func (h *Handler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "deal.updated", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "deal.updated", ws.ID, map[string]any{
 			"id": row.ID.String(), "title": row.Title, "stage_id": uuidPtr(row.StageID),
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeDeal, row.ID, "entity.updated", map[string]any{
+			"title": row.Title, "stage_id": uuidPtr(row.StageID), "amount": numPtr(row.Amount),
 		})
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -974,7 +1016,12 @@ func (h *Handler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
 		if e := deleteRow(r.Context(), tx, "deals", id); e != nil {
 			return e
 		}
-		return emitAudit(r.Context(), tx, "deal.deleted", ws.ID, map[string]any{
+		if e := emitAudit(r.Context(), tx, "deal.deleted", ws.ID, map[string]any{
+			"id": id.String(),
+		}); e != nil {
+			return e
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeDeal, id, "entity.deleted", map[string]any{
 			"id": id.String(),
 		})
 	})
@@ -1132,11 +1179,27 @@ func (h *Handler) TransitionDealStage(w http.ResponseWriter, r *http.Request) {
 			return mErr
 		}
 
-		_, e = tx.Exec(r.Context(),
+		if _, e = tx.Exec(r.Context(),
 			`INSERT INTO objects (object_type, parent_type, parent_id, data) VALUES ('activity', 'deal', $1, $2)`,
 			dealID, data,
-		)
-		return e
+		); e != nil {
+			return e
+		}
+		stagePayload := map[string]any{
+			"new_stage":      newStageID.String(),
+			"new_stage_name": newStage.Name,
+		}
+		if oldStageID.Valid {
+			stagePayload["old_stage"] = oldStageID.UUID.String()
+		} else {
+			stagePayload["old_stage"] = nil
+		}
+		if oldStageName != nil {
+			stagePayload["old_stage_name"] = *oldStageName
+		} else {
+			stagePayload["old_stage_name"] = nil
+		}
+		return emitRESTActivity(r.Context(), tx, entityTypeDeal, dealID, "deal.stage_changed", stagePayload)
 	})
 
 	if badStage {
