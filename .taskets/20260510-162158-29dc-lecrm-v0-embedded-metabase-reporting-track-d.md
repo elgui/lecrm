@@ -1,11 +1,11 @@
 ---
 id: 20260510-162158-29dc
-title: leCRM v0 — Embedded Metabase reporting (Track D)
-status: later
-priority: p2
+title: leCRM v0 — Cube.dev backend (per-workspace RO role + signed embed)
+status: next
+priority: p1
 created: 2026-05-10
-updated: 2026-05-14
-tags: [reporting, metabase, v0]
+updated: 2026-05-28
+tags: [reporting, cube-dev, backend, v0]
 category: project
 group: lecrm-v0-sprint-12
 group_order: 12
@@ -13,31 +13,34 @@ order: 1
 plan: true
 ---
 
-# leCRM v0 — Dashboard reporting iframe bridge (Cube.dev primary, Metabase fallback)
+# leCRM v0 — Cube.dev backend (per-workspace RO role + signed embed)
 
-## Why this tasket exists
+## Why
 
-v0 needs a basic per-client reporting surface (deal counts, activity volume, pipeline funnels) without building dashboards in-app. Per [ADR-009](docs/adr/ADR-009-stack-and-license.md) §9, **Cube.dev iframe is the named v0 bridge**. The original plan was self-hosted Metabase pointed at Twenty's Postgres via a Twenty SDK extension — that delivery vector is dead (no Twenty fork, no SDK extension).
+v0 needs a per-client reporting surface. ADR-009 §9 names Cube.dev as the bridge: semantic layer (define `measures`/`dimensions` once, reuse across dashboards) + JWT `securityContext` carrying `workspace_id` + LLM-ready for v2 "ask your CRM". This tasket is the **backend half** of sprint-12; the React route + dashboard configs land in `12b`.
 
-The new shape is an iframe-embeddable dashboard with workspace-scoped read access to the per-workspace Postgres schema, surfaced inside the React frontend under a "Reports" route.
+## Done criteria
 
-**This tasket is downstream of [b844](20260510-202450-b844-lecrm-v0-twenty-fork-tasket-housekeeping-week-1-sc.md) (scaffolding) — start after the scaffold is up.**
+- [ ] **Per-workspace read-only Postgres role** `workspace_<id>_ro` with `GRANT SELECT` on the workspace schema. Created via an extension to `core.lecrm_provision_workspace` (SECURITY DEFINER, `search_path=core,pg_catalog` per migration 0006). New migration `packages/db/migrations/0013_workspace_ro_role.sql`.
+- [ ] **Cube.dev container** in `deploy/compose/cube.yml`, ~512 MB memory, image `cubejs/cube:latest`. Connects to Postgres as `workspace_<id>_ro` (one connection per workspace, picked at JWT verification time).
+- [ ] **Cube schema** in `deploy/cube/schema/` defining measures + dimensions over: `deals`, `contacts`, `companies`, `activities`. Includes `deal_stage` dimension (depends on tasket 20260525-1005 having shipped — verify first).
+- [ ] **Signed embed JWT endpoint** `POST /api/v1/reports/embed-token` on `apps/api`: returns short-lived (5 min TTL) JWT with claims `{workspace_id, exp, aud:"cube"}`, signed with `LECRM_CUBE_JWT_SECRET`. Workspace-scoped resolver — 403 if caller doesn't belong to the workspace.
+- [ ] **Audit event** `report.embed_token.issued` with `workspace_id` + `actor_id` written to `core.audit_log` on every token mint.
+- [ ] **Tests**: provisioning function migration smoke test (RO role can SELECT, cannot UPDATE); embed-token handler tests (happy path, cross-workspace 403, expired token rejected by Cube container in an integration test).
 
-## Re-scoped done criteria
+## Pre-flight (verify before starting)
 
-- [ ] **Decide Cube.dev vs Metabase** at kickoff (re-scope review). Cube.dev is the ADR-009 §9 named choice (semantic-layer + iframe + LLM-ready for v2 "ask your CRM"). Metabase is the faster-to-scope alternative if Cube.dev integration cost exceeds 3 days. Record the decision as a comment on this tasket.
-- [ ] Per-workspace **read-only** Postgres role (`workspace_<id>_ro`) with `SELECT` only on the workspace schema. Created via an extension to `lecrm_provision_workspace` (a sibling SECURITY DEFINER function or an addition to the primary one).
-- [ ] Cube.dev (or Metabase) container in `deploy/compose/`, scoped to ~512 MB memory; reads from Postgres as the per-workspace read-only role.
-- [ ] Signed iframe embed URL with workspace_id parameter; signature verified by the dashboard service.
-- [ ] React frontend `apps/web/src/routes/reports/$workspaceId.tsx` mounts the iframe with the right URL.
-- [ ] Baseline dashboard: deals by stage, deals by owner, recent activities, conversion funnel.
+1. `ls packages/db/migrations/0011_external_sync.sql` — sync seam migration present.
+2. `git log --oneline -20 | grep -i "deal.*stage\|pipeline"` — tasket 20260525-1005 has shipped (deal-stage domain exists).
+3. If #2 fails, STOP and report. Do not proceed — Cube schema's `deal_stage` dimension requires the domain.
 
-## Out of scope
+## Out of scope (deferred to 12b)
 
-- LLM-driven "ask your CRM" dashboard interface (v2 work).
-- Custom-object reporting beyond the standard contacts/deals/companies model (waits on ADR-010 metadata engine, week 5).
+- React `reports/$workspaceId.tsx` route.
+- Cube.dev dashboard configs (deals by stage, deals by owner, recent activities, conversion funnel).
 
 ## References
 
-- [ADR-009](docs/adr/ADR-009-stack-and-license.md) §9 (Cube.dev as v0 dashboard bridge).
-- [ADR-001](docs/adr/ADR-001-tenancy-model.md) (workspace schema isolation) — read-only role for Cube.dev/Metabase is a v0 addition.
+- ADR-009 §9 (Cube.dev as v0 dashboard bridge).
+- ADR-001 (workspace schema isolation).
+- Tasket 20260525-1005 (deal-stage domain — hard dependency).
