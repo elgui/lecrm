@@ -1,0 +1,72 @@
+# lecrm-mcp — Model Context Protocol adapter for leCRM (ADR-011).
+#
+# A standalone service exposing READ-ONLY CRM data to AI agents over a
+# Streamable HTTP transport (JSON-RPC 2.0). It is the AI-native interface
+# seam from the strategic moat: chatbots, voice, and agents read the CRM
+# through MCP rather than the human REST surface.
+#
+# Constrained database role
+# -------------------------
+# The container connects as `lecrm_cube_reader` — the SAME NOLOGIN-backed,
+# SELECT-only login created in
+# packages/db/migrations/0013_workspace_ro_role.sql for Cube.dev — and
+# assumes the per-workspace RO role via `SET LOCAL ROLE workspace_<id>_ro`
+# on every query (see apps/mcp/internal/store). That role is granted USAGE
+# + SELECT on the workspace schema and NOTHING else: no INSERT/UPDATE/
+# DELETE, no access to other tenants, no core-schema writes. The MCP
+# adapter therefore CANNOT mutate CRM data even if a tool were buggy or an
+# agent hostile — the guarantee is enforced in Postgres, not application
+# code.
+#
+# Reusing lecrm_cube_reader (rather than minting a second login role)
+# keeps the credential surface minimal: one shared NOLOGIN-membership
+# reader, no per-workspace passwords to store. If a separate MCP reader is
+# wanted later, add a sibling role + GRANT in a follow-up migration and
+# point LECRM_MCP_DATABASE_URL at it — no code change needed.
+#
+# Network: shares the external `lecrm` network with Postgres; localhost-
+# only host binding. Caddy fronts external `mcp.<workspace>.lecrm.fr`
+# routing and injects the verified X-Lecrm-Workspace-Id / X-Lecrm-Token-Id
+# headers after validating the workspace service token (ADR-009 §4.1).
+
+services:
+  mcp:
+    image: ghcr.io/gbconsult/lecrm-mcp:${LECRM_IMAGE_TAG:-latest}
+    build:
+      context: ../..
+      dockerfile: apps/mcp/Dockerfile
+    container_name: lecrm-mcp
+    restart: unless-stopped
+    environment:
+      # Connection string for the constrained reader. The password is the
+      # same one set on lecrm_cube_reader at deploy time (ALTER ROLE).
+      LECRM_MCP_DATABASE_URL: ${LECRM_MCP_DATABASE_URL:?required}
+      LECRM_MCP_ADDR: ":8081"
+      # Per (workspace_id, token_id) token-bucket: 20 req/s, burst 40.
+      LECRM_MCP_RATE_PER_SEC: ${LECRM_MCP_RATE_PER_SEC:-20}
+      LECRM_MCP_RATE_BURST: ${LECRM_MCP_RATE_BURST:-40}
+    ports:
+      # Localhost-only; Caddy fronts external access at the edge.
+      - "127.0.0.1:${LECRM_MCP_HOST_PORT:-8081}:8081"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      # The distroless runtime has no shell/wget; the binary self-probes
+      # /healthz via its `healthcheck` subcommand.
+      test: ["CMD", "/lecrm-mcp", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - lecrm
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true

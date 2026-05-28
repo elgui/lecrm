@@ -106,6 +106,14 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 					deps.CRM.RegisterRoutes(r)
 					deps.CRM.RegisterANTRoutes(r)
 				}
+				// Connector ingestion (ADR-011) is authenticated by a
+				// service token with the connector.push_events scope, NOT
+				// by an RBAC role — so it mounts in its own group guarded
+				// by the bearer-scope check rather than RequireRoleByMethod.
+				r.Group(func(r chi.Router) {
+					r.Use(crm.RequireConnectorScope)
+					deps.CRM.RegisterConnectorRoutes(r)
+				})
 			}
 			if deps.Email != nil {
 				deps.Email.RegisterRoutes(r)

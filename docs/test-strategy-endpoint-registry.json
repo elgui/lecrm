@@ -1,6 +1,6 @@
 {
   "_comment": "Endpoint registry for the CI guard in apps/api/internal/http/coverage_test.go. Every /v1/* route in the chi router MUST have an entry here. Missing entries fail CI. See docs/test-strategy.md §4.1 TR-3.",
-  "version": 3,
+  "version": 4,
   "endpoints": [
     {
       "method": "GET",
@@ -344,6 +344,13 @@
       "isolation_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (+ unit apps/api/internal/rbac/middleware_test.go::TestRBACMatrix)",
       "notes": "Sprint 8 RBAC: remove member; owner only; cannot remove self."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/connectors/{source}/events",
+      "isolation_test": "apps/api/internal/crm/connectors_integration_test.go::TestConnector_CrossTenantWorkspaceMismatchRejected (workspace-scoped via search_path; envelope.workspace must match the token-resolved workspace)",
+      "rbac_test": "Scope-gated, not role-gated: crm.RequireConnectorScope requires a service token with the connector.push_events scope. Unit: apps/api/internal/crm/connectors_test.go::TestAuthorizeConnector + TestRequireConnectorScope_*; integration: connectors_integration_test.go::TestConnector_WrongScopeForbidden",
+      "notes": "Sprint 9 / ADR-011: chatboting connector event ingestion. Service-token (connector actor) authenticated; idempotency_key dedupes at-least-once delivery; mutations attributed actor_type=connector, source_system={source}, audit-logged fail-closed."
     }
   ]
 }

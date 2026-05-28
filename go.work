@@ -4,4 +4,6 @@ use ./apps/admin
 
 use ./apps/api
 
+use ./apps/mcp
+
 use ./apps/migrate
