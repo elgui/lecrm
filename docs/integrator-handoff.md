@@ -126,6 +126,171 @@ Runs 14 invariants AC-I-01..AC-I-14 sequentially. Each prints one line:
 Exit 0 if all pass; non-zero on the first `[FAIL]`. Pass `--all-failures`
 to scan every invariant even after a failure (useful for triage).
 
+## Phase 2 — Versioned Methodology Config (Sprint 9)
+
+Phase 2 makes Léo's 5-element methodology a portable, diffable, replayable
+config artifact stored as versioned JSONB rows in each tenant's `objects`
+table (per ADR-010 §3).
+
+### What you get in Phase 2
+
+```bash
+# Apply the standard methodology template to a tenant
+gb-tenant config apply --slug chauvet79
+
+# View the current methodology config
+gb-tenant config show --slug chauvet79
+
+# View a specific version
+gb-tenant config show --slug chauvet79 --version 1
+
+# Compare methodology configs between two clients
+gb-tenant config diff --slug-a chauvet79 --slug-b expressionist
+
+# Clone one client's methodology onto another
+gb-tenant config replay --src chauvet79 --dst new-client
+```
+
+### The 5-element methodology
+
+Each config captures:
+
+1. **Acquisition channels** — lead sources with UTM-style attribution
+   metadata (source + medium)
+2. **Pipeline stages** — ordered stages with entry/exit conditions that
+   gate deal progression
+3. **Stage properties** — typed fields required at each stage (string,
+   number, boolean, enum, date)
+4. **Automations** — triggers (stage transitions) and actions (email
+   notifications, field auto-sets)
+5. **Color coding** — hex colors per stage for Kanban UI rendering
+
+### Versioning
+
+Configs are **append-only** — each write creates a new row with an
+incremented `version_seq`. The CLI reads the latest by
+`MAX(version_seq)`. History is preserved; use `--version N` to inspect
+prior versions.
+
+Storage: `<workspace>.objects` table, `object_type = 'methodology_config'`,
+`version_seq` inside the `data` JSONB payload.
+
+### Templates
+
+The `gbconsult-default` template ships as the reference implementation
+(see `docs/templates/gbconsult-default-methodology.json`). Phase 2
+supports a single template; multi-template registry lands in a future
+sprint.
+
+### Replay workflow (new client onboarding)
+
+```bash
+# 1. Provision the tenant (Phase 1)
+gb-tenant create --slug new-client --admin-email new@client.fr \
+    --owner-email leo@vernayo.com
+
+# 2. Clone methodology from your best reference client
+gb-tenant config replay --src chauvet79 --dst new-client
+
+# 3. Verify identical config
+gb-tenant config diff --slug-a chauvet79 --slug-b new-client
+# → "methodology configs are identical."
+```
+
+### What's NOT in Phase 2
+
+- **Admin UI for config editing** — CLI-only in v0; admin UI lands v1+.
+- **Config-driven automation execution** — automations are declared but
+  not yet wired to the stage-transition engine. Phase 3 or Sprint 10.
+- **Multi-template registry** — single `gbconsult-default` template.
+  Custom templates require manual JSON authoring for now.
+- **Config validation against `custom_property_definitions`** — the
+  property types in the config are informational; runtime enforcement
+  via ADR-010 §4 lands when the API consumes this config.
+
+---
+
+## Phase 3 — Per-tenant audit + observability surface (Sprint 11)
+
+When Léo ships a config or wonders "did the welcome email actually
+fire on tenant `chauvet79` yesterday?", he no longer needs to ping
+Guillaume or pry open psql. Two equivalent surfaces sit on top of the
+`core.audit_log` table that has been collecting events since Sprint 7:
+
+### CLI: `lecrm-admin audit query`
+
+Same SSH path as the rest of the CLI, so the muscle memory carries over.
+
+```bash
+# Everything for a tenant in the last 24 hours
+gb-tenant audit query --tenant chauvet79 --since 24h
+
+# Did the welcome-email automation fire?
+gb-tenant audit query \
+  --tenant chauvet79 \
+  --event email.send.success \
+  --since 7d
+
+# Just config-replays attributed to a human
+gb-tenant audit query \
+  --tenant chauvet79 \
+  --event config.template.replayed \
+  --actor human_api
+```
+
+Flags:
+
+| Flag        | Meaning                                                          |
+|-------------|------------------------------------------------------------------|
+| `--tenant`  | Tenant slug (required)                                           |
+| `--since`   | Lower bound: RFC3339 (`2026-05-27T00:00:00Z`) or relative (`24h`, `7d`) |
+| `--until`   | Upper bound, same formats                                        |
+| `--event`   | Exact event name (e.g. `email.send.success`, `config.template.applied`) |
+| `--actor`   | `human_api` \| `mcp_agent` \| `internal_service` \| `system`     |
+| `--limit`   | Page size (default 100, cap 500)                                 |
+| `--format`  | `table` (default) or `json`                                      |
+
+### REST: `GET /admin/audit`
+
+For dashboards, scripts, or the future v1+ admin UI.
+
+```bash
+curl -H "Authorization: Bearer $LECRM_ADMIN_TOKEN" \
+  "https://api.lecrm.fr/admin/audit?tenant=chauvet79&since=24h&event=email.send.success"
+```
+
+Query params mirror the CLI flags. The endpoint lives outside
+workspace-subdomain routing (Léo crosses tenants by passing
+`?tenant=`), authenticates via constant-time bearer-token compare
+against `LECRM_ADMIN_TOKEN`, and returns:
+
+- `200` `{ "tenant": "...", "count": N, "entries": [...] }`
+- `401` if the bearer token is missing or wrong
+- `404` if the tenant slug is unknown
+- `400` for malformed `since`/`until`/`limit`
+- `503` if `LECRM_ADMIN_TOKEN` is unset on the server (fail-closed)
+
+### What Phase 3 wires that Phase 2 didn't
+
+Phase 2's `config apply` and `config replay` now emit:
+
+- `config.template.applied` (actor_type=`human_api`)
+- `config.template.replayed` (actor_type=`human_api`)
+
+with `payload.operator_email` populated from `LECRM_OPERATOR_EMAIL` (set
+this in Léo's shell so the audit trail attributes mutations correctly).
+
+### What's NOT in Phase 3
+
+- **Dashboard UI** — JSON + table output only; richer UI is v1+.
+- **OIDC admin auth** — single shared bearer token at v0; OIDC claims
+  with admin scope land when the admin-UI ships.
+- **Tail mode / live streaming** — point-in-time queries only.
+- **Cross-tenant aggregation** — one tenant per query; bulk audit
+  export is operator-side (psql) for now.
+
+---
+
 ## Operations notes (for Guillaume)
 
 ### Production Dokku deployment (AC-D1..D3, AC-D6)
@@ -172,8 +337,8 @@ Deferred to later sprints / stories:
   (not implemented in v0)` on every provision. Flips to `ok (3 roles
   applied)` when the RBAC sibling story lands.
 - **OAuth client registration** — sibling Sprint 8 story.
-- **Multi-template registry** — Sprint 9 / ADR-010 (Phase 2 of integrator
-  handoff). For now the only template is `gbconsult-default`.
+- **Versioned methodology config** — Phase 2 (Sprint 9), now shipped.
+  See "Phase 2" section above.
 - **`tenant update` / `tenant delete`** — out of scope. Use
   `--force-recreate` for the demo-reset use case.
 - **Vault-backed credential rotation** — v1.
@@ -186,4 +351,5 @@ Deferred to later sprints / stories:
 - Phase 3 (Sprint 11 audit surface): `.taskets/20260514-204724-fa6b-...`
 - ADR-009 §2.1 — `core.lecrm_provision_workspace` SECURITY DEFINER contract
 - ADR-007 — audit log shape
-- ADR-010 — metadata-engine destination for `gbconsult-default`
+- ADR-010 — metadata-engine pattern (JSONB-primary on `objects` table)
+- Reference template: `docs/templates/gbconsult-default-methodology.json`

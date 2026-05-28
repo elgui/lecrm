@@ -34,12 +34,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	uuidPkg "github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	cli "github.com/urfave/cli/v2"
 
+	"github.com/gbconsult/lecrm/apps/admin/internal/audit"
+	"github.com/gbconsult/lecrm/apps/admin/internal/config"
 	"github.com/gbconsult/lecrm/apps/admin/internal/safety"
 	"github.com/gbconsult/lecrm/apps/admin/internal/tenant"
 	"github.com/gbconsult/lecrm/apps/admin/internal/tenant/templates"
@@ -58,8 +62,8 @@ func main() {
 
 	app := &cli.App{
 		Name:    "lecrm-admin",
-		Usage:   "Integrator-handoff CLI for leCRM v0 (Story 8.1)",
-		Version: "0.1.0",
+		Usage:   "Integrator-handoff CLI for leCRM v0",
+		Version: "0.2.0",
 		Commands: []*cli.Command{
 			{
 				Name:        "tenant",
@@ -67,9 +71,19 @@ func main() {
 				Subcommands: tenantSubcommands(logger),
 			},
 			{
+				Name:        "config",
+				Usage:       "Versioned methodology config (Phase 2)",
+				Subcommands: configSubcommands(logger),
+			},
+			{
 				Name:        "session",
 				Usage:       "Session management subcommands",
 				Subcommands: sessionSubcommands(logger),
+			},
+			{
+				Name:        "audit",
+				Usage:       "Per-tenant audit-log query (Phase 3 observability surface)",
+				Subcommands: auditSubcommands(logger),
 			},
 		},
 		// urfave/cli v2 default error printer is fine; we surface
@@ -280,6 +294,225 @@ func runSessionRevoke(c *cli.Context, logger *slog.Logger) error {
 	logger.Info("all sessions revoked", "user_id", uid)
 	fmt.Fprintf(c.App.Writer, "All sessions revoked for user %s\n", uid)
 	return nil
+}
+
+func configSubcommands(logger *slog.Logger) []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:  "show",
+			Usage: "Show the current methodology config for a tenant",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+				&cli.IntFlag{Name: "version", Usage: "Specific version (default: latest)", Value: 0},
+			},
+			Action: func(c *cli.Context) error {
+				return runConfigShow(c, logger)
+			},
+		},
+		{
+			Name:  "apply",
+			Usage: "Apply a methodology template to a tenant",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+				&cli.StringFlag{Name: "template", Usage: "Template name", Value: "gbconsult-default"},
+			},
+			Action: func(c *cli.Context) error {
+				return runConfigApply(c, logger)
+			},
+		},
+		{
+			Name:  "diff",
+			Usage: "Show methodology config divergence between two tenants",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug-a", Usage: "First tenant slug", Required: true},
+				&cli.StringFlag{Name: "slug-b", Usage: "Second tenant slug", Required: true},
+			},
+			Action: func(c *cli.Context) error {
+				return runConfigDiff(c, logger)
+			},
+		},
+		{
+			Name:  "replay",
+			Usage: "Clone methodology config from one tenant to another",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "src", Usage: "Source tenant slug", Required: true},
+				&cli.StringFlag{Name: "dst", Usage: "Destination tenant slug", Required: true},
+			},
+			Action: func(c *cli.Context) error {
+				return runConfigReplay(c, logger)
+			},
+		},
+	}
+}
+
+func runConfigShow(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slug := c.String("slug")
+	if err := tenant.ValidateSlug(slug); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = config.Show(ctx, conn, config.ShowOptions{
+		Slug:    slug,
+		Version: c.Int("version"),
+	}, os.Stdout)
+	return err
+}
+
+func runConfigApply(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slug := c.String("slug")
+	if err := tenant.ValidateSlug(slug); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = config.Apply(ctx, conn, config.ApplyOptions{
+		Slug:     slug,
+		Template: c.String("template"),
+	}, os.Stdout)
+	return err
+}
+
+func runConfigDiff(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slugA := c.String("slug-a")
+	slugB := c.String("slug-b")
+	if err := tenant.ValidateSlug(slugA); err != nil {
+		return err
+	}
+	if err := tenant.ValidateSlug(slugB); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = config.Diff(ctx, conn, config.DiffOptions{
+		SlugA: slugA,
+		SlugB: slugB,
+	}, os.Stdout)
+	return err
+}
+
+func runConfigReplay(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	src := c.String("src")
+	dst := c.String("dst")
+	if err := tenant.ValidateSlug(src); err != nil {
+		return err
+	}
+	if err := tenant.ValidateSlug(dst); err != nil {
+		return err
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	_, err = config.Replay(ctx, conn, config.ReplayOptions{
+		SrcSlug: src,
+		DstSlug: dst,
+	}, os.Stdout)
+	return err
+}
+
+func auditSubcommands(logger *slog.Logger) []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:  "query",
+			Usage: "Query core.audit_log for a tenant",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "tenant", Usage: "Tenant slug", Required: true},
+				&cli.StringFlag{Name: "since", Usage: "Lower bound (RFC3339 or relative: 24h, 7d)"},
+				&cli.StringFlag{Name: "until", Usage: "Upper bound (RFC3339 or relative)"},
+				&cli.StringFlag{Name: "event", Usage: "Filter by event name (e.g. email.send.success)"},
+				&cli.StringFlag{Name: "actor", Usage: "Filter by actor_type (human_api|mcp_agent|internal_service|system)"},
+				&cli.IntFlag{Name: "limit", Usage: "Max rows (default 100, cap 500)", Value: 0},
+				&cli.StringFlag{Name: "format", Usage: "table|json", Value: "table"},
+			},
+			Action: func(c *cli.Context) error {
+				return runAuditQuery(c, logger)
+			},
+		},
+	}
+}
+
+func runAuditQuery(c *cli.Context, logger *slog.Logger) error {
+	ctx := c.Context
+	slug := c.String("tenant")
+	if err := tenant.ValidateSlug(slug); err != nil {
+		return err
+	}
+
+	filter := audit.Filter{
+		Slug:      slug,
+		Event:     c.String("event"),
+		ActorType: c.String("actor"),
+		Limit:     c.Int("limit"),
+	}
+	if v := c.String("since"); v != "" {
+		t, err := parseTimeArg(v)
+		if err != nil {
+			return fmt.Errorf("--since: %w", err)
+		}
+		filter.Since = t
+	}
+	if v := c.String("until"); v != "" {
+		t, err := parseTimeArg(v)
+		if err != nil {
+			return fmt.Errorf("--until: %w", err)
+		}
+		filter.Until = t
+	}
+
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	entries, err := audit.Query(ctx, conn, filter)
+	if err != nil {
+		return err
+	}
+
+	switch strings.ToLower(c.String("format")) {
+	case "json":
+		return audit.FormatJSON(os.Stdout, entries)
+	default:
+		return audit.FormatTable(os.Stdout, entries)
+	}
+}
+
+func parseTimeArg(v string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, v); err == nil {
+		return t, nil
+	}
+	// Relative duration: "24h", "7d", "30m". time.ParseDuration does
+	// not know "d", so handle the suffix ourselves.
+	if strings.HasSuffix(v, "d") {
+		days := strings.TrimSuffix(v, "d")
+		if n, err := strconv.Atoi(days); err == nil {
+			return time.Now().UTC().Add(-time.Duration(n) * 24 * time.Hour), nil
+		}
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return time.Now().UTC().Add(-d), nil
+	}
+	return time.Time{}, fmt.Errorf("unrecognized time spec %q (try RFC3339 or 24h/7d)", v)
 }
 
 func parseUUID(s string) ([16]byte, error) {

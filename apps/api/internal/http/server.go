@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/gbconsult/lecrm/apps/api/internal/admin"
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
 	"github.com/gbconsult/lecrm/apps/api/internal/email"
@@ -27,6 +28,7 @@ type RouterDeps struct {
 	Metadata        *metadata.Handler
 	CRM             *crm.Handler
 	Email           *email.Handler
+	Admin           *admin.AuditHandler
 	CookieDomainTLD string
 }
 
@@ -52,6 +54,13 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 	// auth is the HMAC over the request body, not a session cookie.
 	if deps.Email != nil {
 		deps.Email.RegisterWebhookRoute(r)
+	}
+
+	// /admin/audit lives outside the workspace-middleware group too:
+	// Léo passes ?tenant=X explicitly and authenticates with a shared
+	// bearer token, not a workspace-bound session cookie.
+	if deps.Admin != nil {
+		deps.Admin.Register(r)
 	}
 
 	if deps.Resolver != nil {

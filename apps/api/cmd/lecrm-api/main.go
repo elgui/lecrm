@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gbconsult/lecrm/apps/api/internal/admin"
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/config"
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
@@ -96,6 +97,14 @@ func run(logger *slog.Logger) error {
 		WebhookSource: email.StaticWebhookSecret([]byte(os.Getenv("BREVO_WEBHOOK_SECRET"))),
 	}
 
+	// Phase 3 integrator-handoff: /admin/audit. Token empty → handler
+	// 503s. v1+ rotates to OIDC admin claims.
+	adminH := &admin.AuditHandler{
+		Pool:   pool,
+		Token:  os.Getenv("LECRM_ADMIN_TOKEN"),
+		Logger: logger,
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
@@ -106,6 +115,7 @@ func run(logger *slog.Logger) error {
 			Metadata:        metadataH,
 			CRM:             crmH,
 			Email:           emailH,
+			Admin:           adminH,
 			CookieDomainTLD: cfg.CookieDomainTLD,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

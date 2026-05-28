@@ -1,10 +1,11 @@
 ---
 id: 20260514-204724-fa6b
 title: "leCRM v0 — Integrator handoff Phase 3: per-tenant audit + observability surface (Sprint 11)"
-status: later
+status: done
 priority: p1
 created: 2026-05-14
-updated: 2026-05-14
+updated: 2026-05-28
+done: 2026-05-28
 tags: [integrator-handoff, distribution-moat, audit, observability, sprint-11]
 category: engineering
 group: lecrm-v0-sprint-11
