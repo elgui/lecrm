@@ -1,10 +1,11 @@
 ---
 id: 20260510-162158-499c
 title: leCRM v0 — Brevo Transactional API integration (Track B)
-status: later
+status: done
 priority: p1
 created: 2026-05-10
-updated: 2026-05-14
+updated: 2026-05-28
+done: 2026-05-28
 tags: [email, brevo, integration, v0]
 category: project
 group: lecrm-v0-sprint-11

@@ -1,9 +1,11 @@
 ---
 id: 20260524-1404-session-revocation-mechanism
 title: "Session revocation mechanism"
-status: todo
+status: done
 priority: p2
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

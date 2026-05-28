@@ -1,9 +1,11 @@
 ---
 id: 20260524-1401-two-layer-session-cookie-workspace-binding
 title: "Two-layer session cookie with workspace binding"
-status: todo
+status: done
 priority: p1
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

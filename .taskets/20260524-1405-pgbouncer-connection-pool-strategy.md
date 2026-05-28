@@ -1,9 +1,11 @@
 ---
 id: 20260524-1405-pgbouncer-connection-pool-strategy
 title: "PgBouncer + connection pool strategy"
-status: todo
+status: done
 priority: p3
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

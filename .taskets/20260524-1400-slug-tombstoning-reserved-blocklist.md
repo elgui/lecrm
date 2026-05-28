@@ -1,9 +1,11 @@
 ---
 id: 20260524-1400-slug-tombstoning-reserved-blocklist
 title: "Slug tombstoning + reserved blocklist"
-status: todo
+status: done
 priority: p0
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

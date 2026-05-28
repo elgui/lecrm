@@ -1,9 +1,11 @@
 ---
 id: 20260524-1402-security-definer-audit-privilege-minimization
 title: "SECURITY DEFINER audit and privilege minimization"
-status: todo
+status: done
 priority: p1
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

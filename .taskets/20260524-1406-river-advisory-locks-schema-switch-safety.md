@@ -1,9 +1,11 @@
 ---
 id: 20260524-1406-river-advisory-locks-schema-switch-safety
 title: "River advisory locks for schema-switch safety"
-status: todo
+status: done
 priority: p3
 created: 2026-05-24
+updated: 2026-05-25
+done: 2026-05-25
 category: project
 group: council-architecture-hardening
 group_order: 40

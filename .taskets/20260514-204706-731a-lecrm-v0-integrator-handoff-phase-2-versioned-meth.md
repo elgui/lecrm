@@ -1,16 +1,17 @@
 ---
 id: 20260514-204706-731a
 title: "leCRM v0 — Integrator handoff Phase 2: versioned methodology config artifact (Sprint 9)"
-status: later
+status: done
 priority: p1
 created: 2026-05-14
-updated: 2026-05-15
+updated: 2026-05-25
 tags: [integrator-handoff, distribution-moat, methodology-config, sprint-9]
 category: engineering
 group: lecrm-v0-sprint-9
 group_order: 9
 order: 1
 plan: true
+done: 2026-05-25
 ---
 
 ## Read this cold — full context inline

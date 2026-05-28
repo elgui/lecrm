@@ -6,12 +6,12 @@ priority: p2
 created: 2026-05-24
 updated: 2026-05-25
 done: 2026-05-25
+tags: [observability, infrastructure, resource-optimization]
 category: project
 group: council-architecture-hardening
 group_order: 40
 order: 4
 plan: true
-tags: [observability, infrastructure, resource-optimization]
 ---
 
 # Drop LGTM stack — structured slog to Grafana Cloud free
