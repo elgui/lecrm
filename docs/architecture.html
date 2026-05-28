@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Architecture — leCRM</title>
+<script src="https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/layout-base@2.0.1/layout-base.js"></script>
+<script src="https://unpkg.com/cose-base@2.2.0/cose-base.js"></script>
+<script src="https://unpkg.com/cytoscape-fcose@2.2.0/cytoscape-fcose.js"></script>
+<style>
+  :root {
+    --bg: #0c0f14;
+    --bg-2: #131820;
+    --bg-3: #1c2330;
+    --fg: #d8e1ec;
+    --fg-dim: #8794a5;
+    --accent: #6ee7ff;
+    --accent-2: #a78bfa;
+    --ok: #7fe39b;
+    --warn: #f8c673;
+    --layer: #2a4d6e;
+    --component: #3a6e8f;
+    --api: #4a8fbf;
+    --edge: #3a4555;
+    --border: #243043;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, monospace;
+    font-size: 13px; }
+  a { color: var(--accent); }
+
+  #app { display: grid; grid-template-rows: 56px 28px 1fr; height: 100vh; }
+
+  /* Header */
+  header { display: flex; align-items: center; gap: 18px; padding: 0 18px;
+    background: var(--bg-2); border-bottom: 1px solid var(--border); }
+  header .title { font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+  header .title .project { color: var(--accent); }
+  header .meta { color: var(--fg-dim); font-size: 11px; }
+  header .spacer { flex: 1; }
+  header .search { background: var(--bg-3); border: 1px solid var(--border);
+    color: var(--fg); padding: 6px 10px; border-radius: 4px; width: 320px;
+    font-family: inherit; font-size: 12px; outline: none; }
+  header .search:focus { border-color: var(--accent); }
+  header .btn { background: var(--bg-3); border: 1px solid var(--border);
+    color: var(--fg-dim); padding: 5px 10px; border-radius: 4px; font-size: 11px;
+    cursor: pointer; font-family: inherit; }
+  header .btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Breadcrumb */
+  #crumb { display: flex; align-items: center; gap: 8px; padding: 0 18px;
+    background: var(--bg-2); border-bottom: 1px solid var(--border);
+    font-size: 11px; color: var(--fg-dim); }
+  #crumb .seg { cursor: pointer; }
+  #crumb .seg:hover { color: var(--accent); }
+  #crumb .sep { opacity: .4; }
+  #crumb .seg.current { color: var(--fg); cursor: default; }
+
+  /* Three-column body */
+  #body { display: grid; grid-template-columns: 240px 1fr 360px; min-height: 0; }
+
+  /* Tree */
+  #tree { background: var(--bg-2); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 10px 6px; }
+  #tree .node { padding: 3px 8px; cursor: pointer; border-radius: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #tree .node:hover { background: var(--bg-3); color: var(--accent); }
+  #tree .node.selected { background: var(--bg-3); color: var(--accent);
+    border-left: 2px solid var(--accent); padding-left: 6px; }
+  #tree .node.layer { font-weight: 600; font-size: 12px;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: var(--fg-dim); margin-top: 8px; }
+  #tree .node.component { padding-left: 18px; }
+  #tree .node.api { padding-left: 32px; color: var(--fg-dim); font-size: 12px; }
+  #tree .node.hidden-match { display: none; }
+  #tree .twist { display: inline-block; width: 12px; opacity: .5; }
+  #tree .node.collapsed + .children { display: none; }
+
+  /* Graph */
+  #graph-wrap { position: relative; background: var(--bg); }
+  #graph { position: absolute; inset: 0; }
+  #graph-empty { position: absolute; inset: 0; display: grid; place-items: center;
+    color: var(--fg-dim); font-size: 12px; pointer-events: none; }
+  #zoom-hint { position: absolute; bottom: 10px; left: 10px;
+    background: var(--bg-2); border: 1px solid var(--border);
+    padding: 4px 8px; border-radius: 3px; font-size: 10px; color: var(--fg-dim); }
+
+  /* Detail panel */
+  #detail { background: var(--bg-2); border-left: 1px solid var(--border);
+    overflow-y: auto; padding: 18px 16px; }
+  #detail h2 { margin: 0 0 4px; font-size: 14px; color: var(--accent); }
+  #detail .kind { color: var(--fg-dim); font-size: 10px; text-transform: uppercase;
+    letter-spacing: .1em; margin-bottom: 14px; }
+  #detail .desc { line-height: 1.55; margin-bottom: 18px; }
+  #detail section { margin-bottom: 18px; }
+  #detail h3 { margin: 0 0 6px; font-size: 11px; color: var(--fg-dim);
+    text-transform: uppercase; letter-spacing: .08em; font-weight: 500; }
+  #detail .pill { display: inline-block; background: var(--bg-3);
+    border: 1px solid var(--border); padding: 2px 8px; border-radius: 10px;
+    margin: 2px 4px 2px 0; font-size: 11px; }
+  #detail .pill.dep { color: var(--accent-2); }
+  #detail .pill.api { cursor: pointer; }
+  #detail .pill.api:hover { border-color: var(--accent); color: var(--accent); }
+  #detail .sig { background: var(--bg); border: 1px solid var(--border);
+    padding: 8px 10px; border-radius: 4px; font-size: 12px;
+    overflow-x: auto; white-space: pre; color: var(--ok); }
+  #detail .file { color: var(--fg-dim); font-size: 11px; margin-top: 6px; }
+  #detail .resp li { margin-bottom: 4px; }
+  #detail .empty { color: var(--fg-dim); font-style: italic; }
+  #detail .when { color: var(--warn); margin-top: 8px; font-size: 12px; }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="title">⊹ <span class="project">leCRM</span> · Architecture</div>
+    <div class="meta" id="meta"></div>
+    <div class="spacer"></div>
+    <input class="search" id="search" placeholder="Search layers, components, APIs…" />
+    <button class="btn" id="btn-reset">Reset view</button>
+    <button class="btn" id="btn-fit">Fit</button>
+  </header>
+  <div id="crumb"></div>
+  <div id="body">
+    <nav id="tree"></nav>
+    <div id="graph-wrap">
+      <div id="graph"></div>
+      <div id="zoom-hint">click a node to drill in · double-click to zoom out · scroll to pan</div>
+    </div>
+    <aside id="detail">
+      <div class="empty">Select a layer, component, or API to see its description.</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* Architecture data baked at build time */
+const ARCH = {"project":"leCRM","generated_at":"2026-05-24T20:00:00Z","sdl_version":"manual-exploration-v1","layers":[{"id":"frontend","name":"Frontend","description":"React 19 single-page application built with Vite 6, TanStack Router/Query, shadcn/ui components, and Tailwind CSS. The compiled SPA is embedded into the Go API binary via go:embed for single-binary deployment. Proxies API calls to the Go backend in development.","components":[{"id":"frontend.web-app","name":"Web App","description":"The main React SPA entry point and page structure. Uses TanStack Router for client-side routing and TanStack Query for server-state management.","files":["apps/web/src/main.tsx","apps/web/src/App.tsx","apps/web/vite.config.ts","apps/web/package.json"],"key_responsibilities":["Client-side routing via TanStack Router","Server-state caching via TanStack Query","Vite dev proxy to Go API on :8080"],"depends_on":["api.http"],"apis":[{"id":"frontend.web-app.main","name":"main.tsx","kind":"entrypoint","signature":"createRoot → <RouterProvider> + <QueryClientProvider>","file":"apps/web/src/main.tsx","purpose":"React 19 app bootstrap with TanStack Router and Query providers","when_to_call":"Entry point — loaded by the browser via index.html"}]},{"id":"frontend.ui-components","name":"UI Components","description":"shadcn/ui component library built on Radix UI primitives with class-variance-authority for variant styling. Tailwind CSS utility classes with clsx/tailwind-merge.","files":["apps/web/src/components/ui/","apps/web/src/lib/utils.ts","apps/web/tailwind.config.ts"],"key_responsibilities":["Accessible UI primitives via Radix UI","Consistent variant styling via CVA","Tailwind class merging utilities"],"depends_on":[],"apis":[{"id":"frontend.ui-components.cn","name":"cn()","kind":"function","signature":"cn(...inputs: ClassValue[]): string","file":"apps/web/src/lib/utils.ts","purpose":"Merge Tailwind CSS classes with conflict resolution","when_to_call":"When composing conditional Tailwind classes in components"}]}]},{"id":"api","name":"API Server","description":"Go 1.25 HTTP server using Chi v5 router. Handles OIDC authentication via Authentik/Zitadel, per-workspace tenant resolution from subdomains, and serves the embedded React SPA. Uses pgx v5 for PostgreSQL connectivity and sqlc for type-safe queries. Multi-tenant architecture with workspace-scoped sessions.","components":[{"id":"api.http","name":"HTTP Router","description":"Chi v5 router assembly with middleware stack: RequestID, RealIP, structured logging, panic recovery, 30s timeout, and CSP headers. Mounts auth routes, workspace-scoped routes, and the healthz probe.","files":["apps/api/internal/http/server.go","apps/api/internal/http/csp.go"],"key_responsibilities":["Chi router construction with middleware chain","Content-Security-Policy header injection","Route group assembly (global + workspace-scoped)"],"depends_on":["api.auth","api.workspace"],"apis":[{"id":"api.http.new-router","name":"NewRouter","kind":"function","signature":"func NewRouter(deps RouterDeps) chi.Router","file":"apps/api/internal/http/server.go","purpose":"Assembles the Chi router with full middleware stack and route registration","when_to_call":"At server startup in main.go to create the HTTP handler"},{"id":"api.http.healthz","name":"GET /healthz","kind":"handler","signature":"GET /healthz → {\"status\": \"ok\"}","file":"apps/api/internal/http/server.go","purpose":"Health probe endpoint for Docker/Kubernetes readiness checks","when_to_call":"Called by infrastructure to verify the service is alive"}]},{"id":"api.auth","name":"Auth","description":"OIDC relying-party implementation with Authentik/Zitadel. Manages the full login flow: authorization URL generation with PKCE, OAuth2 code exchange, user identity upsert, workspace membership linkage, and stateless HMAC-SHA256 session cookies scoped per workspace subdomain.","files":["apps/api/internal/auth/handlers.go","apps/api/internal/auth/oidc.go","apps/api/internal/auth/session.go","apps/api/internal/auth/cookie.go","apps/api/internal/auth/state.go","apps/api/internal/auth/store.go"],"key_responsibilities":["OIDC authorization flow with PKCE","Stateless session management via signed cookies","Per-workspace cookie domain scoping","User identity upsert on login"],"depends_on":["api.sqlcgen","api.db"],"apis":[{"id":"api.auth.login","name":"Login","kind":"handler","signature":"GET /auth/login → 302 redirect to IdP","file":"apps/api/internal/auth/handlers.go","purpose":"Initiates OIDC authorization flow — generates state + PKCE verifier, stores in signed cookie, redirects to identity provider","when_to_call":"When user clicks 'Sign in' on the frontend"},{"id":"api.auth.callback","name":"Callback","kind":"handler","signature":"GET /auth/callback → 302 redirect to app root","file":"apps/api/internal/auth/handlers.go","purpose":"Completes OIDC flow — verifies state, exchanges code for tokens, upserts user identity in core.users, ensures workspace membership, sets session cookie","when_to_call":"Called by the IdP after user authenticates"},{"id":"api.auth.me","name":"Me","kind":"handler","signature":"GET /auth/me → {user_id, workspace_id}","file":"apps/api/internal/auth/handlers.go","purpose":"Returns the authenticated user's identity and workspace context from the session cookie","when_to_call":"Frontend calls this to check login state and get user info"},{"id":"api.auth.logout","name":"Logout","kind":"handler","signature":"POST /auth/logout → clears session cookie","file":"apps/api/internal/auth/handlers.go","purpose":"Clears the workspace-scoped session cookie to end the user session","when_to_call":"When user clicks 'Sign out'"},{"id":"api.auth.provider","name":"NewProvider","kind":"function","signature":"func NewProvider(ctx, issuer, clientID, clientSecret, redirectURI, scopes, stateSecret) (*Provider, error)","file":"apps/api/internal/auth/oidc.go","purpose":"Initializes the OIDC relying party singleton via OpenID Connect discovery","when_to_call":"At server startup to configure the identity provider"},{"id":"api.auth.encode-session","name":"EncodeSession","kind":"function","signature":"func EncodeSession(session Session, secret []byte) string","file":"apps/api/internal/auth/session.go","purpose":"Encodes a session struct into a signed, base64url-encoded token with HMAC-SHA256","when_to_call":"After successful OIDC callback to create the session cookie value"},{"id":"api.auth.upsert-user","name":"UpsertUser","kind":"method","signature":"func (s *Store) UpsertUser(ctx, issuer, subject, email, displayName) (uuid.UUID, error)","file":"apps/api/internal/auth/store.go","purpose":"Insert or update a user identity in core.users, keyed on (issuer, subject) tuple","when_to_call":"During OIDC callback to persist/update user identity"}]},{"id":"api.workspace","name":"Workspace","description":"Per-request workspace identity resolution from HTTP Host header subdomains. Middleware extracts the subdomain (e.g., acme.lecrm.fr → acme), resolves it against core.workspaces, and injects workspace context into the request for downstream handlers.","files":["apps/api/internal/workspace/middleware.go","apps/api/internal/workspace/resolver.go","apps/api/internal/workspace/testlist.go"],"key_responsibilities":["Subdomain-to-workspace resolution","Request context injection with workspace identity","Resolver interface for pluggable workspace lookup"],"depends_on":["api.sqlcgen"],"apis":[{"id":"api.workspace.middleware","name":"Middleware","kind":"function","signature":"func Middleware(logger, resolver, cookieDomainTLD) func(http.Handler) http.Handler","file":"apps/api/internal/workspace/middleware.go","purpose":"Chi middleware that extracts workspace slug from Host subdomain and attaches workspace context to the request","when_to_call":"Applied to all workspace-scoped route groups"},{"id":"api.workspace.from-context","name":"WorkspaceFromContext","kind":"function","signature":"func WorkspaceFromContext(ctx context.Context) (*Context, error)","file":"apps/api/internal/workspace/middleware.go","purpose":"Retrieves workspace identity from request context, fails with ErrMissingWorkspace if absent","when_to_call":"Inside any workspace-scoped handler to access tenant context"},{"id":"api.workspace.test-list","name":"TestListHandler","kind":"handler","signature":"GET /v1/_test/workspaces → {workspace, items}","file":"apps/api/internal/workspace/testlist.go","purpose":"Week-2 checkpoint test surface — returns first 10 workspaces for G1 gate validation","when_to_call":"Sprint 2 litmus test endpoint, not for production use"}]},{"id":"api.config","name":"Config","description":"Environment variable loading and validation for the API server. Reads LECRM_* variables with sensible defaults and validates required fields (database URL, session secret, OIDC parameters) at startup.","files":["apps/api/internal/config/config.go"],"key_responsibilities":["Environment variable parsing with defaults","Required field validation (fail-fast at startup)","OIDC sub-config grouping"],"depends_on":[],"apis":[{"id":"api.config.load","name":"Load","kind":"function","signature":"func Load() (*Config, error)","file":"apps/api/internal/config/config.go","purpose":"Reads all LECRM_* environment variables, applies defaults, validates required fields, returns typed config or first validation error","when_to_call":"At server startup in main.go as the first operation"}]},{"id":"api.db","name":"Database Pool","description":"PostgreSQL connection pool management using pgx v5. Opens a pool with bounded connections (max 10, 1h lifetime, 10m idle) and verifies connectivity with a 5-second ping.","files":["apps/api/internal/db/db.go"],"key_responsibilities":["Connection pool creation with bounded resources","Connectivity verification at startup","Pool lifecycle management"],"depends_on":[],"apis":[{"id":"api.db.open","name":"Open","kind":"function","signature":"func Open(ctx context.Context, dsn string) (*pgxpool.Pool, error)","file":"apps/api/internal/db/db.go","purpose":"Creates a pgx connection pool with production-safe defaults (MaxConns=10, MaxLifetime=1h) and verifies connectivity","when_to_call":"At server startup after config loading"}]},{"id":"api.jobs","name":"Workspace Jobs","description":"Tenant-scoped background job execution pattern. Opens a per-workspace database connection authenticated as the workspace's Postgres role, verifies search_path isolation, and runs the job function within that security context.","files":["apps/api/internal/jobs/"],"key_responsibilities":["Per-workspace Postgres role authentication","Search path isolation verification (defense-in-depth)","Connection lifecycle management for tenant jobs"],"depends_on":["api.workspace"],"apis":[{"id":"api.jobs.run-workspace-job","name":"RunWorkspaceJob","kind":"function","signature":"func RunWorkspaceJob[T](ctx, resolver, creds, workspaceID, fn) (T, error)","file":"apps/api/internal/jobs/","purpose":"Executes a function within a workspace-scoped database connection, enforcing tenant role isolation","when_to_call":"When running any operation that needs workspace-scoped database access"},{"id":"api.jobs.probe-connectivity","name":"ProbeWorkspaceConnectivity","kind":"function","signature":"func ProbeWorkspaceConnectivity(ctx, resolver, creds, workspaceID) error","file":"apps/api/internal/jobs/","purpose":"Validates that the workspace job pattern works by executing SELECT 1 via the workspace connection","when_to_call":"During tenant verification or health checks"}]},{"id":"api.metadata","name":"Metadata Engine","description":"Custom property storage following ADR-010 §5. Provides JSONB-based extensible metadata for contacts and deals with type-safe validation against custom_property_definitions. All mutations are fail-closed — both JSONB update and audit event must succeed atomically.","files":["apps/api/internal/metadata/"],"key_responsibilities":["Custom property CRUD with JSONB storage","Type validation against property definitions","Fail-closed transactional writes with audit"],"depends_on":["api.db"],"apis":[{"id":"api.metadata.get","name":"Get","kind":"method","signature":"func (s *Store) Get(ctx, parentType, parentID) (map[string]any, error)","file":"apps/api/internal/metadata/","purpose":"Retrieves all custom properties for a given parent object (contact or deal)","when_to_call":"When loading an entity's custom fields for display or API response"},{"id":"api.metadata.set","name":"Set","kind":"method","signature":"func (s *Store) Set(ctx, parentType, parentID, data) error","file":"apps/api/internal/metadata/","purpose":"Upserts custom property values with validation against definitions, wrapped in a transaction with audit logging","when_to_call":"When saving custom field values on a contact or deal"}]},{"id":"api.sqlcgen","name":"SQLc Generated","description":"Type-safe SQL query layer auto-generated by sqlc from packages/db/queries/. Provides Go structs for database models (CoreWorkspace, CoreUser, CoreWorkspaceMember, CoreAuditLog) and compiled query methods.","files":["apps/api/internal/sqlcgen/models.go","apps/api/internal/sqlcgen/users.sql.go","apps/api/internal/sqlcgen/workspaces.sql.go"],"key_responsibilities":["Type-safe SQL query execution","Go struct generation for database models","Compiled query methods for identity and workspace lookups"],"depends_on":["data.queries"],"apis":[{"id":"api.sqlcgen.get-workspace-by-slug","name":"GetWorkspaceBySlug","kind":"method","signature":"func (q *Queries) GetWorkspaceBySlug(ctx, slug string) (CoreWorkspace, error)","file":"apps/api/internal/sqlcgen/workspaces.sql.go","purpose":"Looks up a workspace by its URL slug, returning the full workspace record","when_to_call":"During subdomain resolution in workspace middleware"},{"id":"api.sqlcgen.upsert-user-identity","name":"UpsertUserIdentity","kind":"method","signature":"func (q *Queries) UpsertUserIdentity(ctx, issuer, subject, email, displayName) (uuid.UUID, error)","file":"apps/api/internal/sqlcgen/users.sql.go","purpose":"Inserts a new user or updates email/display_name/last_login on conflict, keyed on (issuer, subject)","when_to_call":"During OIDC callback to persist user identity"}]}]},{"id":"admin","name":"Admin CLI","description":"Go CLI tool (urfave/cli v2) for integrator-facing tenant lifecycle management. Provisions, verifies, lists, and inspects workspaces using the lecrm_provisioner PostgreSQL role. Runs as a standalone binary without an HTTP server — invoked via SSH wrapper on Dokku.","components":[{"id":"admin.safety","name":"Safety Guards","description":"Defense-in-depth environment checks. Refuses startup if LECRM_API_* environment variables are present, preventing accidental cross-contamination between admin provisioner and API application roles.","files":["apps/admin/internal/safety/guard.go"],"key_responsibilities":["Environment variable leak detection (AC-D5)","Fail-fast startup guard"],"depends_on":[],"apis":[{"id":"admin.safety.check-api-env-leak","name":"CheckAPIEnvLeak","kind":"function","signature":"func CheckAPIEnvLeak() error","file":"apps/admin/internal/safety/guard.go","purpose":"Scans environment for LECRM_API_* variables and returns error if any found — prevents running admin CLI with API credentials","when_to_call":"First thing in main.go before any other initialization"}]},{"id":"admin.tenant","name":"Tenant Management","description":"Core tenant lifecycle operations: create (with upsert/force-recreate modes), verify (14 invariants), list, and get. All creation paths wrap PostgreSQL SECURITY DEFINER functions in explicit transactions for atomicity (AC-T1). Operator-facing output uses 'Tenant' vocabulary while DB uses 'workspace'.","files":["apps/admin/internal/tenant/create.go","apps/admin/internal/tenant/verify.go","apps/admin/internal/tenant/list.go","apps/admin/internal/tenant/get.go","apps/admin/internal/tenant/translate.go","apps/admin/internal/tenant/structerr.go"],"key_responsibilities":["Atomic workspace provisioning (fresh, upsert, force-recreate)","14-invariant verification suite","Slug validation (^[a-z][a-z0-9-]{2,31}$)","Machine-parseable output for CI integration"],"depends_on":["data.migrations"],"apis":[{"id":"admin.tenant.create","name":"Create","kind":"function","signature":"func Create(ctx, conn, opts CreateOptions) error","file":"apps/admin/internal/tenant/create.go","purpose":"Provisions a new workspace — creates Postgres role, schema, River queue schema, audit row, and pipeline seed in a single atomic transaction","when_to_call":"Via 'lecrm-admin tenant create --slug acme --admin-email admin@acme.com'"},{"id":"admin.tenant.verify","name":"Verify","kind":"function","signature":"func Verify(ctx, conn, slug string, allFailures bool) error","file":"apps/admin/internal/tenant/verify.go","purpose":"Runs 14 post-provisioning invariants (INV-01..INV-14) against a tenant — checks role, schemas, isolation, audit binding, UUID version, pipeline seed","when_to_call":"Via 'lecrm-admin tenant verify --slug acme' after provisioning or for ongoing health checks"},{"id":"admin.tenant.list","name":"List","kind":"function","signature":"func List(ctx, conn, w io.Writer) error","file":"apps/admin/internal/tenant/list.go","purpose":"Lists all provisioned tenants in tab-separated format (ID, SLUG, ROLE, ADMIN_EMAIL, CREATED_AT, FEATURES)","when_to_call":"Via 'lecrm-admin tenant list' for operational overview"},{"id":"admin.tenant.get","name":"Get","kind":"function","signature":"func Get(ctx, conn, slug string, w io.Writer) error","file":"apps/admin/internal/tenant/get.go","purpose":"Shows detailed metadata for a single tenant by slug in key=value format","when_to_call":"Via 'lecrm-admin tenant get --slug acme' for inspection"}]}]},{"id":"migration","name":"Migration Runner","description":"Go binary that applies Atlas-managed SQL migrations from packages/db/migrations/ and provisions workspaces. Runs as the lecrm_provisioner PostgreSQL role (Tier-0 secret). Deployed as a Docker Compose pre-deploy job — must complete successfully before the API server starts.","components":[{"id":"migration.runner","name":"Migration Runner","description":"Reads .sql files alphabetically from LECRM_MIGRATIONS_DIR and applies pending migrations. Also supports workspace provisioning as a subcommand for the initial provisioning flow.","files":["apps/migrate/cmd/lecrm-migrate/main.go","apps/migrate/internal/"],"key_responsibilities":["Sequential SQL migration application","Idempotent workspace provisioning via SECURITY DEFINER function","Pre-deploy gate for API server startup"],"depends_on":["data.migrations"],"apis":[{"id":"migration.runner.apply","name":"apply","kind":"command","signature":"lecrm-migrate apply","file":"apps/migrate/cmd/lecrm-migrate/main.go","purpose":"Applies all pending SQL migrations from packages/db/migrations/ in alphabetical order","when_to_call":"Automatically via Docker Compose before API startup"},{"id":"migration.runner.provision","name":"provision-workspace","kind":"command","signature":"lecrm-migrate provision-workspace --slug <slug>","file":"apps/migrate/cmd/lecrm-migrate/main.go","purpose":"Idempotently provisions a workspace by calling core.lecrm_provision_workspace(uuid)","when_to_call":"During initial tenant setup or migration workflows"}]}]},{"id":"data","name":"Data Layer","description":"Shared database schema (Atlas-managed SQL migrations) and type-safe query definitions (sqlc input files). PostgreSQL 17 with schema-per-tenant isolation — each workspace gets its own Postgres role with hardcoded search_path. The core schema holds global control-plane tables; workspace schemas hold tenant data.","components":[{"id":"data.migrations","name":"Migrations","description":"Atlas-managed SQL migration files defining the control-plane schema (core.*), tenant provisioning SECURITY DEFINER functions, user identity tables, metadata engine, and workspace registry. 546 lines across 4 migration files.","files":["packages/db/migrations/0001_init.sql","packages/db/migrations/0002_identity.sql","packages/db/migrations/0003_metadata_engine.sql","packages/db/migrations/0004_workspaces_admin_email_registry.sql"],"key_responsibilities":["Core schema: workspaces, audit_log, users, workspace_members","SECURITY DEFINER provisioning functions (atomic role + schema + audit creation)","Metadata engine: custom_property_definitions + JSONB objects table","Workspace registry with admin email and feature tracking"],"depends_on":[],"apis":[{"id":"data.migrations.provision-workspace","name":"lecrm_provision_workspace","kind":"function","signature":"core.lecrm_provision_workspace(p_workspace_id UUID)","file":"packages/db/migrations/0001_init.sql","purpose":"SECURITY DEFINER function that atomically creates a Postgres role, workspace schema, and River queue schema for a new tenant","when_to_call":"Called by the migration runner or admin CLI during workspace provisioning"},{"id":"data.migrations.provision-with-registry","name":"lecrm_provision_workspace_with_registry","kind":"function","signature":"core.lecrm_provision_workspace_with_registry(UUID, slug, admin_email, creator_email, template)","file":"packages/db/migrations/0004_workspaces_admin_email_registry.sql","purpose":"Extended provisioning wrapper that creates workspace + registry row + audit entry + pipeline seed in one atomic transaction","when_to_call":"Called by admin CLI 'tenant create' for full-featured provisioning"}]},{"id":"data.queries","name":"SQL Queries","description":"sqlc input files defining type-safe database queries. These .sql files are compiled into Go code in apps/api/internal/sqlcgen/ at build time. Covers user identity lookups and workspace resolution.","files":["packages/db/queries/users.sql","packages/db/queries/workspaces.sql"],"key_responsibilities":["User identity upsert and lookup by (issuer, subject)","Workspace resolution by slug","Test surface for Week-2 checkpoint"],"depends_on":["data.migrations"],"apis":[{"id":"data.queries.upsert-user","name":"UpsertUserIdentity","kind":"query","signature":"INSERT INTO core.users ... ON CONFLICT (issuer, subject) DO UPDATE","file":"packages/db/queries/users.sql","purpose":"Insert or update user identity, refreshing email, display_name, and last_login_at on conflict","when_to_call":"Compiled by sqlc into Go code used during OIDC callback"},{"id":"data.queries.workspace-by-slug","name":"GetWorkspaceBySlug","kind":"query","signature":"SELECT id, slug, role_name FROM core.workspaces WHERE slug = $1","file":"packages/db/queries/workspaces.sql","purpose":"Resolves a workspace by its URL slug for subdomain-based tenant routing","when_to_call":"Compiled by sqlc into Go code used by workspace middleware"}]},{"id":"data.shared-libs","name":"Shared Libraries","description":"Scaffolded shared packages for future sprints. crm-adapter will define the CrmAdapter Go interface shared by API and MCP. shared-types will hold OpenAPI-generated TypeScript types for the frontend. tools will contain Mage build tasks.","files":["packages/crm-adapter/.gitkeep","packages/shared-types/.gitkeep","packages/tools/.gitkeep"],"key_responsibilities":["CrmAdapter interface (Sprint 2+, shared by API and MCP)","OpenAPI → TypeScript codegen (Sprint 7+, consumed by web)","Mage build/lint/smoke tasks"],"depends_on":[],"apis":[]}]},{"id":"mcp","name":"MCP Adapter","description":"Scaffolded Go binary for Model Context Protocol integration. Will share the CrmAdapter interface with the API server for consistent data access. Planned for Sprint 9 skeleton, wired in Sprint 13. Runs as a separate Compose service with a constrained (read-mostly) Postgres role.","components":[{"id":"mcp.server","name":"MCP Server","description":"Scaffolded MCP server that will expose CRM operations as MCP tools for Claude Code and other AI agents. Shares CrmAdapter interface with apps/api for type consistency.","files":["apps/mcp/cmd/lecrm-mcp/"],"key_responsibilities":["MCP tool registration for CRM operations (planned)","Constrained database role (read-mostly)","Crash-isolated from API server"],"depends_on":["data.shared-libs"],"apis":[]}]},{"id":"infra","name":"Infrastructure","description":"Docker Compose orchestration, Caddy reverse proxy with wildcard TLS, GitHub Actions CI/CD pipeline, and operational scripts. The full stack includes PostgreSQL 17, Authentik OIDC provider, LGTM observability (Loki, Grafana, Tempo, Prometheus), and custom build/deploy scripts.","components":[{"id":"infra.compose","name":"Docker Compose","description":"Multi-file Docker Compose setup orchestrating 7+ services: PostgreSQL 17, Authentik (OIDC), migrate (pre-deploy), API server, Caddy (edge proxy), and LGTM observability stack (~1.1GB RAM). Services communicate on the 'lecrm' Docker network.","files":["deploy/compose/postgres.yml","deploy/compose/authentik.yml","deploy/compose/migrate.yml","deploy/compose/lgtm.yml"],"key_responsibilities":["Service orchestration with health-check dependencies","Pre-deploy migration gate (migrate must succeed before API starts)","Environment variable management via .env.dev"],"depends_on":[],"apis":[]},{"id":"infra.caddy","name":"Caddy Proxy","description":"Edge reverse proxy with automatic wildcard TLS via Cloudflare DNS-01 challenge. Routes *.lecrm.fr subdomains to the API server and auth.lecrm.fr to Authentik. Injects CSP headers.","files":["deploy/caddy/Caddyfile"],"key_responsibilities":["Wildcard TLS certificate management (DNS-01 via Cloudflare API)","Reverse proxy routing (subdomains → API, auth → Authentik)","Security headers injection"],"depends_on":["api.http"],"apis":[]},{"id":"infra.ci","name":"CI/CD Pipeline","description":"GitHub Actions workflow running on PR and main pushes. Six parallel jobs: Go test+lint+security (api), admin build+smoke+integration, Atlas migration lint, web typecheck+test+build, and Docker image builds for api and admin.","files":[".github/workflows/ci.yml"],"key_responsibilities":["Go test with testcontainers (Docker Postgres)","golangci-lint + gosec + govulncheck security scanning","Atlas migration lint (pin v0.37, last free tier)","TypeScript typecheck + Vitest + Vite build","Docker multi-stage image builds"],"depends_on":[],"apis":[]},{"id":"infra.scripts","name":"Scripts","description":"Build and deployment helper scripts for local development and CI. Includes workspace smoke tests and Authentik OIDC client provisioning.","files":["scripts/smoke-test-provision.sh","scripts/authentik-provision-oidc-client.py","scripts/authentik-provision-test-user.py"],"key_responsibilities":["Workspace creation + OIDC flow smoke testing","Idempotent Authentik OIDC client setup","Test user provisioning for E2E tests"],"depends_on":[],"apis":[]}]}]};
+
+/* ───────── helpers ───────── */
+const $ = sel => document.querySelector(sel);
+const elById = {};
+const flatNodes = [];
+ARCH.layers.forEach(layer => {
+  flatNodes.push({id: layer.id, kind: 'layer', name: layer.name, ref: layer});
+  layer.components.forEach(c => {
+    flatNodes.push({id: c.id, kind: 'component', name: c.name, ref: c, parentId: layer.id});
+    (c.apis || []).forEach(a => {
+      flatNodes.push({id: a.id, kind: 'api', name: a.name, ref: a,
+                      parentId: c.id, grandparentId: layer.id});
+    });
+  });
+});
+flatNodes.forEach(n => elById[n.id] = n);
+
+document.title = `Architecture — ${ARCH.project}`;
+$('#meta').textContent = `${ARCH.layers.length} layers · ${
+  flatNodes.filter(n => n.kind === 'component').length} components · ${
+  flatNodes.filter(n => n.kind === 'api').length} APIs · baked ${
+  new Date(ARCH.generated_at).toISOString().slice(0,10)}`;
+
+/* ───────── tree (left) ───────── */
+function renderTree() {
+  const tree = $('#tree');
+  tree.innerHTML = '';
+  ARCH.layers.forEach(layer => {
+    const layerDiv = document.createElement('div');
+    layerDiv.className = 'node layer';
+    layerDiv.dataset.id = layer.id;
+    layerDiv.textContent = layer.name;
+    layerDiv.onclick = () => select(layer.id);
+    tree.appendChild(layerDiv);
+
+    const childWrap = document.createElement('div');
+    childWrap.className = 'children';
+    layer.components.forEach(c => {
+      const cDiv = document.createElement('div');
+      cDiv.className = 'node component';
+      cDiv.dataset.id = c.id;
+      cDiv.textContent = c.name;
+      cDiv.onclick = e => { e.stopPropagation(); select(c.id); };
+      childWrap.appendChild(cDiv);
+
+      (c.apis || []).forEach(a => {
+        const aDiv = document.createElement('div');
+        aDiv.className = 'node api';
+        aDiv.dataset.id = a.id;
+        aDiv.textContent = a.name;
+        aDiv.title = a.signature || '';
+        aDiv.onclick = e => { e.stopPropagation(); select(a.id); };
+        childWrap.appendChild(aDiv);
+      });
+    });
+    tree.appendChild(childWrap);
+  });
+}
+
+/* ───────── breadcrumb ───────── */
+function renderCrumb(id) {
+  const crumb = $('#crumb');
+  crumb.innerHTML = '';
+  const trail = [{id: '__root__', name: ARCH.project, kind: 'root'}];
+  if (id) {
+    const n = elById[id];
+    if (n) {
+      if (n.kind === 'api') {
+        trail.push(elById[n.grandparentId], elById[n.parentId], n);
+      } else if (n.kind === 'component') {
+        trail.push(elById[n.parentId], n);
+      } else {
+        trail.push(n);
+      }
+    }
+  }
+  trail.forEach((seg, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'sep';
+      sep.textContent = '›';
+      crumb.appendChild(sep);
+    }
+    const s = document.createElement('span');
+    s.className = 'seg' + (i === trail.length - 1 ? ' current' : '');
+    s.textContent = seg.name;
+    if (i < trail.length - 1) {
+      s.onclick = () => seg.id === '__root__' ? select(null) : select(seg.id);
+    }
+    crumb.appendChild(s);
+  });
+}
+
+/* ───────── detail panel ───────── */
+function renderDetail(id) {
+  const d = $('#detail');
+  if (!id) {
+    d.innerHTML = `
+      <h2>${ARCH.project}</h2>
+      <div class="kind">Project root</div>
+      <div class="desc">${ARCH.layers.length} architectural layer${
+        ARCH.layers.length === 1 ? '' : 's'} mapped from the codebase.</div>
+      <section><h3>Layers</h3>${
+        ARCH.layers.map(l => `<span class="pill" onclick="select('${l.id}')">${l.name}</span>`).join('')
+      }</section>`;
+    return;
+  }
+  const n = elById[id];
+  if (!n) return;
+
+  if (n.kind === 'layer') {
+    const layer = n.ref;
+    d.innerHTML = `
+      <h2>${layer.name}</h2>
+      <div class="kind">Layer · ${layer.components.length} component${layer.components.length === 1 ? '' : 's'}</div>
+      <div class="desc">${escape(layer.description || '')}</div>
+      <section><h3>Components</h3>${
+        layer.components.map(c => `<span class="pill" onclick="select('${c.id}')">${c.name}</span>`).join('')
+      }</section>`;
+  } else if (n.kind === 'component') {
+    const c = n.ref;
+    d.innerHTML = `
+      <h2>${c.name}</h2>
+      <div class="kind">Component · ${(c.apis || []).length} API${(c.apis || []).length === 1 ? '' : 's'}</div>
+      <div class="desc">${escape(c.description || '')}</div>
+      ${c.key_responsibilities && c.key_responsibilities.length ? `
+        <section><h3>Key responsibilities</h3>
+          <ul class="resp">${c.key_responsibilities.map(r => `<li>${escape(r)}</li>`).join('')}</ul>
+        </section>` : ''}
+      ${c.depends_on && c.depends_on.length ? `
+        <section><h3>Depends on</h3>${
+          c.depends_on.map(dep => {
+            const t = elById[dep];
+            return `<span class="pill dep" onclick="select('${dep}')">${t ? t.name : dep}</span>`;
+          }).join('')
+        }</section>` : ''}
+      ${c.apis && c.apis.length ? `
+        <section><h3>APIs</h3>${
+          c.apis.map(a => `<span class="pill api" onclick="select('${a.id}')">${a.name}</span>`).join('')
+        }</section>` : ''}
+      ${c.files && c.files.length ? `
+        <section><h3>Files</h3>
+          <div class="file">${c.files.slice(0, 8).map(escape).join('<br>')}${
+            c.files.length > 8 ? `<br><span class="empty">…and ${c.files.length - 8} more</span>` : ''
+          }</div>
+        </section>` : ''}`;
+  } else if (n.kind === 'api') {
+    const a = n.ref;
+    d.innerHTML = `
+      <h2>${a.name}</h2>
+      <div class="kind">${escape(a.kind || 'API')} · in ${elById[n.parentId].name}</div>
+      ${a.signature ? `<div class="sig">${escape(a.signature)}</div>` : ''}
+      ${a.file ? `<div class="file">${escape(a.file)}</div>` : ''}
+      <section style="margin-top: 16px"><h3>Purpose</h3>
+        <div class="desc">${escape(a.purpose || '—')}</div>
+      </section>
+      ${a.when_to_call ? `
+        <section><h3>When to call</h3>
+          <div class="when">${escape(a.when_to_call)}</div>
+        </section>` : ''}`;
+  }
+}
+
+function escape(s) {
+  return (s || '').replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+}
+
+/* ───────── graph (Cytoscape) ───────── */
+const elements = [];
+ARCH.layers.forEach(layer => {
+  elements.push({data: {id: layer.id, label: layer.name, kind: 'layer'}});
+  layer.components.forEach(c => {
+    elements.push({data: {id: c.id, label: c.name, kind: 'component', parent: layer.id}});
+    (c.depends_on || []).forEach(dep => {
+      elements.push({data: {id: `${c.id}->${dep}`, source: c.id, target: dep, kind: 'dep'}});
+    });
+  });
+});
+
+const labelWidth = (ele) => Math.max(ele.data('label').length * 7.5 + 16, 50);
+
+const cy = cytoscape({
+  container: $('#graph'),
+  elements,
+  style: [
+    { selector: 'node[kind="layer"]',
+      style: {
+        'background-color': '#1a2433',
+        'border-color': '#2a4d6e',
+        'border-width': 2,
+        'label': 'data(label)',
+        'color': '#6ee7ff',
+        'font-size': 14,
+        'font-weight': 600,
+        'text-valign': 'top',
+        'text-margin-y': -6,
+        'shape': 'round-rectangle',
+        'padding': 12,
+        'text-outline-color': '#0c0f14',
+        'text-outline-width': 3,
+      } },
+    { selector: 'node[kind="component"]',
+      style: {
+        'background-color': '#2a3f57',
+        'border-color': '#4a8fbf',
+        'border-width': 1.5,
+        'label': 'data(label)',
+        'color': '#d8e1ec',
+        'font-size': 11,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': labelWidth,
+        'height': 28,
+        'padding': 10,
+      } },
+    { selector: 'node[kind="api"]',
+      style: {
+        'background-color': '#3a6e8f',
+        'border-width': 0,
+        'label': 'data(label)',
+        'color': '#fff',
+        'font-size': 10,
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'shape': 'round-rectangle',
+        'width': labelWidth,
+        'height': 22,
+        'padding': 4,
+      } },
+    { selector: 'edge[kind="dep"]',
+      style: {
+        'width': 1,
+        'line-color': '#3a4555',
+        'target-arrow-color': '#3a4555',
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'opacity': 0.6,
+      } },
+    { selector: 'node.selected',
+      style: {
+        'border-color': '#6ee7ff',
+        'border-width': 3,
+      } },
+    { selector: 'node.dim, edge.dim',
+      style: { 'opacity': 0.18 } },
+    { selector: 'node.highlight',
+      style: {
+        'border-color': '#f8c673',
+        'border-width': 2,
+      } },
+  ],
+  layout: { name: 'fcose', animate: false, padding: 30,
+            nodeRepulsion: 8000, idealEdgeLength: 80 },
+});
+
+/* Save initial node positions so reset restores the original layout */
+const initialPositions = {};
+cy.nodes().forEach(n => { initialPositions[n.id()] = { ...n.position() }; });
+
+let currentFocus = null;
+
+function showLevel(level, focusId) {
+  cy.batch(() => {
+    cy.elements().removeClass('dim highlight');
+    cy.nodes('[kind="api"]').remove();
+
+    if (level === 'overview') {
+      cy.nodes().forEach(n => {
+        if (initialPositions[n.id()]) n.position(initialPositions[n.id()]);
+      });
+    } else if (level === 'layer' && focusId) {
+      cy.nodes().forEach(n => {
+        const k = n.data('kind');
+        if (k === 'layer' && n.id() !== focusId) n.addClass('dim');
+        if (k === 'component' && n.data('parent') !== focusId) n.addClass('dim');
+      });
+      cy.edges().forEach(e => {
+        const src = cy.getElementById(e.data('source'));
+        const tgt = cy.getElementById(e.data('target'));
+        if (src.data('parent') !== focusId || tgt.data('parent') !== focusId) e.addClass('dim');
+      });
+    } else if (level === 'component' && focusId) {
+      const comp = elById[focusId];
+      if (!comp || comp.kind !== 'component') return;
+      const layerId = comp.parentId;
+      (comp.ref.apis || []).forEach(a => {
+        cy.add({data: {id: a.id, label: a.name, kind: 'api', parent: focusId}});
+      });
+      const compNode = cy.getElementById(focusId);
+      const apiChildren = compNode.children();
+      if (apiChildren.length) {
+        const center = compNode.position();
+        const cols = Math.ceil(Math.sqrt(apiChildren.length));
+        const rows = Math.ceil(apiChildren.length / cols);
+        const spacingX = 100, spacingY = 50;
+        apiChildren.forEach((node, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          node.position({
+            x: center.x + (col - (cols - 1) / 2) * spacingX,
+            y: center.y + (row - (rows - 1) / 2) * spacingY,
+          });
+        });
+      }
+      cy.nodes().forEach(n => {
+        const id = n.id();
+        const parent = n.data('parent');
+        if (id === focusId || parent === focusId) return;
+        if (id === layerId) return;
+        n.addClass('dim');
+      });
+      cy.edges().addClass('dim');
+    }
+  });
+}
+
+cy.on('tap', 'node', evt => {
+  select(evt.target.id());
+});
+cy.on('dbltap', 'node', evt => {
+  const n = elById[evt.target.id()];
+  if (!n) return;
+  if (n.kind === 'api') select(n.grandparentId);
+  else select(null);
+});
+
+/* ───────── camera ───────── */
+function fitCamera(id) {
+  if (!id) {
+    cy.animate({fit: {padding: 30}}, {duration: 400});
+    return;
+  }
+  const n = elById[id];
+  const cyNode = cy.getElementById(id);
+  if (!cyNode.length) return;
+
+  if (n.kind === 'layer') {
+    const group = cyNode.add(cyNode.children());
+    cy.animate({fit: {eles: group, padding: 50}}, {duration: 400});
+  } else if (n.kind === 'component') {
+    const group = cyNode.add(cyNode.children());
+    cy.animate({fit: {eles: group, padding: 60}}, {duration: 400});
+  } else if (n.kind === 'api') {
+    const parentComp = cy.getElementById(n.parentId);
+    if (parentComp.length) {
+      const group = parentComp.add(parentComp.children());
+      cy.animate({fit: {eles: group, padding: 60}}, {duration: 400});
+      cyNode.addClass('highlight');
+    }
+  }
+}
+
+/* ───────── selection orchestrator ───────── */
+function select(id) {
+  document.querySelectorAll('#tree .node.selected').forEach(e => e.classList.remove('selected'));
+  if (id) {
+    const t = document.querySelector(`#tree .node[data-id="${cssEscape(id)}"]`);
+    if (t) {
+      t.classList.add('selected');
+      t.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+    }
+  }
+  cy.nodes().removeClass('selected highlight');
+  if (id) {
+    const n = elById[id];
+    if (n) {
+      if (n.kind === 'layer') showLevel('layer', id);
+      else if (n.kind === 'component') showLevel('component', id);
+      else if (n.kind === 'api') showLevel('component', n.parentId);
+    }
+    const cyNode = cy.getElementById(id);
+    if (cyNode.length) {
+      cyNode.addClass('selected');
+      if (n && n.kind === 'api') cyNode.addClass('highlight');
+    }
+    setTimeout(() => fitCamera(id), 80);
+  } else {
+    showLevel('overview');
+    setTimeout(() => fitCamera(null), 80);
+  }
+  renderDetail(id);
+  renderCrumb(id);
+  currentFocus = id;
+}
+
+function cssEscape(s) { return s.replace(/"/g, '\\"'); }
+
+/* ───────── search ───────── */
+$('#search').addEventListener('input', e => {
+  const q = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('#tree .node').forEach(el => {
+    if (!q) { el.classList.remove('hidden-match'); return; }
+    const text = el.textContent.toLowerCase();
+    el.classList.toggle('hidden-match', !text.includes(q));
+  });
+  cy.batch(() => {
+    cy.nodes().removeClass('dim');
+    if (q) {
+      cy.nodes().forEach(n => {
+        if (!String(n.data('label') || '').toLowerCase().includes(q)) n.addClass('dim');
+      });
+    }
+  });
+});
+
+/* ───────── toolbar ───────── */
+$('#btn-reset').onclick = () => { select(null); $('#search').value = ''; $('#search').dispatchEvent(new Event('input')); };
+$('#btn-fit').onclick = () => cy.animate({fit: {padding: 30}}, {duration: 300});
+
+/* ───────── init ───────── */
+renderTree();
+renderCrumb(null);
+renderDetail(null);
+window.select = select;
+setTimeout(() => cy.fit(undefined, 30), 100);
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "sdl-mcp": {
+      "type": "stdio",
+      "command": "/home/gui/.local/bin/sdl-mcp",
+      "args": [
+        "serve",
+        "--stdio"
+      ],
+      "env": {
+        "SDL_CONFIG": "/home/gui/.config/sdl-mcp/projects/leCRM.json",
+        "SDL_GRAPH_DB_DIR": "/home/gui/Projects/leCRM/.sdl-mcp"
+      }
+    }
+  }
+}

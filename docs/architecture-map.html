@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>leCRM — Interactive Architecture Map</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-elev: #131a2e;
+    --bg-elev2: #1c2440;
+    --fg: #e6edf3;
+    --fg-dim: #8b949e;
+    --border: #2c3245;
+    --accent: #00d9ff;
+    --accent-2: #ff5ec4;
+    --boundary: #4dabf7;
+    --logic: #ff5ec4;
+    --data: #69db7c;
+    --infra: #ffd43b;
+    --domain: #b197fc;
+    --workflow: #ff922b;
+    --planned: #6c757d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; line-height: 1.45;
+  }
+  .layout { display: grid; grid-template-columns: 300px 1fr 400px; height: 100vh; }
+  aside { background: var(--bg-elev); overflow-y: auto; }
+  .left { padding: 18px; border-right: 1px solid var(--border); }
+  .right { padding: 18px; border-left: 1px solid var(--border); }
+  main { position: relative; background: radial-gradient(circle at 50% 50%, #131a2e 0%, #0b1020 70%); }
+  #network { width: 100%; height: 100%; }
+
+  h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h1 + .sub { color: var(--fg-dim); font-size: 12px; margin-bottom: 16px; }
+
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--fg-dim); margin: 18px 0 6px; }
+
+  .tabs { display: flex; flex-direction: column; gap: 4px; }
+  .tab { padding: 9px 12px; background: var(--bg-elev2); border-radius: 6px; cursor: pointer;
+    font-size: 13px; display: flex; align-items: center; gap: 8px;
+    border-left: 3px solid transparent; transition: all 0.15s;
+  }
+  .tab:hover { background: #25305a; }
+  .tab.active { background: #1f2a4e; border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .tab .tab-icon { font-size: 16px; }
+
+  .audience { display: flex; gap: 4px; margin-bottom: 10px; }
+  .aud-btn { padding: 6px 0; background: var(--bg-elev2); border-radius: 4px; cursor: pointer;
+    font-size: 11px; flex: 1; text-align: center; transition: all 0.15s;
+  }
+  .aud-btn:hover { background: #25305a; }
+  .aud-btn.active { background: var(--accent-2); color: #000; font-weight: 600; }
+
+  .legend { font-size: 11px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--fg-dim); }
+  .legend-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+
+  .right .empty { color: var(--fg-dim); font-style: italic; }
+  #panel .kind { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 4px; }
+  #panel h2 { margin: 0 0 6px; font-size: 19px; }
+  #panel .file { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+    color: var(--accent); margin-top: 6px; word-break: break-all;
+    padding: 6px 8px; background: #0a0f1f; border-radius: 4px; border: 1px solid var(--border);
+    display: none;
+  }
+  #panel.eng .file, #panel.arch .file { display: block; }
+  #panel .summary { font-size: 14px; line-height: 1.55; margin: 14px 0; }
+  #panel .technical { font-size: 12.5px; color: #b1c4e0;
+    border-left: 2px solid var(--accent); padding: 6px 12px; margin: 12px 0;
+    background: rgba(0, 217, 255, 0.05); border-radius: 0 4px 4px 0;
+    display: none;
+  }
+  #panel.arch .technical { display: block; }
+  #panel .technical strong { color: var(--accent); }
+  #panel .related { margin-top: 18px; }
+  #panel .related h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--fg-dim); margin: 0 0 6px;
+  }
+  #panel .related .chip { display: inline-block; padding: 5px 10px; background: var(--bg-elev2);
+    border-radius: 4px; margin: 3px 3px 3px 0; cursor: pointer; font-size: 11.5px;
+    border: 1px solid var(--border); transition: all 0.15s;
+  }
+  #panel .related .chip:hover { background: #25305a; border-color: var(--accent); color: var(--accent); }
+  #panel .badge { display: inline-block; padding: 2px 6px; font-size: 9.5px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle;
+  }
+  #panel .badge.planned { background: rgba(108,117,125,0.3); color: #adb5bd; }
+  #panel .badge.live { background: rgba(105,219,124,0.2); color: var(--data); }
+
+  .help { position: absolute; bottom: 16px; left: 16px; font-size: 11px; color: var(--fg-dim);
+    background: rgba(11,16,32,0.85); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border);
+  }
+  .breadcrumb { position: absolute; top: 16px; left: 16px; font-size: 13px;
+    background: rgba(11,16,32,0.85); padding: 8px 14px; border-radius: 6px;
+    border: 1px solid var(--border); color: var(--fg-dim);
+  }
+  .breadcrumb b { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <aside class="left">
+    <h1>leCRM</h1>
+    <div class="sub">Interactive architecture map · click any node to drill in</div>
+
+    <div class="section-title">Audience</div>
+    <div class="audience">
+      <div class="aud-btn active" data-level="overview" title="Plain-language, no code">Overview</div>
+      <div class="aud-btn" data-level="eng" title="Adds file paths">Engineer</div>
+      <div class="aud-btn" data-level="arch" title="Adds ADR refs &amp; technical depth">Architect</div>
+    </div>
+
+    <div class="section-title">View</div>
+    <div class="tabs">
+      <div class="tab active" data-view="architecture"><span class="tab-icon">▦</span> Module architecture</div>
+      <div class="tab" data-view="endpoints"><span class="tab-icon">↳</span> HTTP endpoints &amp; flow</div>
+      <div class="tab" data-view="entities"><span class="tab-icon">◈</span> Domain entities</div>
+      <div class="tab" data-view="workflows"><span class="tab-icon">▶</span> Feature workflows</div>
+    </div>
+
+    <div class="section-title">Legend</div>
+    <div class="legend" id="legend"></div>
+
+    <div class="section-title">About</div>
+    <div style="font-size: 11.5px; color: var(--fg-dim); line-height: 1.5;">
+      leCRM is a multi-tenant, AGPL-licensed Twenty fork. This map is generated from the live
+      source tree, migrations, and ADRs. Last refreshed from <code>main</code>.
+    </div>
+  </aside>
+
+  <main>
+    <div class="breadcrumb" id="breadcrumb"><b>Module architecture</b> · zoom with scroll · drag to pan</div>
+    <div id="network"></div>
+    <div class="help">Tip: switch <b>Audience</b> in the left sidebar to change the depth of explanations.</div>
+  </main>
+
+  <aside class="right" id="panel">
+    <p class="empty">Click any node in the graph to see what it does, where it lives, and how it connects.</p>
+  </aside>
+</div>
+
+<script>
+// ============================================================================
+// NODE DETAIL DATABASE
+// Each entry: { kind, file?, summary (overview), tech (architect), related[] }
+// ============================================================================
+const DETAILS = {
+  // ---------- Architecture view ----------
+  "app-api": {
+    kind: "Binary · lecrm-api",
+    file: "apps/api/cmd/lecrm-api/main.go",
+    summary: "The main HTTP server. Every request from a browser, mobile app, or AI agent hits this binary first. It handles login, session cookies, and (from Sprint 7) the full CRUD API.",
+    tech: "<strong>Wires:</strong> Chi router + slog + pgx pool + OIDC Provider + workspace.Resolver. Splits per-request work (handlers) from long-lived collaborators (passed into <code>RouterDeps</code>). Three-binary architecture (ADR-009 §8.2): never combined with admin or migrate to keep blast radius small.",
+    related: ["mod-http", "mod-auth", "mod-workspace", "mod-config", "mod-db"]
+  },
+  "app-admin": {
+    kind: "Binary · lecrm-admin",
+    file: "apps/admin/cmd/lecrm-admin/main.go",
+    summary: "Command-line tool for operators. Creates new customer workspaces, lists them, verifies they're healthy. Never exposed to end users.",
+    tech: "<strong>Runs as the privileged provisioner role</strong> (DDL-capable). Calls <code>core.lecrm_provision_workspace_with_registry</code> in a single transaction — the same SQL function used by <code>lecrm-migrate</code> bootstrap, so there is no duplicate Go provisioning code (Story 8.1 D11).",
+    related: ["mod-tenant", "mod-safety", "entity-workspaces", "wf-provision"]
+  },
+  "app-migrate": {
+    kind: "Binary · lecrm-migrate",
+    file: "apps/migrate/cmd/lecrm-migrate/main.go",
+    summary: "Database migration runner. Applies schema changes in order and can provision the very first workspace at bootstrap.",
+    tech: "<strong>Uses Atlas</strong> for migration management. Calls the same <code>core.lecrm_provision_workspace_with_registry</code> wrapper as <code>lecrm-admin</code> but with empty admin/creator/template (no pipeline seed). Pinned to Atlas v0.37.0 (last free <code>migrate lint</code>).",
+    related: ["pkg-db", "mod-provision", "mod-migrator"]
+  },
+  "app-mcp": {
+    kind: "Binary · lecrm-mcp",
+    file: "apps/mcp/cmd/lecrm-mcp/",
+    summary: "Model Context Protocol server. Lets AI agents (Claude, others) talk to leCRM data through a standard protocol — without going through the HTTP API.",
+    tech: "Per ADR-005, AI-agent tenancy is first-class: each agent has its own credentials and is scoped to a workspace just like a human user. MCP is the wire format for tool calls.",
+    related: ["app-api"]
+  },
+  "app-web": {
+    kind: "Binary · web (Next.js)",
+    file: "apps/web/",
+    summary: "The browser UI. Currently a shell — the real interface gets shipped from Sprint 8 onward. The strategic moat lives here: AI-native chat &amp; voice UX impossible to replicate without source access.",
+    tech: "Stays minimal on purpose: this is where Twenty's UI flexibility (the AGPL fork's chief differentiator) gets exercised. ADR-008 covers the clean-room reimplementation strategy.",
+    related: ["app-api"]
+  },
+  "pkg-db": {
+    kind: "Package · db",
+    file: "packages/db/",
+    summary: "SQL source of truth. Four migrations to date (bootstrap, identity, metadata engine, workspaces registry) plus sqlc query files that get compiled into Go code.",
+    tech: "<strong>Migrations:</strong> 0001 (provisioning function + core.workspaces + audit_log), 0002 (core.users + workspace_members), 0003 (metadata engine — ADR-010), 0004 (admin_email + atomic wrapper for Story 8.1).",
+    related: ["mod-sqlcgen", "entity-workspaces", "entity-users", "entity-objects"]
+  },
+  "pkg-shared-types": {
+    kind: "Package · shared-types",
+    file: "packages/shared-types/",
+    summary: "Type definitions shared between Go services and the web app.",
+    tech: "Lives outside the Go workspace because it's consumed by both Go and TypeScript. Kept narrow on purpose — over-shared types couple deployments.",
+    related: []
+  },
+  "pkg-crm-adapter": {
+    kind: "Package · crm-adapter",
+    file: "packages/crm-adapter/",
+    summary: "Adapter layer for external CRM integrations (HubSpot, Pipedrive, Salesforce). Lets leCRM act as a connector, not just a destination.",
+    tech: "Connector strategy follows Léo's HubSpot integrator methodology. Discount integration-count moats — connectors are cheap to ship.",
+    related: []
+  },
+  "pkg-tools": {
+    kind: "Package · tools",
+    file: "packages/tools/",
+    summary: "Internal developer tooling (codegen, linters, etc.). Not shipped to production.",
+    tech: "",
+    related: []
+  },
+  "mod-http": {
+    kind: "Module · internal/http",
+    file: "apps/api/internal/http/server.go",
+    summary: "The router. Maps URLs to handlers and applies cross-cutting concerns (request ID, timeouts, CSP headers).",
+    tech: "<strong>Chi v5.</strong> <code>NewRouter(deps)</code> takes a <code>RouterDeps</code> struct (explicit contract) and wires: RequestID → RealIP → slog → Recoverer → 30s Timeout → CSP. Auth routes mount on the root; <code>/v1/*</code> mounts inside a workspace-resolver group so every <code>/v1</code> request has a verified workspace context.",
+    related: ["route-healthz", "route-auth-login", "mod-auth", "mod-workspace"]
+  },
+  "mod-auth": {
+    kind: "Module · internal/auth",
+    file: "apps/api/internal/auth/",
+    summary: "OIDC authentication. Logs users in through an external identity provider (Authentik today, Zitadel later) and stamps a signed cookie.",
+    tech: "<strong>Identity key = (issuer, sub)</strong>, not raw sub (ADR-009 §7.1) — turns the v0→v1 IdP migration into a mapping table, not a rewrite. Files: <code>handlers.go</code> (Login/Callback/Me/Logout), <code>oidc.go</code> (Provider), <code>store.go</code>, <code>session.go</code>, <code>cookie.go</code>, <code>state.go</code> (PKCE).",
+    related: ["route-auth-login", "route-auth-callback", "route-auth-me", "entity-users", "wf-login"]
+  },
+  "mod-workspace": {
+    kind: "Module · internal/workspace",
+    file: "apps/api/internal/workspace/",
+    summary: "Multi-tenant request scoping. Every /v1 request must resolve to a workspace before any handler runs — based on the subdomain.",
+    tech: "<strong>Resolver interface</strong> + <code>PoolResolver</code> implementation. <code>Middleware</code> extracts the subdomain, looks up the workspace, attaches it to the request context. <code>TestListHandler</code> is the Sprint-2 placeholder for <code>/v1/_test/workspaces</code>; real CRUD handlers replace it in Sprint 7.",
+    related: ["mw-workspace", "route-v1-test", "entity-workspaces"]
+  },
+  "mod-metadata": {
+    kind: "Module · internal/metadata",
+    file: "apps/api/internal/metadata/set.go",
+    summary: "Custom-property storage. Customers can add their own fields to objects (e.g. 'birthday' on a Contact) — this module stores them in JSONB and validates the types.",
+    tech: "<strong>ADR-010 metadata engine.</strong> <code>Store.Get/Set/Find</code> work against per-workspace <code>objects</code> table (JSONB-primary). <code>validate()</code> consults <code>custom_property_definitions</code> for each write — fail-closed: bad payload → 400, never silently dropped.",
+    related: ["entity-objects", "entity-custom-props"]
+  },
+  "mod-jobs": {
+    kind: "Module · internal/jobs",
+    file: "apps/api/internal/jobs/",
+    summary: "Background job runner. Things that can't block an HTTP response — email sends, syncs, scrapes — go through here.",
+    tech: "<strong>River</strong> queue, one schema per tenant (<code>river_&lt;uuid&gt;</code>). <code>RunWorkspaceJob[T]</code> is the generic entry point; <code>CredentialResolver</code> and <code>WorkspaceResolver</code> interfaces decouple from the production stores so tests can inject fakes. <code>ProbeWorkspaceConnectivity</code> is the health check.",
+    related: ["entity-river"]
+  },
+  "mod-config": {
+    kind: "Module · internal/config",
+    file: "apps/api/internal/config/config.go",
+    summary: "Loads configuration from environment variables. Single source of truth for what the API needs to start.",
+    tech: "<strong>12-factor.</strong> Loads at startup; fails fast on missing required fields. Holds: DatabaseURL, HTTPAddr, SessionSecret, CookieDomainTLD, CookieSecure, OIDC config block.",
+    related: []
+  },
+  "mod-db": {
+    kind: "Module · internal/db",
+    file: "apps/api/internal/db/db.go",
+    summary: "Database connection pool. Opens once at startup, closes on shutdown.",
+    tech: "<strong>pgx v5 pool.</strong> Single shared pool; per-workspace isolation is enforced at the SQL layer via schema search_path + role grants, not at the connection layer.",
+    related: ["entity-workspaces"]
+  },
+  "mod-sqlcgen": {
+    kind: "Module · internal/sqlcgen (generated)",
+    file: "apps/api/internal/sqlcgen/",
+    summary: "Type-safe SQL: the `.sql` files in packages/db/queries get compiled into Go functions. Never edit by hand.",
+    tech: "<strong>sqlc v1.31.1.</strong> Generates structs <code>CoreUser</code>, <code>CoreWorkspace</code>, <code>CoreWorkspaceMember</code>, <code>CoreAuditLog</code>, and the query functions <code>GetUserByIssuerSub</code>, <code>UpsertUserIdentity</code>, <code>GetWorkspaceBySlug</code>, <code>ListWorkspacesForTest</code>.",
+    related: ["pkg-db", "entity-users", "entity-workspaces"]
+  },
+  "mod-tenant": {
+    kind: "Module · internal/tenant (admin)",
+    file: "apps/admin/internal/tenant/",
+    summary: "The brains of the admin CLI. Create, list, get, and verify tenants. The verify command runs 12 invariants to catch broken provisioning early.",
+    tech: "<strong>Three create modes:</strong> <code>createFresh</code> (new), <code>createUpsert</code> (idempotent on re-run), <code>createForceRecreate</code> (drop + recreate). All converge on <code>callWrapper</code> which invokes the single SQL function. <code>verify.go</code> has 12 invariant checks (role exists, schemas exist, audit row binding, pipeline seed, RBAC status, etc.).",
+    related: ["wf-provision", "entity-workspaces", "entity-audit-log"]
+  },
+  "mod-safety": {
+    kind: "Module · internal/safety (admin)",
+    file: "apps/admin/internal/safety/guard.go",
+    summary: "Guardrails on the admin CLI. Prevents accidental destructive operations against production.",
+    tech: "Refuses to run dangerous commands without explicit flags + environment confirmation. Defense in depth: the DB role permissions are the real boundary; this is the human-error layer.",
+    related: ["mod-tenant"]
+  },
+  "mod-migrator": {
+    kind: "Module · internal/migrator (migrate)",
+    file: "apps/migrate/internal/migrator/",
+    summary: "Runs Atlas migrations against the database. Knows how to find the migrations directory and what version to apply.",
+    tech: "Atlas v0.37.0 (pinned — last free <code>migrate lint</code>). CI wraps this in a deep-fetch step to catch schema lint failures before merge.",
+    related: ["pkg-db"]
+  },
+  "mod-provision": {
+    kind: "Module · internal/provision (migrate)",
+    file: "apps/migrate/internal/provision/provision.go",
+    summary: "Bootstrap-time workspace creation. Lets the migrator create the very first workspace right after schema setup.",
+    tech: "Calls the same <code>core.lecrm_provision_workspace_with_registry</code> SQL function with empty admin_email/creator_email/template — bootstrap path skips the pipeline seed.",
+    related: ["wf-provision", "mod-tenant"]
+  },
+  "mod-tenantpair": {
+    kind: "Module · testfixtures/tenantpair",
+    file: "apps/api/internal/testfixtures/tenantpair/tenantpair.go",
+    summary: "Integration-test harness. Spins up a pair of tenants with their own subdomains so cross-tenant isolation can be tested for real, not mocked.",
+    tech: "Provisions two workspaces in a test database, builds a host-rewriting <code>tenantTransport</code>, and starts an httptest server with the full router. <strong>Important:</strong> never mocks the DB — past incident burned us when mocked tests passed but migrations broke in prod.",
+    related: ["mod-http", "mod-workspace"]
+  },
+
+  // ---------- Endpoints view ----------
+  "req-entry": {
+    kind: "Boundary · HTTP request",
+    summary: "Every browser, API client, or AI agent enters here. The router decides where the request goes.",
+    tech: "Chi router with reasonable defaults: 30s timeout, structured logging, panic recovery, CSP enforcement.",
+    related: ["mw-requestid", "mw-realip", "mw-slog", "mw-recoverer", "mw-timeout", "mw-csp"]
+  },
+  "mw-requestid": {
+    kind: "Middleware · RequestID",
+    summary: "Tags every request with a unique ID so you can trace it through logs.",
+    tech: "<code>chi/middleware.RequestID</code>. Surfaces as <code>req_id</code> in slog output.",
+    related: ["mw-slog"]
+  },
+  "mw-realip": {
+    kind: "Middleware · RealIP",
+    summary: "Reads the real client IP from proxy headers (X-Forwarded-For).",
+    tech: "<code>chi/middleware.RealIP</code>. Only trust this behind a known reverse proxy — we run behind Dokku/nginx in prod.",
+    related: []
+  },
+  "mw-slog": {
+    kind: "Middleware · structured logging",
+    summary: "Emits one JSON log line per request with method, path, status, bytes, latency.",
+    tech: "Custom <code>slogMiddleware</code> wraps the response writer to capture status + bytes. Output is single-line JSON for log aggregation.",
+    related: []
+  },
+  "mw-recoverer": {
+    kind: "Middleware · Recoverer",
+    summary: "Catches panics so one bad request can't crash the server.",
+    tech: "<code>chi/middleware.Recoverer</code>. Logs the panic; returns 500. We do not silently swallow — every recovery shows up in logs.",
+    related: []
+  },
+  "mw-timeout": {
+    kind: "Middleware · Timeout (30s)",
+    summary: "Kills any request that takes longer than 30 seconds.",
+    tech: "<code>chi/middleware.Timeout(30s)</code>. Prevents slow downstream calls from eating server resources.",
+    related: []
+  },
+  "mw-csp": {
+    kind: "Middleware · CSP headers",
+    summary: "Sets Content-Security-Policy headers to prevent XSS.",
+    file: "apps/api/internal/http/csp.go",
+    tech: "Strict CSP — no inline scripts, no eval. The web UI ships only signed bundles.",
+    related: []
+  },
+  "mw-workspace": {
+    kind: "Middleware · workspace resolver",
+    file: "apps/api/internal/workspace/middleware.go",
+    summary: "For /v1/* routes only: extracts the subdomain, looks up the workspace, attaches it to the request context. If the subdomain is unknown → 404 before any handler runs.",
+    tech: "<code>workspace.Middleware(logger, resolver, cookieDomainTLD)</code>. Returns 404 for unknown subdomains, 500 for resolver errors. Uses <code>WorkspaceFromContext(ctx)</code> downstream.",
+    related: ["mod-workspace", "entity-workspaces"]
+  },
+  "route-healthz": {
+    kind: "Route · GET /healthz",
+    summary: "Liveness probe. Returns 200 with {\"status\":\"ok\"}. Used by load balancers and uptime checks.",
+    tech: "No middleware bypass — runs through the full chain. Intentionally trivial: doesn't touch the DB so it can stay green during recoverable issues.",
+    related: []
+  },
+  "route-auth-login": {
+    kind: "Route · GET /auth/login",
+    summary: "Start of the login flow. Browser hits this when an unauthenticated user lands on a workspace subdomain. Redirects them to the identity provider.",
+    tech: "Extracts subdomain from Host, verifies workspace exists, generates PKCE verifier + state, signs them into a short-lived cookie, redirects to IdP authorize endpoint. <strong>Authentik rejects redirect_uri mismatches</strong> — the URI is computed per-request from the inbound subdomain.",
+    related: ["mod-auth", "wf-login", "route-auth-callback"]
+  },
+  "route-auth-callback": {
+    kind: "Route · GET /auth/callback",
+    summary: "Where the identity provider sends users after they log in. Exchanges the authorization code for tokens, creates or updates the user record, sets the session cookie.",
+    tech: "Verifies state from the short-lived cookie matches the query param (CSRF), exchanges code via PKCE, upserts <code>core.users</code> by (issuer, sub), sets the session cookie scoped to the workspace subdomain.",
+    related: ["mod-auth", "wf-login", "entity-users"]
+  },
+  "route-auth-me": {
+    kind: "Route · GET /auth/me",
+    summary: "Returns the current user's identity. The web app calls this on every page load to know who's signed in.",
+    tech: "Reads + verifies the session cookie. Returns 401 if missing or invalid. Returns user_id, email, display_name, workspace_id.",
+    related: ["mod-auth"]
+  },
+  "route-auth-logout": {
+    kind: "Route · POST /auth/logout",
+    summary: "Ends the session. Clears the cookie.",
+    tech: "POST (not GET) so it can't be triggered by an image tag. Does NOT call the IdP's end-session endpoint by default — front-channel logout is opt-in.",
+    related: ["mod-auth"]
+  },
+  "route-v1-test": {
+    kind: "Route · GET /v1/_test/workspaces",
+    summary: "Sprint-2 placeholder so multi-tenant routing can be tested end-to-end before any real CRUD ships. Will be replaced by the full /v1/* tree in Sprint 7.",
+    tech: "<strong>ADR-009 §1.1 Week-2 Go-ramp checkpoint.</strong> Mounted only when both <code>TestList</code> and <code>Resolver</code> are non-nil. Calls <code>ListWorkspacesForTest</code> via sqlcgen.",
+    related: ["mod-workspace", "mod-sqlcgen"]
+  },
+  "route-v1-future": {
+    kind: "Route · /v1/* (Sprint 7)",
+    summary: "The real CRUD API for contacts, deals, pipelines, custom objects. Not built yet.",
+    tech: "<strong>Planned.</strong> Will mount under the workspace-resolver group. Custom-property writes go through <code>metadata.Store.Set</code> (validated against <code>custom_property_definitions</code>). Standard fields go through generated sqlc handlers.",
+    related: ["mod-metadata", "mod-workspace", "entity-objects"]
+  },
+
+  // ---------- Entities view ----------
+  "entity-workspaces": {
+    kind: "Table · core.workspaces",
+    summary: "The root of every tenant. A workspace = a customer org. Has a slug (subdomain like 'acme'), a database role name, timestamps.",
+    tech: "<code>(id uuid PK, slug text unique, role_name text, created_at, updated_at)</code>. Extended in 0004 with admin_email, creator_email, provisioning_features_applied. <strong>Owned by lecrm_provisioner</strong>, never the app role.",
+    related: ["entity-users", "entity-workspace-members", "entity-audit-log", "wf-provision"]
+  },
+  "entity-users": {
+    kind: "Table · core.users",
+    summary: "Global user registry. A human exists once in the database even if they belong to many workspaces.",
+    tech: "<code>(id uuid PK, issuer text, subject text, email, display_name, …)</code> with unique on (issuer, subject). ADR-009 §7.1: identity = tuple, not raw sub. Email is a UX nicety (admin search), not an identity key.",
+    related: ["entity-workspace-members", "mod-auth"]
+  },
+  "entity-workspace-members": {
+    kind: "Table · core.workspace_members",
+    summary: "Membership: which user belongs to which workspace, and in what role.",
+    tech: "<code>(workspace_id uuid, user_id uuid, role text, invited_at, joined_at)</code>. A single human can belong to multiple workspaces under the same identity (matches Authentik's multi-tenant convention).",
+    related: ["entity-users", "entity-workspaces"]
+  },
+  "entity-audit-log": {
+    kind: "Table · core.audit_log",
+    summary: "Append-only security event log. Records workspace provisioning, ID mismatches, anything sensitive.",
+    tech: "ADR-007 §3. Events include <code>workspace.provisioned</code>, <code>security.workspace_id_mismatch</code>. Schema created in 0001 — emissions wired up incrementally per surface.",
+    related: ["entity-workspaces", "wf-provision"]
+  },
+  "entity-custom-props": {
+    kind: "Table · workspace_*.custom_property_definitions",
+    summary: "Per-workspace type schema. Says 'Contact has a birthday field of type date' so writes can be validated.",
+    tech: "<strong>ADR-010 §4.</strong> Lives inside the workspace schema (so each tenant defines its own custom properties). Static schema — sqlc handles it cleanly. Every custom-property write in <code>metadata.Store.Set</code> consults this table first.",
+    related: ["entity-objects", "mod-metadata"]
+  },
+  "entity-objects": {
+    kind: "Table · workspace_*.objects",
+    summary: "Generic JSONB store for everything custom. Customers' bespoke object types and custom properties on standard objects all land here.",
+    tech: "<strong>ADR-010 §3.</strong> JSONB-primary with two GIN indexes. <code>parent_id</code> is not a foreign key (custom objects don't have a fixed schema). Lives in the workspace's own schema — RLS-free by virtue of schema isolation.",
+    related: ["entity-custom-props", "mod-metadata"]
+  },
+  "entity-pipeline-stages": {
+    kind: "Table · workspace_*.pipeline_stages",
+    summary: "Sales pipeline stages (Lead → Qualified → Proposal → Won → Lost). Seeded with 5 defaults when a workspace is provisioned with a template.",
+    tech: "Seeded inside the same transaction as the workspace provisioning function. The 5-default seed is the template's choice; empty template = no seed (bootstrap path).",
+    related: ["wf-provision", "entity-workspaces"]
+  },
+  "entity-river": {
+    kind: "Schemas · river_<uuid>.*",
+    summary: "Per-tenant background job queue. Each workspace gets its own river schema so noisy neighbors don't slow down quiet ones.",
+    tech: "<strong>River</strong> Postgres-backed queue. Created in the same provisioning transaction as the workspace schema. Isolated at the schema layer — same as everything else.",
+    related: ["mod-jobs", "entity-workspaces"]
+  },
+  "entity-roles": {
+    kind: "DB Roles · lecrm_provisioner / lecrm-api / workspace_*",
+    summary: "Three-tier role model. The provisioner can create things (DDL). The app role can only read/write data. Each workspace has its own role that owns its schema.",
+    tech: "<strong>lecrm_provisioner</strong> is Tier-0 (annual rotation, ADR-007). Owns the SECURITY DEFINER provisioning function. <strong>lecrm-api</strong> has zero DDL. <strong>workspace_&lt;uuid&gt;</strong> is per-tenant; grants are explicit, not via PUBLIC.",
+    related: ["entity-workspaces", "wf-provision"]
+  },
+
+  // ---------- Workflows view ----------
+  "wf-login-start": { kind: "Step 1 · Browser hits subdomain", summary: "User opens acme.lecrm.fr in their browser. They're not logged in, so the web app redirects to /auth/login.", tech: "Subdomain → workspace mapping is enforced by DNS wildcards + nginx config. The 'acme' part becomes <code>workspace.slug</code>.", related: ["wf-login-login", "route-auth-login"] },
+  "wf-login-login": { kind: "Step 2 · GET /auth/login", summary: "API extracts the subdomain, confirms the workspace exists, generates a one-time code challenge, sets a short cookie, redirects to Authentik.", tech: "<code>SubdomainFromHost(r.Host, h.DomainTLD)</code> → <code>Store.WorkspaceBySlug</code> → PKCE state cookie → 302 to Authentik <code>/authorize</code>.", related: ["wf-login-idp", "route-auth-login", "mod-auth"] },
+  "wf-login-idp": { kind: "Step 3 · Authentik prompts user", summary: "User sees the identity provider's login screen, enters credentials (or uses SSO), approves the scopes.", tech: "Authentik issues UUID-format <code>sub</code>; future Zitadel issues numeric strings. ADR-009 §7.1: we persist both <code>issuer</code> and <code>sub</code> to make migration painless.", related: ["wf-login-callback"] },
+  "wf-login-callback": { kind: "Step 4 · GET /auth/callback", summary: "Authentik sends the user back with an authorization code. The API exchanges it for tokens, upserts the user, sets a session cookie.", tech: "Verifies state cookie matches query state (CSRF). Calls <code>CodeExchange</code>. <code>UpsertUserIdentity</code> in sqlcgen handles the (issuer, sub) tuple. Session cookie is scoped to the workspace subdomain only — no cross-workspace cookie leakage.", related: ["wf-login-me", "route-auth-callback", "entity-users"] },
+  "wf-login-me": { kind: "Step 5 · GET /auth/me", summary: "Web app calls /auth/me to learn who just logged in. The user is now authenticated for the lifetime of the cookie.", tech: "Cookie is verified on every request that needs an authenticated user. /v1/* handlers (Sprint 7) will require this.", related: ["route-auth-me"] },
+
+  "wf-prov-cli": { kind: "Step 1 · Operator runs CLI", summary: "An operator runs `lecrm-admin tenant create --slug acme --admin-email founder@acme.com`.", tech: "Slug is validated first (<code>ValidateSlug</code>): lowercase letters, digits, hyphens, no leading/trailing dash.", related: ["wf-prov-mode", "mod-tenant"] },
+  "wf-prov-mode": { kind: "Step 2 · Mode selection", summary: "CLI picks one of three modes: create-fresh (default), upsert (re-run safe), or force-recreate (drop existing first).", tech: "<code>createFresh</code> / <code>createUpsert</code> / <code>createForceRecreate</code> — all converge on <code>callWrapper</code> so the SQL contract is identical.", related: ["wf-prov-wrapper"] },
+  "wf-prov-wrapper": { kind: "Step 3 · Single SQL transaction", summary: "The CLI calls one SQL function: `core.lecrm_provision_workspace_with_registry`. Everything below happens in one transaction. Either it all works, or none of it does.", tech: "<strong>Story 8.1 AC-T1:</strong> partial provisioning is not an acceptable failure mode. The wrapper composes: (a) UPSERT core.workspaces (b) call provisioning function (c) INSERT audit_log (d) seed pipeline_stages.", related: ["entity-workspaces", "wf-prov-schemas", "wf-prov-audit"] },
+  "wf-prov-schemas": { kind: "Step 4 · Role + schemas + tables", summary: "Inside the wrapper: create a database role, create two schemas (workspace_<uuid> and river_<uuid>), create the metadata tables.", tech: "Idempotent: every DDL step is wrapped in EXCEPTION blocks catching <code>duplicate_object</code> (role) and <code>42P06</code> (schema). Re-running on the same UUID is safe — the function returns success on the known workspace_id.", related: ["entity-objects", "entity-custom-props", "entity-river", "entity-roles"] },
+  "wf-prov-audit": { kind: "Step 5 · Audit + pipeline seed", summary: "Audit log gets a 'workspace.provisioned' row. If a template was specified, the default pipeline stages (Lead → Qualified → Proposal → Won → Lost) get seeded.", tech: "Empty template = no pipeline seed (bootstrap path used by lecrm-migrate). Audit row is committed in the same transaction — no chance of an unaudited provision.", related: ["entity-audit-log", "entity-pipeline-stages"] },
+  "wf-prov-verify": { kind: "Step 6 · Verify (optional)", summary: "Operator runs `lecrm-admin tenant verify --slug acme`. CLI runs 12 invariants and prints PASS/FAIL for each.", tech: "Checks: role exists, schemas exist, role usage, cross-tenant isolation, registry row, UUID round-trip, audit row, audit binding, duplicate-loud, upsert-noop, provisioner-only, pipeline seed, RBAC status, migration cold-clean. Source: <code>tenant/verify.go</code>.", related: ["mod-tenant"] },
+
+  "wf-meta-req": { kind: "Step 1 · Authenticated /v1 request", summary: "User saves a contact with custom field 'favorite_coffee=espresso'. POST hits /v1/objects (Sprint 7).", tech: "Workspace middleware has already verified the subdomain + attached <code>workspace.Context</code> to the request context.", related: ["mw-workspace", "route-v1-future"] },
+  "wf-meta-validate": { kind: "Step 2 · Type validation", summary: "Before writing, the metadata store checks: does this workspace have 'favorite_coffee' defined as a custom property, and is 'espresso' a valid value for its type?", tech: "<code>metadata.Store.validate(ctx, parentType, data)</code> consults <code>custom_property_definitions</code>. Fail-closed: undefined property or type mismatch → 400, never silently dropped (ADR-010 §4).", related: ["mod-metadata", "entity-custom-props"] },
+  "wf-meta-write": { kind: "Step 3 · JSONB upsert", summary: "Data lands in workspace_<uuid>.objects as JSONB. Lives forever in this workspace's schema only — no cross-tenant leakage possible.", tech: "<code>Store.Set</code> uses INSERT ... ON CONFLICT to upsert the row. Two GIN indexes on the JSONB column make later <code>Find</code> queries efficient.", related: ["entity-objects"] },
+  "wf-meta-read": { kind: "Step 4 · Later: Get / Find", summary: "Reading is symmetrical: Get fetches by parent_id, Find queries by arbitrary JSONB criteria.", tech: "<code>Store.Get(ctx, parentType, parentID)</code> for direct fetch. <code>Store.Find(ctx, parentType, query)</code> for JSONB containment queries — uses the GIN indexes.", related: ["mod-metadata"] },
+
+  "wf-job-trigger": { kind: "Step 1 · Handler enqueues job", summary: "A handler decides something can wait (send a welcome email, sync to HubSpot). It enqueues a job into the tenant's River queue.", tech: "Enqueue lands in <code>river_&lt;uuid&gt;.river_job</code>. Isolation at the schema layer — no shared queue means no noisy-neighbor problem.", related: ["entity-river", "mod-jobs"] },
+  "wf-job-pick": { kind: "Step 2 · Worker picks the job", summary: "A worker process (could be the same binary, could be separate) picks up the job from the queue.", tech: "<code>RunWorkspaceJob[T]</code> is the generic entry point — T is the job payload type. Type parameter keeps the boilerplate down without sacrificing type safety.", related: ["mod-jobs"] },
+  "wf-job-resolve": { kind: "Step 3 · Resolve workspace + credentials", summary: "Before running, the job needs the workspace context and any credentials (e.g. external API keys for a HubSpot sync).", tech: "<code>WorkspaceResolver</code> + <code>CredentialResolver</code> interfaces. Decoupled from production stores so tests inject fakes — same fail-fast pattern as the workspace middleware.", related: ["mod-jobs"] },
+  "wf-job-run": { kind: "Step 4 · Execute + probe", summary: "Job runs. On startup, ProbeWorkspaceConnectivity verifies the workspace's DB connection works before anything destructive happens.", tech: "Probe is the canary. If the probe fails, the job aborts cleanly rather than half-writing.", related: ["mod-jobs"] }
+};
+
+// ============================================================================
+// GRAPH DATA per view
+// ============================================================================
+const COLORS = {
+  app: { background: "#4dabf7", border: "#1971c2" },
+  pkg: { background: "#69db7c", border: "#2f9e44" },
+  mod: { background: "#ff5ec4", border: "#c2255c" },
+  external: { background: "#ffd43b", border: "#e67700" },
+  route: { background: "#4dabf7", border: "#1971c2" },
+  mw: { background: "#b197fc", border: "#7048e8" },
+  handler: { background: "#ff5ec4", border: "#c2255c" },
+  entity_global: { background: "#69db7c", border: "#2f9e44" },
+  entity_tenant: { background: "#b197fc", border: "#7048e8" },
+  entity_role: { background: "#ffd43b", border: "#e67700" },
+  step: { background: "#ff922b", border: "#d9480f" },
+  planned: { background: "#6c757d", border: "#495057" }
+};
+
+const FONT = { color: "#fff", face: "Inter, -apple-system, system-ui, sans-serif", size: 13, strokeWidth: 0 };
+
+function N(id, label, type, opts = {}) {
+  return {
+    id, label,
+    shape: opts.shape || "box",
+    color: COLORS[type] || COLORS.mod,
+    font: FONT,
+    margin: 12,
+    borderWidth: 2,
+    shadow: { enabled: true, color: "rgba(0,0,0,0.3)", size: 6, x: 0, y: 2 },
+    ...opts
+  };
+}
+function E(from, to, opts = {}) {
+  return {
+    from, to,
+    color: { color: "#3a4366", highlight: "#00d9ff", hover: "#00d9ff" },
+    width: 1.5,
+    arrows: opts.dashes ? "" : { to: { enabled: true, scaleFactor: 0.5 } },
+    smooth: { type: "continuous", roundness: 0.2 },
+    ...opts
+  };
+}
+
+const DATA = {
+  architecture: {
+    nodes: [
+      // External
+      N("ext-postgres", "PostgreSQL", "external", { shape: "ellipse" }),
+      N("ext-authentik", "Authentik / Zitadel\n(OIDC)", "external", { shape: "ellipse" }),
+      N("ext-brevo", "Brevo\n(email)", "external", { shape: "ellipse" }),
+      // Binaries
+      N("app-api", "lecrm-api\n(HTTP server)", "app"),
+      N("app-admin", "lecrm-admin\n(CLI)", "app"),
+      N("app-migrate", "lecrm-migrate\n(migrator)", "app"),
+      N("app-mcp", "lecrm-mcp\n(MCP server)", "app"),
+      N("app-web", "web\n(Next.js)", "app"),
+      // Packages
+      N("pkg-db", "packages/db\n(migrations + queries)", "pkg"),
+      N("pkg-shared-types", "shared-types", "pkg"),
+      N("pkg-crm-adapter", "crm-adapter", "pkg"),
+      N("pkg-tools", "tools", "pkg"),
+      // API modules
+      N("mod-http", "internal/http\n(Chi router)", "mod"),
+      N("mod-auth", "internal/auth\n(OIDC)", "mod"),
+      N("mod-workspace", "internal/workspace\n(multi-tenant)", "mod"),
+      N("mod-metadata", "internal/metadata\n(ADR-010 store)", "mod"),
+      N("mod-jobs", "internal/jobs\n(River)", "mod"),
+      N("mod-config", "internal/config", "mod"),
+      N("mod-db", "internal/db\n(pgx pool)", "mod"),
+      N("mod-sqlcgen", "internal/sqlcgen\n(generated)", "mod"),
+      N("mod-tenantpair", "testfixtures/tenantpair", "mod"),
+      // Admin modules
+      N("mod-tenant", "tenant\n(create/list/verify)", "mod"),
+      N("mod-safety", "safety", "mod"),
+      // Migrate modules
+      N("mod-migrator", "migrator\n(Atlas)", "mod"),
+      N("mod-provision", "provision", "mod")
+    ],
+    edges: [
+      E("app-api", "mod-http"), E("app-api", "mod-auth"), E("app-api", "mod-workspace"),
+      E("app-api", "mod-config"), E("app-api", "mod-db"), E("app-api", "mod-metadata"),
+      E("app-api", "mod-jobs"),
+      E("mod-http", "mod-auth"), E("mod-http", "mod-workspace"),
+      E("mod-auth", "mod-sqlcgen"), E("mod-workspace", "mod-sqlcgen"),
+      E("mod-metadata", "mod-db"), E("mod-tenantpair", "mod-http"),
+      E("app-admin", "mod-tenant"), E("app-admin", "mod-safety"),
+      E("app-migrate", "mod-migrator"), E("app-migrate", "mod-provision"),
+      E("mod-tenant", "pkg-db", { dashes: true, label: "calls SQL fn" }),
+      E("mod-provision", "pkg-db", { dashes: true, label: "calls SQL fn" }),
+      E("mod-migrator", "pkg-db", { dashes: true }),
+      E("mod-sqlcgen", "pkg-db", { dashes: true, label: "generated from" }),
+      E("mod-db", "ext-postgres", { color: { color: "#e67700" } }),
+      E("mod-auth", "ext-authentik", { color: { color: "#e67700" } }),
+      E("mod-jobs", "ext-brevo", { color: { color: "#e67700" }, dashes: true }),
+      E("app-web", "app-api", { color: { color: "#1971c2" } }),
+      E("app-mcp", "app-api", { color: { color: "#1971c2" }, dashes: true }),
+      E("pkg-crm-adapter", "app-api", { dashes: true, color: { color: "#2f9e44" } })
+    ]
+  },
+
+  endpoints: {
+    nodes: [
+      N("req-entry", "▶ HTTP request", "route", { shape: "ellipse", size: 30 }),
+      N("mw-requestid", "RequestID", "mw"),
+      N("mw-realip", "RealIP", "mw"),
+      N("mw-slog", "slog (logging)", "mw"),
+      N("mw-recoverer", "Recoverer\n(panics)", "mw"),
+      N("mw-timeout", "Timeout 30s", "mw"),
+      N("mw-csp", "CSP headers", "mw"),
+      N("mw-workspace", "workspace\nmiddleware", "mw"),
+      N("route-healthz", "GET /healthz", "route"),
+      N("route-auth-login", "GET /auth/login", "route"),
+      N("route-auth-callback", "GET /auth/callback", "route"),
+      N("route-auth-me", "GET /auth/me", "route"),
+      N("route-auth-logout", "POST /auth/logout", "route"),
+      N("route-v1-test", "GET /v1/_test/workspaces", "route"),
+      N("route-v1-future", "/v1/* CRUD\n(Sprint 7)", "planned"),
+      N("mod-auth", "auth.Handler", "handler"),
+      N("mod-workspace", "workspace.TestListHandler", "handler"),
+      N("mod-metadata", "metadata.Store\n(future)", "planned")
+    ],
+    edges: [
+      E("req-entry", "mw-requestid"), E("mw-requestid", "mw-realip"),
+      E("mw-realip", "mw-slog"), E("mw-slog", "mw-recoverer"),
+      E("mw-recoverer", "mw-timeout"), E("mw-timeout", "mw-csp"),
+      E("mw-csp", "route-healthz"), E("mw-csp", "route-auth-login"),
+      E("mw-csp", "route-auth-callback"), E("mw-csp", "route-auth-me"),
+      E("mw-csp", "route-auth-logout"),
+      E("mw-csp", "mw-workspace", { label: "for /v1/*" }),
+      E("mw-workspace", "route-v1-test"), E("mw-workspace", "route-v1-future"),
+      E("route-auth-login", "mod-auth"), E("route-auth-callback", "mod-auth"),
+      E("route-auth-me", "mod-auth"), E("route-auth-logout", "mod-auth"),
+      E("route-v1-test", "mod-workspace"),
+      E("route-v1-future", "mod-metadata", { dashes: true })
+    ]
+  },
+
+  entities: {
+    nodes: [
+      // Global (core.*)
+      N("entity-workspaces", "core.workspaces\n(tenant root)", "entity_global"),
+      N("entity-users", "core.users\n(global identity)", "entity_global"),
+      N("entity-workspace-members", "core.workspace_members", "entity_global"),
+      N("entity-audit-log", "core.audit_log", "entity_global"),
+      // Per-workspace (workspace_*.*)
+      N("entity-custom-props", "workspace_*.\ncustom_property_definitions", "entity_tenant"),
+      N("entity-objects", "workspace_*.\nobjects (JSONB)", "entity_tenant"),
+      N("entity-pipeline-stages", "workspace_*.\npipeline_stages", "entity_tenant"),
+      N("entity-river", "river_*.\n(job queue)", "entity_tenant"),
+      // Roles
+      N("entity-roles", "DB Roles\n(provisioner / api / workspace_*)", "entity_role"),
+      // Function
+      N("entity-fn", "core.lecrm_provision_workspace\n_with_registry()", "entity_role", { shape: "diamond" })
+    ],
+    edges: [
+      E("entity-workspace-members", "entity-users", { label: "user_id", dashes: true }),
+      E("entity-workspace-members", "entity-workspaces", { label: "workspace_id", dashes: true }),
+      E("entity-audit-log", "entity-workspaces", { label: "workspace_id (nullable)", dashes: true }),
+      E("entity-audit-log", "entity-users", { label: "actor_user_id (nullable)", dashes: true }),
+      E("entity-custom-props", "entity-workspaces", { label: "lives inside", dashes: true }),
+      E("entity-objects", "entity-workspaces", { label: "lives inside", dashes: true }),
+      E("entity-objects", "entity-custom-props", { label: "validated against", dashes: true }),
+      E("entity-pipeline-stages", "entity-workspaces", { label: "lives inside", dashes: true }),
+      E("entity-river", "entity-workspaces", { label: "lives inside", dashes: true }),
+      E("entity-fn", "entity-workspaces", { label: "creates" }),
+      E("entity-fn", "entity-custom-props", { label: "creates" }),
+      E("entity-fn", "entity-objects", { label: "creates" }),
+      E("entity-fn", "entity-pipeline-stages", { label: "seeds" }),
+      E("entity-fn", "entity-river", { label: "creates" }),
+      E("entity-fn", "entity-audit-log", { label: "writes" }),
+      E("entity-roles", "entity-fn", { label: "owned by\nprovisioner", color: { color: "#e67700" } })
+    ]
+  },
+
+  workflows: {
+    nodes: [
+      // Login flow
+      N("wf-login-start", "1 · Browser\n→ acme.lecrm.fr", "step"),
+      N("wf-login-login", "2 · GET /auth/login", "step"),
+      N("wf-login-idp", "3 · Authentik\nprompts user", "step"),
+      N("wf-login-callback", "4 · GET /auth/callback\n(code → tokens → session)", "step"),
+      N("wf-login-me", "5 · GET /auth/me\n→ user is in", "step"),
+      // Provisioning
+      N("wf-prov-cli", "1 · Operator runs\nlecrm-admin tenant create", "step"),
+      N("wf-prov-mode", "2 · Mode: fresh /\nupsert / force-recreate", "step"),
+      N("wf-prov-wrapper", "3 · ONE SQL transaction", "step"),
+      N("wf-prov-schemas", "4 · Role + 2 schemas +\nmetadata tables", "step"),
+      N("wf-prov-audit", "5 · audit_log row +\npipeline seed", "step"),
+      N("wf-prov-verify", "6 · verify (12 invariants)", "step"),
+      // Custom object save
+      N("wf-meta-req", "1 · POST /v1/objects", "step"),
+      N("wf-meta-validate", "2 · validate vs\ncustom_property_definitions", "step"),
+      N("wf-meta-write", "3 · INSERT into\nworkspace_*.objects (JSONB)", "step"),
+      N("wf-meta-read", "4 · Get / Find later", "step"),
+      // Background job
+      N("wf-job-trigger", "1 · Handler enqueues\nto river_*", "step"),
+      N("wf-job-pick", "2 · Worker picks up\nRunWorkspaceJob[T]", "step"),
+      N("wf-job-resolve", "3 · Resolve workspace\n+ credentials", "step"),
+      N("wf-job-run", "4 · Probe + execute", "step"),
+      // Labels (invisible anchors for titles)
+      N("lbl-login", "★ User Login (OIDC)", "handler", { shape: "ellipse", borderWidth: 0, color: { background: "#1f2a4e", border: "#1f2a4e" } }),
+      N("lbl-prov", "★ Workspace Provisioning", "handler", { shape: "ellipse", borderWidth: 0, color: { background: "#1f2a4e", border: "#1f2a4e" } }),
+      N("lbl-meta", "★ Custom Object Save (Sprint 7)", "handler", { shape: "ellipse", borderWidth: 0, color: { background: "#1f2a4e", border: "#1f2a4e" } }),
+      N("lbl-job", "★ Background Job", "handler", { shape: "ellipse", borderWidth: 0, color: { background: "#1f2a4e", border: "#1f2a4e" } })
+    ],
+    edges: [
+      E("lbl-login", "wf-login-start", { color: { color: "#1f2a4e" } }),
+      E("wf-login-start", "wf-login-login"), E("wf-login-login", "wf-login-idp"),
+      E("wf-login-idp", "wf-login-callback"), E("wf-login-callback", "wf-login-me"),
+      E("lbl-prov", "wf-prov-cli", { color: { color: "#1f2a4e" } }),
+      E("wf-prov-cli", "wf-prov-mode"), E("wf-prov-mode", "wf-prov-wrapper"),
+      E("wf-prov-wrapper", "wf-prov-schemas"), E("wf-prov-schemas", "wf-prov-audit"),
+      E("wf-prov-audit", "wf-prov-verify", { dashes: true, label: "optional" }),
+      E("lbl-meta", "wf-meta-req", { color: { color: "#1f2a4e" } }),
+      E("wf-meta-req", "wf-meta-validate"), E("wf-meta-validate", "wf-meta-write"),
+      E("wf-meta-write", "wf-meta-read", { dashes: true }),
+      E("lbl-job", "wf-job-trigger", { color: { color: "#1f2a4e" } }),
+      E("wf-job-trigger", "wf-job-pick"), E("wf-job-pick", "wf-job-resolve"),
+      E("wf-job-resolve", "wf-job-run")
+    ]
+  }
+};
+
+// ============================================================================
+// LEGEND content per view
+// ============================================================================
+const LEGENDS = {
+  architecture: [
+    { color: COLORS.app.background, label: "Binary (deployable)" },
+    { color: COLORS.pkg.background, label: "Package (shared code)" },
+    { color: COLORS.mod.background, label: "Module (internal/*)" },
+    { color: COLORS.external.background, label: "External system" }
+  ],
+  endpoints: [
+    { color: COLORS.route.background, label: "Route (URL)" },
+    { color: COLORS.mw.background, label: "Middleware" },
+    { color: COLORS.handler.background, label: "Handler" },
+    { color: COLORS.planned.background, label: "Planned (Sprint 7+)" }
+  ],
+  entities: [
+    { color: COLORS.entity_global.background, label: "Global table (core.*)" },
+    { color: COLORS.entity_tenant.background, label: "Per-workspace table" },
+    { color: COLORS.entity_role.background, label: "DB roles / functions" }
+  ],
+  workflows: [
+    { color: COLORS.step.background, label: "Workflow step" }
+  ]
+};
+
+// ============================================================================
+// State + initialization
+// ============================================================================
+let currentView = "architecture";
+let currentLevel = "overview";
+let network = null;
+
+function renderLegend(view) {
+  const el = document.getElementById("legend");
+  el.innerHTML = (LEGENDS[view] || []).map(row =>
+    `<div class="legend-row"><div class="legend-dot" style="background:${row.color}"></div>${row.label}</div>`
+  ).join("");
+}
+
+function loadView(view) {
+  currentView = view;
+  const data = DATA[view];
+
+  const layout = view === "workflows"
+    ? { hierarchical: { enabled: true, direction: "LR", sortMethod: "directed", nodeSpacing: 120, levelSeparation: 180 } }
+    : { hierarchical: { enabled: false } };
+
+  const options = {
+    layout,
+    physics: view === "workflows"
+      ? { enabled: false }
+      : { enabled: true, solver: "forceAtlas2Based",
+          forceAtlas2Based: { gravitationalConstant: -50, centralGravity: 0.01, springLength: 120, springConstant: 0.08, damping: 0.5 },
+          stabilization: { iterations: 200 } },
+    interaction: { hover: true, zoomView: true, dragView: true, navigationButtons: false, keyboard: true },
+    nodes: { font: FONT, widthConstraint: { maximum: 200 } },
+    edges: { font: { color: "#8b949e", size: 10, face: "Inter", strokeWidth: 3, strokeColor: "#0b1020" } }
+  };
+
+  const container = document.getElementById("network");
+  network = new vis.Network(container, data, options);
+
+  network.on("click", (params) => {
+    if (params.nodes.length) {
+      showDetail(params.nodes[0]);
+    }
+  });
+
+  renderLegend(view);
+  document.getElementById("breadcrumb").innerHTML =
+    `<b>${{architecture:"Module architecture", endpoints:"HTTP endpoints &amp; flow", entities:"Domain entities", workflows:"Feature workflows"}[view]}</b> · click any node to drill in`;
+}
+
+function showDetail(id) {
+  const d = DETAILS[id];
+  const panel = document.getElementById("panel");
+  if (!d) {
+    panel.innerHTML = `<p class="empty">No detail available for <code>${id}</code>.</p>`;
+    return;
+  }
+  panel.className = currentLevel;
+  const planned = (id === "route-v1-future" || (id === "mod-metadata" && currentView === "endpoints")) ? '<span class="badge planned">Planned</span>' : '';
+  const fileBlock = d.file ? `<div class="file">${d.file}</div>` : "";
+  const techBlock = d.tech ? `<div class="technical">${d.tech}</div>` : "";
+  const relatedBlock = (d.related && d.related.length)
+    ? `<div class="related"><h3>Related</h3>${d.related.map(r => {
+        const t = DETAILS[r]; if (!t) return "";
+        return `<span class="chip" data-id="${r}">${t.kind.split("·")[1]?.trim() || r}</span>`;
+      }).join("")}</div>`
+    : "";
+
+  panel.innerHTML = `
+    <div class="kind">${d.kind}${planned}</div>
+    <h2>${(d.kind.split("·")[1] || d.kind).trim()}</h2>
+    ${fileBlock}
+    <div class="summary">${d.summary}</div>
+    ${techBlock}
+    ${relatedBlock}
+  `;
+  panel.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", (e) => {
+      const target = e.target.dataset.id;
+      if (network && DATA[currentView].nodes.some(n => n.id === target)) {
+        network.selectNodes([target]);
+        network.focus(target, { scale: 1.2, animation: { duration: 400 } });
+      }
+      showDetail(target);
+    });
+  });
+}
+
+// Wire tabs
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    loadView(tab.dataset.view);
+    document.getElementById("panel").innerHTML = '<p class="empty">Click any node in the graph to learn more.</p>';
+  });
+});
+// Wire audience
+document.querySelectorAll(".aud-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".aud-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    currentLevel = btn.dataset.level;
+    document.getElementById("panel").className = currentLevel;
+  });
+});
+
+// Boot
+loadView("architecture");
+</script>
+</body>
+</html>

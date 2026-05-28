@@ -1,0 +1,147 @@
+{
+  "version_seq": 1,
+  "template_name": "gbconsult-default",
+  "acquisition_channels": [
+    {
+      "key": "referral",
+      "label": "Referral / Word-of-mouth",
+      "attribution": {
+        "medium": "referral",
+        "source": "partner"
+      }
+    },
+    {
+      "key": "inbound-web",
+      "label": "Inbound Web (SEO / Content)",
+      "attribution": {
+        "medium": "organic",
+        "source": "website"
+      }
+    },
+    {
+      "key": "linkedin-outbound",
+      "label": "LinkedIn Outbound",
+      "attribution": {
+        "medium": "outbound",
+        "source": "linkedin"
+      }
+    },
+    {
+      "key": "event-networking",
+      "label": "Event / Networking",
+      "attribution": {
+        "medium": "in-person",
+        "source": "event"
+      }
+    },
+    {
+      "key": "paid-ads",
+      "label": "Paid Advertising",
+      "attribution": {
+        "medium": "paid",
+        "source": "ads"
+      }
+    }
+  ],
+  "pipeline_stages": [
+    {
+      "key": "discovery",
+      "label": "Discovery",
+      "order_index": 1,
+      "entry_conditions": [],
+      "exit_conditions": ["contact_info_complete", "budget_range_identified"],
+      "stage_properties": [
+        {"key": "contact_name", "type": "string", "required": true},
+        {"key": "company_name", "type": "string", "required": true},
+        {"key": "acquisition_channel", "type": "enum", "required": true, "allowed_values": ["referral", "inbound-web", "linkedin-outbound", "event-networking", "paid-ads"]},
+        {"key": "estimated_budget", "type": "number", "required": false},
+        {"key": "first_contact_date", "type": "date", "required": true}
+      ]
+    },
+    {
+      "key": "qualified",
+      "label": "Qualified",
+      "order_index": 2,
+      "entry_conditions": ["contact_info_complete", "budget_range_identified"],
+      "exit_conditions": ["decision_maker_identified", "timeline_confirmed", "needs_documented"],
+      "stage_properties": [
+        {"key": "decision_maker", "type": "string", "required": true},
+        {"key": "budget_confirmed", "type": "number", "required": true},
+        {"key": "expected_close_date", "type": "date", "required": true},
+        {"key": "pain_points", "type": "string", "required": true},
+        {"key": "competitor_involved", "type": "boolean", "required": false}
+      ]
+    },
+    {
+      "key": "proposal-sent",
+      "label": "Proposal Sent",
+      "order_index": 3,
+      "entry_conditions": ["decision_maker_identified", "needs_documented"],
+      "exit_conditions": ["proposal_reviewed", "feedback_received"],
+      "stage_properties": [
+        {"key": "proposal_amount", "type": "number", "required": true},
+        {"key": "proposal_sent_date", "type": "date", "required": true},
+        {"key": "proposal_document_url", "type": "string", "required": false},
+        {"key": "discount_percentage", "type": "number", "required": false}
+      ]
+    },
+    {
+      "key": "negotiation",
+      "label": "Negotiation",
+      "order_index": 4,
+      "entry_conditions": ["proposal_reviewed"],
+      "exit_conditions": ["terms_agreed", "contract_ready"],
+      "stage_properties": [
+        {"key": "negotiation_notes", "type": "string", "required": true},
+        {"key": "revised_amount", "type": "number", "required": false},
+        {"key": "objections", "type": "string", "required": false},
+        {"key": "next_meeting_date", "type": "date", "required": false}
+      ]
+    },
+    {
+      "key": "closed-won-lost",
+      "label": "Closed-Won/Lost",
+      "order_index": 5,
+      "entry_conditions": ["terms_agreed"],
+      "exit_conditions": [],
+      "stage_properties": [
+        {"key": "outcome", "type": "enum", "required": true, "allowed_values": ["won", "lost"]},
+        {"key": "final_amount", "type": "number", "required": true},
+        {"key": "close_date", "type": "date", "required": true},
+        {"key": "loss_reason", "type": "string", "required": false},
+        {"key": "won_notes", "type": "string", "required": false}
+      ]
+    }
+  ],
+  "automations": [
+    {
+      "key": "discovery-to-qualified-notify",
+      "trigger": {"type": "stage_transition", "from": "discovery", "to": "qualified"},
+      "actions": [
+        {"type": "notify", "channel": "email", "template": "deal_qualified"}
+      ]
+    },
+    {
+      "key": "proposal-sent-reminder",
+      "trigger": {"type": "stage_transition", "from": "qualified", "to": "proposal-sent"},
+      "actions": [
+        {"type": "notify", "channel": "email", "template": "proposal_followup_reminder"},
+        {"type": "set_field", "field": "proposal_sent_date", "value": "{{now}}"}
+      ]
+    },
+    {
+      "key": "closed-won-celebration",
+      "trigger": {"type": "stage_transition", "from": "negotiation", "to": "closed-won-lost"},
+      "actions": [
+        {"type": "notify", "channel": "email", "template": "deal_closed_notification"}
+      ]
+    }
+  ],
+  "color_coding": {
+    "discovery": "#3B82F6",
+    "qualified": "#10B981",
+    "proposal-sent": "#F59E0B",
+    "negotiation": "#8B5CF6",
+    "closed-won-lost": "#EF4444"
+  }
+}
