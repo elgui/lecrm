@@ -139,6 +139,8 @@ export interface CrmAdapter {
 
 **Prompt-injection mitigation.** All CRM data retrieved by the agent (contact notes, email bodies, deal descriptions) passes through a sanitization step before being concatenated into the LLM context. Strip `[INSTRUCTION]`-like tokens, escape "Ignore previous instructions" patterns, never use raw CRM text in the `system` prompt — only in `user`-role messages with explicit framing. (`docs/research/ai-agent-tenancy-patterns.md` §4.)
 
+> **This Tier-2 responsibility is load-bearing for write-capable MCP.** ADR-012 §8 adds intent *write* tools, raising the confused-deputy stakes (injected record content steering the model to mutate). The MCP adapter deliberately does **not** sanitize content — it treats every record field as opaque, untrusted data and relies on scope-containment + dry-run/confirmation + fail-closed audit to bound the blast radius. Content sanitization stays here, in the agent-runtime that assembles the model's context. The boundary is drawn explicitly in [`docs/mcp/trust-boundary.md`](../mcp/trust-boundary.md) (ADR-012 TO RESOLVE 6, tasket `20260529-1005`).
+
 ### 5. Cost control — LiteLLM per-team `max_budget` + local cost ledger reconciler
 
 **LiteLLM proxy** sits between agent-runtime and Anthropic. One LiteLLM team per leCRM workspace. `max_budget` per team in EUR (converted from USD at config time, refreshed monthly). LiteLLM enforces caps server-side and returns 429 when exceeded.

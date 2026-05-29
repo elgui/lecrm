@@ -152,8 +152,15 @@ The §6 guardrails — scopes cap blast radius, dry-run, confirmation, fail-clos
 
 ---
 
+## 8. Trust boundary — what these primitives do NOT cover
+
+These primitives bound **authority** (scope), gate **destructive intent** (dry-run/confirmation), and guarantee **observability** (fail-closed audit). They do **not** sanitize CRM content fed back to the model: the adapter treats every record field as opaque, untrusted data and never parses it as an instruction. **Content sanitization is the agent-runtime's job (ADR-005 §4, Tier-2), not the adapter's** — see the dedicated [`trust-boundary.md`](./trust-boundary.md), which makes this non-responsibility explicit and is backed by adversarial scope-containment tests (ADR-012 §8, TO RESOLVE 6).
+
+---
+
 ## References
 
+- [`trust-boundary.md`](./trust-boundary.md) — prompt-injection / confused-deputy posture; the adapter's non-responsibility for content sanitization
 - [ADR-012 §6 (write-safety), §7 (auth-/tool-plane separation), §8 (prompt-injection posture)](../adr/ADR-012-mcp-native-capability-layer.md)
 - [ADR-009 §4.1 — service-token scope model](../adr/ADR-009-stack-and-license.md) · `apps/api/internal/auth/service_token.go`
 - `apps/api/internal/rbac/role.go` — RBAC roles + `roleFromScopes` (the mirrored policy)

@@ -1,15 +1,17 @@
 ---
 id: 20260529-1005-mcp-write-injection-hardening
-title: "Prompt-injection / confused-deputy hardening for write-capable MCP"
-status: todo
+title: Prompt-injection / confused-deputy hardening for write-capable MCP
+status: done
 priority: p2
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, security, prompt-injection, confused-deputy, adr-005, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 6
 plan: true
-tags: [mcp, security, prompt-injection, confused-deputy, adr-005, adr-012, increment-1]
 ---
 
 # Prompt-injection / confused-deputy hardening for write-capable MCP
