@@ -141,4 +141,107 @@ is the primary entry point (production deploy).
   ADR-009 §8.3).
 - **Wildcard cert via DNS-01** — required because per-workspace
   subdomains can be created at any time without DNS propagation lag.
-  Cloudflare DNS API token is a Tier-1 secret.
+  The DNS-01 API credential is a Tier-1 secret. **Provider is
+  domain-dependent:** production `*.lecrm.fr` may use Cloudflare, but
+  **staging `*.lecrm.gbconsult.me` uses the OVH provider** — the
+  `gbconsult.me` zone is hosted on OVH (`dns104/ns104.ovh.net`), not
+  Cloudflare. See the Staging section below.
+
+## Staging (lecrm.gbconsult.me)
+
+> **Status (2026-05-29):** host + secrets + edge strategy laid (this
+> tasket). Full bring-up (DNS/TLS, api/caddy/pgbouncer, Léo access) is
+> tasket order:2+. **TEMPORARY stopgap** — migrates to a fresh Hetzner
+> CAX11 by **2026-06-12** (tasket order:5) for true infra isolation; the
+> council knowingly waived the isolation gate on OVH (see the tasket).
+
+### Host
+
+- **`51.77.146.49`** (hostname `vps-25b8e3b3`), OVH VPS. Chosen as the
+  **least-sensitive co-tenant box** per the council ruling. Co-tenants:
+  `tele-claude`, `vps-mngr`, `aaraume-*`, `agentsim-redis` — all bound to
+  `127.0.0.1` only.
+- **⚠️ Infra-inventory correction:** `~/.claude/CLAUDE.md` lists "Main
+  Dokku `54.37.157.49`" and "Static Sites `vps-4f99e005`" as separate
+  machines — they are the **same physical box** (`hostname -I` confirms),
+  co-hosting goali + chatboting (customer data) + voicekit + okolok. That
+  box was therefore the *worst* blast-radius choice; `51.77.146.49` is the
+  correct least-sensitive host.
+- Capacity: 23 GB RAM (~6 GB free under current load), Docker 28.5.1.
+  **Disk is tight — 87 % full, ~25 GB free** on `/`; watch image/volume
+  growth, prune before bringing up cube/lgtm.
+
+### Isolation (temporary OVH mitigations; real fix is the Hetzner migration)
+
+- Dedicated `lecrm` Docker **bridge** network (not shared with co-located
+  apps). No shared volumes or secrets with `tele-claude`/`vps-mngr`.
+- **All DB ports are `127.0.0.1`-only** (verified on the running
+  containers): `lecrm-postgres` → `127.0.0.1:54320`, `authentik-postgres`
+  internal-only. No `0.0.0.0` publish anywhere on the host.
+- **TODO (order:2):** host firewall allowing only 80/443 (+22 from the
+  operator IP). Note nginx already serves co-located apps on 80/443, so
+  the rule must keep those open.
+
+### Edge — Option B (Caddy behind host nginx)
+
+The host runs **systemd nginx** binding `0.0.0.0:80`/`:443` for the
+co-located apps, so Caddy cannot own 80/443 directly (Option A is
+unavailable). Plan: Caddy binds high ports; host nginx routes
+`*.lecrm.gbconsult.me` to it. **Recommended for order:2:** an nginx
+`stream {}` SNI passthrough (`*.lecrm.gbconsult.me` → Caddy's internal
+443) so Caddy still terminates TLS and owns the DNS-01 wildcard — avoids
+splitting TLS ownership.
+
+### TLS / DNS-01 — OVH provider (not Cloudflare)
+
+- `gbconsult.me` is on **OVH DNS** (`dns104.ovh.net`/`ns104.ovh.net`).
+  `lecrm.gbconsult.me` has no record yet.
+- Caddy must use **`caddy-dns/ovh`** — rebuild with
+  `xcaddy build --with github.com/caddy-dns/ovh` (the current
+  `caddy/Caddyfile` is hardcoded to Cloudflare + `*.lecrm.fr/.test`; it
+  needs a staging variant for `*.lecrm.gbconsult.me` +
+  `auth.lecrm.gbconsult.me`).
+- Secret vars (in `.env.staging`, currently **empty placeholders** —
+  fill before order:2): `OVH_ENDPOINT=ovh-eu`, `OVH_APPLICATION_KEY`,
+  `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`. Mint a token scoped to
+  `GET/PUT/POST/DELETE /domain/zone/gbconsult.me/*` at
+  <https://eu.api.ovh.com/createToken/>; **verify before use.**
+  `CLOUDFLARE_API_TOKEN` is **not** used for staging.
+
+### Secrets
+
+- **`deploy/.env.staging.enc`** — SOPS-encrypted, lives on the host
+  (gitignored; not committed — see below). Holds strong generated
+  Postgres/Authentik/session secrets; OIDC client secret and OVH DNS-01
+  creds are placeholders (filled in order:3 / order:2).
+- **Age key:** a **dedicated, DISPOSABLE staging key** in
+  `~/.config/sops/age/keys.txt` on this host — **not** the operator key
+  (which stays on Guillaume's workstation/YubiKey per ADR-007 §2). Lowest
+  blast radius for an internet-exposed stopgap; revoke/discard at the
+  Hetzner migration. The recipient is wired as the first creation rule in
+  `ops/secrets/.sops.yaml`.
+- **Decrypt at boot:**
+  ```
+  SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt \
+    sops --config ops/secrets/.sops.yaml -d deploy/.env.staging.enc \
+    > deploy/.env.staging      # mode 0600, gitignored
+  ```
+- **Not committed:** `.env.staging.enc` is gitignored (overriding the
+  global `!.env.*.enc` allow) because it is encrypted to a host-only
+  disposable key — no value baking it into permanent history.
+- **sops 3.13.1 gotcha:** path_regex matches the **absolute** path, so the
+  repo's `^secrets/…`/`^deploy/…` rules don't match under 3.13.1. The
+  staging rule uses a `(^|/)`-boundary anchor. Flagged for the
+  secrets-baseline tasket to fix the other rules.
+- Tooling: `age` v1.3.1 + `sops` 3.13.1 installed via `go install` to
+  `~/go/bin` (userspace, no sudo). `gui` added to the `docker` group.
+
+### ⚠️ Current running state — reconcile in order:2
+
+A **dev** bring-up is already running here (~2 weeks): `lecrm-postgres` +
+`lecrm-authentik-{server,worker,postgres}`, all healthy, booted with
+**`.env.dev`** secrets (hash-confirmed) and holding only dev-fixture data
+(1 workspace / 1 user). This is **not** a real staging instance and its
+secrets ≠ `.env.staging`. order:2 should **tear down the dev-fixture
+stack and re-up against `.env.staging` on fresh volumes** (the fixture
+data is disposable; nothing of value is lost).

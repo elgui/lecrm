@@ -34,6 +34,12 @@ apps/api/internal/spa/dist/*
 !.env.*.enc
 !.env.*.example
 
+# EXCEPTION: deploy/.env.staging.enc is encrypted to a DISPOSABLE staging
+# age key that lives ONLY on the OVH box 51.77.146.49 (not the operator
+# key). Keep it host-local — never bake a host-keyed secret into permanent
+# git history. It is regenerated on the Hetzner host at the order:5 migration.
+deploy/.env.staging.enc
+
 # WAL-G environment (deploy/postgres/walg.env) — holds OVH IAM creds.
 # The .example template is committed; the decrypted form is local-only.
 deploy/postgres/walg.env
