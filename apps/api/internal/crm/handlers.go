@@ -16,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gbconsult/lecrm/apps/api/capability"
 	"github.com/gbconsult/lecrm/apps/api/internal/domain"
 	"github.com/gbconsult/lecrm/apps/api/internal/jobs"
+	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/sqlcgen"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
@@ -31,6 +33,54 @@ type Handler struct {
 	Pool      *pgxpool.Pool
 	Logger    *slog.Logger
 	JobRunner jobs.JobRunner // optional — when nil, task reminders are skipped (v0 placeholder)
+
+	// svc is the capability layer; it is lazily initialized via getSvc.
+	svc *capability.Service
+}
+
+// getSvc returns the capability.Service for this handler, creating it lazily.
+// All CRM handlers that delegate to the capability layer call this instead of
+// accessing h.svc directly.
+func (h *Handler) getSvc() *capability.Service {
+	if h.svc == nil {
+		h.svc = capability.New(h.Pool, h.Logger)
+	}
+	return h.svc
+}
+
+// principalFrom builds a capability.Principal from the request context. It
+// reads the workspace (for WorkspaceID and Schema) and the RBAC principal
+// (for Role and ActorType). Called once per handler invocation.
+func principalFrom(r *http.Request) (capability.Principal, bool, *http.Request) {
+	ws, err := workspace.WorkspaceFromContext(r.Context())
+	if err != nil {
+		return capability.Principal{}, false, r
+	}
+
+	var role capability.Role
+	var actorType string
+	var isServiceToken bool
+	var scopes []string
+
+	if p, ok := rbac.PrincipalFromContext(r.Context()); ok {
+		// Map rbac.Role → capability.Role (same integer ordering).
+		role = capability.Role(p.Role)
+		actorType = p.ActorType
+		isServiceToken = p.IsServiceToken
+	}
+	// actorType defaults to human_api when not set by service token.
+	if actorType == "" {
+		actorType = capability.ActorTypeHumanAPI
+	}
+
+	return capability.Principal{
+		WorkspaceID:    ws.ID,
+		Schema:         ws.RoleName,
+		Role:           role,
+		ActorType:      actorType,
+		Scopes:         scopes,
+		IsServiceToken: isServiceToken,
+	}, true, r
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -62,39 +112,17 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/pipeline/stages", h.ListPipelineStages)
 }
 
-// --- transaction helpers ---
+// --- transaction helpers (kept for export.go and other local users) ---
 
 func readTx(ctx context.Context, pool *pgxpool.Pool, schema string, fn func(pgx.Tx) error) error {
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+pgx.Identifier{schema}.Sanitize()); err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return capability.ReadTx(ctx, pool, schema, fn)
 }
 
 func writeTx(ctx context.Context, pool *pgxpool.Pool, schema string, fn func(pgx.Tx) error) error {
-	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+pgx.Identifier{schema}.Sanitize()); err != nil {
-		return err
-	}
-	if err := fn(tx); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return capability.WriteTx(ctx, pool, schema, fn)
 }
 
-// --- response types ---
+// --- response types (kept for export.go and handlers_test.go) ---
 
 type contactResp struct {
 	ID        uuid.UUID `json:"id"`
@@ -140,7 +168,7 @@ type listResp struct {
 	HasMore    bool    `json:"has_more"`
 }
 
-// --- pgtype conversion helpers ---
+// --- pgtype conversion helpers (kept for export.go and handlers_test.go) ---
 
 func textPtr(t pgtype.Text) *string {
 	if !t.Valid {
@@ -221,7 +249,7 @@ func toDate(s *string) pgtype.Date {
 	return pgtype.Date{Time: t, Valid: true}
 }
 
-// --- cursor helpers ---
+// --- cursor helpers (kept for handlers_test.go) ---
 
 type cursor struct {
 	T  time.Time `json:"t"`
@@ -286,8 +314,65 @@ func (h *Handler) ws(w http.ResponseWriter, r *http.Request) (*workspace.Context
 	return ws, true
 }
 
-// ========= CONTACTS =========
+// capErr maps capability layer errors to HTTP responses. Returns true if the
+// error was handled (caller should return immediately), false if it was not a
+// recognized sentinel.
+func capErr(w http.ResponseWriter, err error, entityLabel string) bool {
+	switch {
+	case errors.Is(err, capability.ErrUnauthenticated):
+		writeErr(w, http.StatusUnauthorized, "authentication required")
+		return true
+	case errors.Is(err, capability.ErrForbidden):
+		writeErr(w, http.StatusForbidden, "insufficient role")
+		return true
+	case errors.Is(err, capability.ErrNotFound):
+		writeErr(w, http.StatusNotFound, entityLabel+" not found")
+		return true
+	case errors.Is(err, capability.ErrBadStage):
+		writeErr(w, http.StatusBadRequest, "stage not found")
+		return true
+	}
+	var ve *capability.ValidationError
+	if errors.As(err, &ve) {
+		writeErr(w, http.StatusBadRequest, ve.Msg)
+		return true
+	}
+	return false
+}
 
+// fromCapContactResult maps a capability.ContactResult to the local contactResp
+// used by export.go.
+func contactFromCapResult(c capability.ContactResult) contactResp {
+	return contactResp{
+		ID: c.ID, FirstName: c.FirstName, LastName: c.LastName,
+		Email: c.Email, Phone: c.Phone,
+		CompanyID: c.CompanyID, OwnerID: c.OwnerID,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+	}
+}
+
+func companyFromCapResult(c capability.CompanyResult) companyResp {
+	return companyResp{
+		ID: c.ID, Name: c.Name,
+		Domain: c.Domain, Industry: c.Industry, Size: c.Size,
+		OwnerID:   c.OwnerID,
+		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
+	}
+}
+
+func dealFromCapResult(d capability.DealResult) dealResp {
+	return dealResp{
+		ID: d.ID, Title: d.Title,
+		Amount: d.Amount, Currency: d.Currency,
+		StageID: d.StageID, ContactID: d.ContactID,
+		CompanyID: d.CompanyID, OwnerID: d.OwnerID,
+		ExpectedCloseDate: d.ExpectedCloseDate,
+		ClosedAt:          d.ClosedAt,
+		CreatedAt:         d.CreatedAt, UpdatedAt: d.UpdatedAt,
+	}
+}
+
+// contactFromRow is kept for export.go which iterates sqlcgen rows directly.
 func contactFromRow(c sqlcgen.Contact) contactResp {
 	return contactResp{
 		ID: c.ID, FirstName: c.FirstName, LastName: c.LastName,
@@ -297,70 +382,86 @@ func contactFromRow(c sqlcgen.Contact) contactResp {
 	}
 }
 
+func companyFromRow(c sqlcgen.Company) companyResp {
+	return companyResp{
+		ID: c.ID, Name: c.Name,
+		Domain: textPtr(c.Domain), Industry: textPtr(c.Industry), Size: textPtr(c.Size),
+		OwnerID:   uuidPtr(c.OwnerID),
+		CreatedAt: c.CreatedAt.Time, UpdatedAt: c.UpdatedAt.Time,
+	}
+}
+
+func dealFromRow(d sqlcgen.Deal) dealResp {
+	return dealResp{
+		ID: d.ID, Title: d.Title,
+		Amount: numPtr(d.Amount), Currency: textPtr(d.Currency),
+		StageID: uuidPtr(d.StageID), ContactID: uuidPtr(d.ContactID),
+		CompanyID: uuidPtr(d.CompanyID), OwnerID: uuidPtr(d.OwnerID),
+		ExpectedCloseDate: datePtr(d.ExpectedCloseDate),
+		ClosedAt:          tsPtr(d.ClosedAt),
+		CreatedAt:         d.CreatedAt.Time, UpdatedAt: d.UpdatedAt.Time,
+	}
+}
+
+var errNotFound = errors.New("not found")
+
+// deleteRow is kept for anc_handlers.go tasks/notes which still do direct DB
+// work (out of scope for this increment).
+func deleteRow(ctx context.Context, tx pgx.Tx, table string, id uuid.UUID) error {
+	tag, err := tx.Exec(ctx, "DELETE FROM "+table+" WHERE id = $1", id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errNotFound
+	}
+	return nil
+}
+
+// ========= CONTACTS =========
+
 func (h *Handler) ListContacts(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
-	cursorTS, cursorID, _ := decodeCursor(r.URL.Query().Get("cursor"))
-	limit := defaultPageLimit
-
-	var rows []sqlcgen.Contact
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		rows, e = sqlcgen.New(tx).ListContacts(r.Context(), sqlcgen.ListContactsParams{
-			CursorCreatedAt: cursorTS, CursorID: cursorID, PageLimit: limit + 1,
-		})
-		return e
-	})
+	result, err := h.getSvc().ListContacts(r.Context(), p, r.URL.Query().Get("cursor"))
 	if err != nil {
+		if capErr(w, err, "contacts") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "list contacts", "err", err)
 		writeErr(w, http.StatusInternalServerError, "list contacts failed")
 		return
 	}
-
-	hasMore := int32(len(rows)) > limit
-	if hasMore {
-		rows = rows[:limit]
-	}
-	out := make([]contactResp, len(rows))
-	for i, c := range rows {
-		out[i] = contactFromRow(c)
-	}
-	var next *string
-	if hasMore {
-		last := rows[len(rows)-1]
-		s := encodeCursor(last.CreatedAt.Time, last.ID)
-		next = &s
-	}
-	writeJSON(w, http.StatusOK, listResp{Data: out, NextCursor: next, HasMore: hasMore})
+	writeJSON(w, http.StatusOK, listResp{
+		Data:       result.Data,
+		NextCursor: result.NextCursor,
+		HasMore:    result.HasMore,
+	})
 }
 
 func (h *Handler) GetContact(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	var row sqlcgen.Contact
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).GetContact(r.Context(), id)
-		return e
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "contact not found")
-		return
-	}
+	result, err := h.getSvc().GetContact(r.Context(), p, id)
 	if err != nil {
+		if capErr(w, err, "contact") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "get contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "get contact failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, contactFromRow(row))
+	writeJSON(w, http.StatusOK, result)
 }
 
 type createContactReq struct {
@@ -372,14 +473,16 @@ type createContactReq struct {
 }
 
 func (h *Handler) CreateContact(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	var body createContactReq
 	if !decodeBody(w, r, &body) {
 		return
 	}
+	// Validate early (pre-capability) so we get a fast 400 before checking idempotency.
 	email := ""
 	if body.Email != nil {
 		email = *body.Email
@@ -392,53 +495,26 @@ func (h *Handler) CreateContact(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if idemKey != "" {
-		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
-			writeReplay(w, st, cached)
-			return
-		} else if !ok {
-			return
-		}
-	}
-
-	var (
-		respBody   []byte
-		respStatus = http.StatusCreated
-	)
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		row, e := sqlcgen.New(tx).CreateContact(r.Context(), sqlcgen.CreateContactParams{
-			FirstName: body.FirstName, LastName: body.LastName,
-			Email: toText(body.Email), Phone: toText(body.Phone),
-			CompanyID: toNullUUID(body.CompanyID),
-		})
-		if e != nil {
-			return e
-		}
-		respBody, e = json.Marshal(contactFromRow(row))
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "contact.created", ws.ID, map[string]any{
-			"id": row.ID.String(), "email": textPtr(row.Email),
-		}); e != nil {
-			return e
-		}
-		if e := emitRESTActivity(r.Context(), tx, entityTypeContact, row.ID, "entity.created", map[string]any{
-			"first_name": row.FirstName, "last_name": row.LastName, "email": textPtr(row.Email),
-		}); e != nil {
-			return e
-		}
-		if idemKey != "" {
-			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
-		}
-		return nil
-	})
+	result, err := h.getSvc().CreateContact(r.Context(), p, capability.CreateContactInput{
+		FirstName: body.FirstName,
+		LastName:  body.LastName,
+		Email:     body.Email,
+		Phone:     body.Phone,
+		CompanyID: body.CompanyID,
+	}, idemKey)
 	if err != nil {
+		if capErr(w, err, "contact") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "create contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create contact failed")
 		return
 	}
-	writeRaw(w, respStatus, respBody)
+	if result.Replayed {
+		writeReplay(w, result.Status, result.Body)
+		return
+	}
+	writeRaw(w, result.Status, result.Body)
 }
 
 type updateContactReq struct {
@@ -450,8 +526,9 @@ type updateContactReq struct {
 }
 
 func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
@@ -462,57 +539,22 @@ func (h *Handler) UpdateContact(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
-	email := ""
-	if body.Email != nil {
-		email = *body.Email
-	}
-	if err := (domain.UpdateContactInput{FirstName: body.FirstName, LastName: body.LastName, Email: email}).Validate(); err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	var row sqlcgen.Contact
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).UpdateContact(r.Context(), sqlcgen.UpdateContactParams{
-			ID: id, FirstName: body.FirstName, LastName: body.LastName,
-			Email: toText(body.Email), Phone: toText(body.Phone),
-			CompanyID: toNullUUID(body.CompanyID),
-		})
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "contact.updated", ws.ID, map[string]any{
-			"id": row.ID.String(), "email": textPtr(row.Email),
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeContact, row.ID, "entity.updated", map[string]any{
-			"first_name": row.FirstName, "last_name": row.LastName, "email": textPtr(row.Email),
-		})
+	result, err := h.getSvc().UpdateContact(r.Context(), p, id, capability.UpdateContactInput{
+		FirstName: body.FirstName,
+		LastName:  body.LastName,
+		Email:     body.Email,
+		Phone:     body.Phone,
+		CompanyID: body.CompanyID,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "contact not found")
-		return
-	}
 	if err != nil {
+		if capErr(w, err, "contact") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "update contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "update contact failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, contactFromRow(row))
-}
-
-var errNotFound = errors.New("not found")
-
-func deleteRow(ctx context.Context, tx pgx.Tx, table string, id uuid.UUID) error {
-	tag, err := tx.Exec(ctx, "DELETE FROM "+table+" WHERE id = $1", id)
-	if err != nil {
-		return err
-	}
-	if tag.RowsAffected() == 0 {
-		return errNotFound
-	}
-	return nil
+	writeJSON(w, http.StatusOK, result)
 }
 
 // DeleteContact does a HARD delete. Soft-delete (deleted_at filter) was
@@ -521,32 +563,19 @@ func deleteRow(ctx context.Context, tx pgx.Tx, table string, id uuid.UUID) error
 // recover path. The audit_log row is the durable trail. If a recover
 // requirement appears, add `deleted_at` columns + a filtered read view.
 func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		if e := deleteRow(r.Context(), tx, "contacts", id); e != nil {
-			return e
+	if err := h.getSvc().DeleteContact(r.Context(), p, id); err != nil {
+		if capErr(w, err, "contact") {
+			return
 		}
-		if e := emitAudit(r.Context(), tx, "contact.deleted", ws.ID, map[string]any{
-			"id": id.String(),
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeContact, id, "entity.deleted", map[string]any{
-			"id": id.String(),
-		})
-	})
-	if errors.Is(err, errNotFound) {
-		writeErr(w, http.StatusNotFound, "contact not found")
-		return
-	}
-	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete contact", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete contact failed")
 		return
@@ -556,79 +585,48 @@ func (h *Handler) DeleteContact(w http.ResponseWriter, r *http.Request) {
 
 // ========= COMPANIES =========
 
-func companyFromRow(c sqlcgen.Company) companyResp {
-	return companyResp{
-		ID: c.ID, Name: c.Name,
-		Domain: textPtr(c.Domain), Industry: textPtr(c.Industry), Size: textPtr(c.Size),
-		OwnerID:   uuidPtr(c.OwnerID),
-		CreatedAt: c.CreatedAt.Time, UpdatedAt: c.UpdatedAt.Time,
-	}
-}
-
 func (h *Handler) ListCompanies(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
-	cursorTS, cursorID, _ := decodeCursor(r.URL.Query().Get("cursor"))
-	limit := defaultPageLimit
-
-	var rows []sqlcgen.Company
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		rows, e = sqlcgen.New(tx).ListCompanies(r.Context(), sqlcgen.ListCompaniesParams{
-			CursorCreatedAt: cursorTS, CursorID: cursorID, PageLimit: limit + 1,
-		})
-		return e
-	})
+	result, err := h.getSvc().ListCompanies(r.Context(), p, r.URL.Query().Get("cursor"))
 	if err != nil {
+		if capErr(w, err, "companies") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "list companies", "err", err)
 		writeErr(w, http.StatusInternalServerError, "list companies failed")
 		return
 	}
-
-	hasMore := int32(len(rows)) > limit
-	if hasMore {
-		rows = rows[:limit]
-	}
-	out := make([]companyResp, len(rows))
-	for i, c := range rows {
-		out[i] = companyFromRow(c)
-	}
-	var next *string
-	if hasMore {
-		last := rows[len(rows)-1]
-		s := encodeCursor(last.CreatedAt.Time, last.ID)
-		next = &s
-	}
-	writeJSON(w, http.StatusOK, listResp{Data: out, NextCursor: next, HasMore: hasMore})
+	writeJSON(w, http.StatusOK, listResp{
+		Data:       result.Data,
+		NextCursor: result.NextCursor,
+		HasMore:    result.HasMore,
+	})
 }
 
 func (h *Handler) GetCompany(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	var row sqlcgen.Company
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).GetCompany(r.Context(), id)
-		return e
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "company not found")
-		return
-	}
+	result, err := h.getSvc().GetCompany(r.Context(), p, id)
 	if err != nil {
+		if capErr(w, err, "company") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "get company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "get company failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, companyFromRow(row))
+	writeJSON(w, http.StatusOK, result)
 }
 
 type createCompanyReq struct {
@@ -639,8 +637,9 @@ type createCompanyReq struct {
 }
 
 func (h *Handler) CreateCompany(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	var body createCompanyReq
@@ -659,52 +658,25 @@ func (h *Handler) CreateCompany(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if idemKey != "" {
-		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
-			writeReplay(w, st, cached)
-			return
-		} else if !ok {
-			return
-		}
-	}
-
-	var (
-		respBody   []byte
-		respStatus = http.StatusCreated
-	)
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		row, e := sqlcgen.New(tx).CreateCompany(r.Context(), sqlcgen.CreateCompanyParams{
-			Name: body.Name, Domain: toText(body.Domain),
-			Industry: toText(body.Industry), Size: toText(body.Size),
-		})
-		if e != nil {
-			return e
-		}
-		respBody, e = json.Marshal(companyFromRow(row))
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "company.created", ws.ID, map[string]any{
-			"id": row.ID.String(), "name": row.Name,
-		}); e != nil {
-			return e
-		}
-		if e := emitRESTActivity(r.Context(), tx, entityTypeCompany, row.ID, "entity.created", map[string]any{
-			"name": row.Name, "domain": textPtr(row.Domain),
-		}); e != nil {
-			return e
-		}
-		if idemKey != "" {
-			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
-		}
-		return nil
-	})
+	result, err := h.getSvc().CreateCompany(r.Context(), p, capability.CreateCompanyInput{
+		Name:     body.Name,
+		Domain:   body.Domain,
+		Industry: body.Industry,
+		Size:     body.Size,
+	}, idemKey)
 	if err != nil {
+		if capErr(w, err, "company") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "create company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create company failed")
 		return
 	}
-	writeRaw(w, respStatus, respBody)
+	if result.Replayed {
+		writeReplay(w, result.Status, result.Body)
+		return
+	}
+	writeRaw(w, result.Status, result.Body)
 }
 
 type updateCompanyReq struct {
@@ -715,8 +687,9 @@ type updateCompanyReq struct {
 }
 
 func (h *Handler) UpdateCompany(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
@@ -727,64 +700,37 @@ func (h *Handler) UpdateCompany(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
-	var row sqlcgen.Company
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).UpdateCompany(r.Context(), sqlcgen.UpdateCompanyParams{
-			ID: id, Name: body.Name,
-			Domain: toText(body.Domain), Industry: toText(body.Industry), Size: toText(body.Size),
-		})
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "company.updated", ws.ID, map[string]any{
-			"id": row.ID.String(), "name": row.Name,
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeCompany, row.ID, "entity.updated", map[string]any{
-			"name": row.Name, "domain": textPtr(row.Domain),
-		})
+	result, err := h.getSvc().UpdateCompany(r.Context(), p, id, capability.UpdateCompanyInput{
+		Name:     body.Name,
+		Domain:   body.Domain,
+		Industry: body.Industry,
+		Size:     body.Size,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "company not found")
-		return
-	}
 	if err != nil {
+		if capErr(w, err, "company") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "update company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "update company failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, companyFromRow(row))
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) DeleteCompany(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		if e := deleteRow(r.Context(), tx, "companies", id); e != nil {
-			return e
+	if err := h.getSvc().DeleteCompany(r.Context(), p, id); err != nil {
+		if capErr(w, err, "company") {
+			return
 		}
-		if e := emitAudit(r.Context(), tx, "company.deleted", ws.ID, map[string]any{
-			"id": id.String(),
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeCompany, id, "entity.deleted", map[string]any{
-			"id": id.String(),
-		})
-	})
-	if errors.Is(err, errNotFound) {
-		writeErr(w, http.StatusNotFound, "company not found")
-		return
-	}
-	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete company", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete company failed")
 		return
@@ -794,82 +740,48 @@ func (h *Handler) DeleteCompany(w http.ResponseWriter, r *http.Request) {
 
 // ========= DEALS =========
 
-func dealFromRow(d sqlcgen.Deal) dealResp {
-	return dealResp{
-		ID: d.ID, Title: d.Title,
-		Amount: numPtr(d.Amount), Currency: textPtr(d.Currency),
-		StageID: uuidPtr(d.StageID), ContactID: uuidPtr(d.ContactID),
-		CompanyID: uuidPtr(d.CompanyID), OwnerID: uuidPtr(d.OwnerID),
-		ExpectedCloseDate: datePtr(d.ExpectedCloseDate),
-		ClosedAt:          tsPtr(d.ClosedAt),
-		CreatedAt:         d.CreatedAt.Time, UpdatedAt: d.UpdatedAt.Time,
-	}
-}
-
 func (h *Handler) ListDeals(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
-	cursorTS, cursorID, _ := decodeCursor(r.URL.Query().Get("cursor"))
-	limit := defaultPageLimit
-
-	var rows []sqlcgen.Deal
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		rows, e = sqlcgen.New(tx).ListDeals(r.Context(), sqlcgen.ListDealsParams{
-			CursorCreatedAt: cursorTS, CursorID: cursorID, PageLimit: limit + 1,
-		})
-		return e
-	})
+	result, err := h.getSvc().ListDeals(r.Context(), p, r.URL.Query().Get("cursor"))
 	if err != nil {
+		if capErr(w, err, "deals") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "list deals", "err", err)
 		writeErr(w, http.StatusInternalServerError, "list deals failed")
 		return
 	}
-
-	hasMore := int32(len(rows)) > limit
-	if hasMore {
-		rows = rows[:limit]
-	}
-	out := make([]dealResp, len(rows))
-	for i, d := range rows {
-		out[i] = dealFromRow(d)
-	}
-	var next *string
-	if hasMore {
-		last := rows[len(rows)-1]
-		s := encodeCursor(last.CreatedAt.Time, last.ID)
-		next = &s
-	}
-	writeJSON(w, http.StatusOK, listResp{Data: out, NextCursor: next, HasMore: hasMore})
+	writeJSON(w, http.StatusOK, listResp{
+		Data:       result.Data,
+		NextCursor: result.NextCursor,
+		HasMore:    result.HasMore,
+	})
 }
 
 func (h *Handler) GetDeal(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	var row sqlcgen.Deal
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).GetDeal(r.Context(), id)
-		return e
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "deal not found")
-		return
-	}
+	result, err := h.getSvc().GetDeal(r.Context(), p, id)
 	if err != nil {
+		if capErr(w, err, "deal") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "get deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "get deal failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, dealFromRow(row))
+	writeJSON(w, http.StatusOK, result)
 }
 
 type createDealReq struct {
@@ -883,8 +795,9 @@ type createDealReq struct {
 }
 
 func (h *Handler) CreateDeal(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	var body createDealReq
@@ -903,54 +816,28 @@ func (h *Handler) CreateDeal(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if idemKey != "" {
-		if st, cached, hit, ok := h.replayIdempotent(w, r, ws.ID, idemKey); ok && hit {
-			writeReplay(w, st, cached)
-			return
-		} else if !ok {
-			return
-		}
-	}
-
-	var (
-		respBody   []byte
-		respStatus = http.StatusCreated
-	)
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		row, e := sqlcgen.New(tx).CreateDeal(r.Context(), sqlcgen.CreateDealParams{
-			Title: body.Title, Amount: toNumeric(body.Amount),
-			Currency: toText(body.Currency), StageID: toNullUUID(body.StageID),
-			ContactID: toNullUUID(body.ContactID), CompanyID: toNullUUID(body.CompanyID),
-			ExpectedCloseDate: toDate(body.ExpectedCloseDate),
-		})
-		if e != nil {
-			return e
-		}
-		respBody, e = json.Marshal(dealFromRow(row))
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "deal.created", ws.ID, map[string]any{
-			"id": row.ID.String(), "title": row.Title, "stage_id": uuidPtr(row.StageID),
-		}); e != nil {
-			return e
-		}
-		if e := emitRESTActivity(r.Context(), tx, entityTypeDeal, row.ID, "entity.created", map[string]any{
-			"title": row.Title, "stage_id": uuidPtr(row.StageID), "amount": numPtr(row.Amount),
-		}); e != nil {
-			return e
-		}
-		if idemKey != "" {
-			return idempotencyStore(r.Context(), tx, ws.ID, idemKey, r.Method, r.URL.Path, respStatus, respBody)
-		}
-		return nil
-	})
+	result, err := h.getSvc().CreateDeal(r.Context(), p, capability.CreateDealInput{
+		Title:             body.Title,
+		Amount:            body.Amount,
+		Currency:          body.Currency,
+		StageID:           body.StageID,
+		ContactID:         body.ContactID,
+		CompanyID:         body.CompanyID,
+		ExpectedCloseDate: body.ExpectedCloseDate,
+	}, idemKey)
 	if err != nil {
+		if capErr(w, err, "deal") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "create deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "create deal failed")
 		return
 	}
-	writeRaw(w, respStatus, respBody)
+	if result.Replayed {
+		writeReplay(w, result.Status, result.Body)
+		return
+	}
+	writeRaw(w, result.Status, result.Body)
 }
 
 type updateDealReq struct {
@@ -964,8 +851,9 @@ type updateDealReq struct {
 }
 
 func (h *Handler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
@@ -976,66 +864,40 @@ func (h *Handler) UpdateDeal(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &body) {
 		return
 	}
-	var row sqlcgen.Deal
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		row, e = sqlcgen.New(tx).UpdateDeal(r.Context(), sqlcgen.UpdateDealParams{
-			ID: id, Title: body.Title, Amount: toNumeric(body.Amount),
-			Currency: toText(body.Currency), StageID: toNullUUID(body.StageID),
-			ContactID: toNullUUID(body.ContactID), CompanyID: toNullUUID(body.CompanyID),
-			ExpectedCloseDate: toDate(body.ExpectedCloseDate),
-		})
-		if e != nil {
-			return e
-		}
-		if e := emitAudit(r.Context(), tx, "deal.updated", ws.ID, map[string]any{
-			"id": row.ID.String(), "title": row.Title, "stage_id": uuidPtr(row.StageID),
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeDeal, row.ID, "entity.updated", map[string]any{
-			"title": row.Title, "stage_id": uuidPtr(row.StageID), "amount": numPtr(row.Amount),
-		})
+	result, err := h.getSvc().UpdateDeal(r.Context(), p, id, capability.UpdateDealInput{
+		Title:             body.Title,
+		Amount:            body.Amount,
+		Currency:          body.Currency,
+		StageID:           body.StageID,
+		ContactID:         body.ContactID,
+		CompanyID:         body.CompanyID,
+		ExpectedCloseDate: body.ExpectedCloseDate,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeErr(w, http.StatusNotFound, "deal not found")
-		return
-	}
 	if err != nil {
+		if capErr(w, err, "deal") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "update deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "update deal failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, dealFromRow(row))
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) DeleteDeal(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
 	}
-	err := writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		if e := deleteRow(r.Context(), tx, "deals", id); e != nil {
-			return e
+	if err := h.getSvc().DeleteDeal(r.Context(), p, id); err != nil {
+		if capErr(w, err, "deal") {
+			return
 		}
-		if e := emitAudit(r.Context(), tx, "deal.deleted", ws.ID, map[string]any{
-			"id": id.String(),
-		}); e != nil {
-			return e
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeDeal, id, "entity.deleted", map[string]any{
-			"id": id.String(),
-		})
-	})
-	if errors.Is(err, errNotFound) {
-		writeErr(w, http.StatusNotFound, "deal not found")
-		return
-	}
-	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "delete deal", "err", err)
 		writeErr(w, http.StatusInternalServerError, "delete deal failed")
 		return
@@ -1052,34 +914,30 @@ type pipelineStageResp struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-func pipelineStageFromRow(s sqlcgen.PipelineStage) pipelineStageResp {
-	return pipelineStageResp{
-		ID:         s.ID,
-		Name:       s.Name,
-		OrderIndex: s.OrderIndex,
-		CreatedAt:  s.CreatedAt.Time,
-	}
-}
-
 func (h *Handler) ListPipelineStages(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
-	var rows []sqlcgen.PipelineStage
-	err := readTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		var e error
-		rows, e = sqlcgen.New(tx).ListPipelineStages(r.Context())
-		return e
-	})
+	stages, err := h.getSvc().ListPipelineStages(r.Context(), p)
 	if err != nil {
+		if capErr(w, err, "pipeline stages") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "list pipeline stages", "err", err)
 		writeErr(w, http.StatusInternalServerError, "list pipeline stages failed")
 		return
 	}
-	out := make([]pipelineStageResp, len(rows))
-	for i, s := range rows {
-		out[i] = pipelineStageFromRow(s)
+	// Convert to local pipelineStageResp to match existing wire format.
+	out := make([]pipelineStageResp, len(stages))
+	for i, s := range stages {
+		out[i] = pipelineStageResp{
+			ID:         s.ID,
+			Name:       s.Name,
+			OrderIndex: s.OrderIndex,
+			CreatedAt:  s.CreatedAt,
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"data": out})
 }
@@ -1092,8 +950,9 @@ type transitionDealStageReq struct {
 // writes a `stage_change` activity row into objects. Same-stage PATCHes
 // short-circuit (idempotent — no activity row).
 func (h *Handler) TransitionDealStage(w http.ResponseWriter, r *http.Request) {
-	ws, ok := h.ws(w, r)
+	p, ok, r := principalFrom(r)
 	if !ok {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
 		return
 	}
 	dealID, ok := parseID(w, r)
@@ -1109,118 +968,15 @@ func (h *Handler) TransitionDealStage(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid stage_id")
 		return
 	}
-
-	var (
-		updated      sqlcgen.Deal
-		unchanged    bool
-		notFoundDeal bool
-		badStage     bool
-	)
-	err = writeTx(r.Context(), h.Pool, ws.RoleName, func(tx pgx.Tx) error {
-		q := sqlcgen.New(tx)
-
-		newStage, e := q.GetPipelineStage(r.Context(), newStageID)
-		if errors.Is(e, pgx.ErrNoRows) {
-			badStage = true
-			return nil
-		}
-		if e != nil {
-			return e
-		}
-
-		deal, e := q.GetDeal(r.Context(), dealID)
-		if errors.Is(e, pgx.ErrNoRows) {
-			notFoundDeal = true
-			return nil
-		}
-		if e != nil {
-			return e
-		}
-
-		if deal.StageID.Valid && deal.StageID.UUID == newStageID {
-			updated = deal
-			unchanged = true
-			return nil
-		}
-
-		oldStageID := deal.StageID
-		var oldStageName *string
-		if oldStageID.Valid {
-			old, getErr := q.GetPipelineStage(r.Context(), oldStageID.UUID)
-			if getErr == nil {
-				n := old.Name
-				oldStageName = &n
-			} else if !errors.Is(getErr, pgx.ErrNoRows) {
-				return getErr
-			}
-		}
-
-		updated, e = q.UpdateDealStage(r.Context(), sqlcgen.UpdateDealStageParams{
-			ID:      dealID,
-			StageID: uuid.NullUUID{UUID: newStageID, Valid: true},
-		})
-		if e != nil {
-			return e
-		}
-
-		activity := map[string]any{
-			"kind":           "stage_change",
-			"subject":        updated.Title,
-			"occurred_at":    time.Now().UTC().Format(time.RFC3339),
-			"new_stage":      newStageID.String(),
-			"new_stage_name": newStage.Name,
-		}
-		if oldStageID.Valid {
-			activity["old_stage"] = oldStageID.UUID.String()
-		} else {
-			activity["old_stage"] = nil
-		}
-		if oldStageName != nil {
-			activity["old_stage_name"] = *oldStageName
-		} else {
-			activity["old_stage_name"] = nil
-		}
-		data, mErr := json.Marshal(activity)
-		if mErr != nil {
-			return mErr
-		}
-
-		if _, e = tx.Exec(r.Context(),
-			`INSERT INTO objects (object_type, parent_type, parent_id, data) VALUES ('activity', 'deal', $1, $2)`,
-			dealID, data,
-		); e != nil {
-			return e
-		}
-		stagePayload := map[string]any{
-			"new_stage":      newStageID.String(),
-			"new_stage_name": newStage.Name,
-		}
-		if oldStageID.Valid {
-			stagePayload["old_stage"] = oldStageID.UUID.String()
-		} else {
-			stagePayload["old_stage"] = nil
-		}
-		if oldStageName != nil {
-			stagePayload["old_stage_name"] = *oldStageName
-		} else {
-			stagePayload["old_stage_name"] = nil
-		}
-		return emitRESTActivity(r.Context(), tx, entityTypeDeal, dealID, "deal.stage_changed", stagePayload)
-	})
-
-	if badStage {
-		writeErr(w, http.StatusBadRequest, "stage not found")
-		return
-	}
-	if notFoundDeal {
-		writeErr(w, http.StatusNotFound, "deal not found")
-		return
-	}
+	result, err := h.getSvc().TransitionDealStage(r.Context(), p, dealID, newStageID)
 	if err != nil {
+		if capErr(w, err, "deal") {
+			return
+		}
 		h.Logger.ErrorContext(r.Context(), "transition deal stage", "err", err)
 		writeErr(w, http.StatusInternalServerError, "transition deal stage failed")
 		return
 	}
-	_ = unchanged // both branches return the deal; tracked for tests via DB assertions
-	writeJSON(w, http.StatusOK, dealFromRow(updated))
+	_ = result.Unchanged // both branches return the deal; tracked for tests via DB assertions
+	writeJSON(w, http.StatusOK, result.Deal)
 }

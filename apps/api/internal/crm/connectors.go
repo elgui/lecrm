@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/gbconsult/lecrm/apps/api/capability"
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 )
 
@@ -281,19 +282,19 @@ func (h *Handler) handleCandidateEnriched(ctx context.Context, tx pgx.Tx, wsID u
 		props["category"] = c.Category
 	}
 	if len(props) > 0 {
-		if err := mergeCustomProps(ctx, tx, entityTypeContact, contactID, props); err != nil {
+		if err := capability.MergeCustomProps(ctx, tx, capability.EntityTypeContact, contactID, props); err != nil {
 			return err
 		}
 	}
 
-	if err := emitActivity(ctx, tx, entityTypeContact, contactID, evtCandidateEnriched, actorTypeConnector, source, map[string]any{
+	if err := capability.EmitActivity(ctx, tx, capability.EntityTypeContact, contactID, evtCandidateEnriched, capability.ActorTypeConnector, source, map[string]any{
 		"url":      c.URL,
 		"email":    c.Email,
 		"category": c.Category,
 	}); err != nil {
 		return err
 	}
-	return emitAudit(ctx, tx, "connector.contact.enriched", wsID, map[string]any{
+	return capability.EmitAudit(ctx, tx, "connector.contact.enriched", wsID, capability.ActorTypeConnector, map[string]any{
 		"id":     contactID.String(),
 		"source": source,
 	})
@@ -410,10 +411,10 @@ func (h *Handler) handleInvitationStage(ctx context.Context, tx pgx.Tx, wsID uui
 		activity["requested_stage"] = targetStage
 	}
 
-	if err := emitActivity(ctx, tx, entityTypeDeal, dealID, ev.Event, actorTypeConnector, source, activity); err != nil {
+	if err := capability.EmitActivity(ctx, tx, capability.EntityTypeDeal, dealID, ev.Event, capability.ActorTypeConnector, source, activity); err != nil {
 		return err
 	}
-	return emitAudit(ctx, tx, "connector."+ev.Event, wsID, map[string]any{
+	return capability.EmitAudit(ctx, tx, "connector."+ev.Event, wsID, capability.ActorTypeConnector, map[string]any{
 		"deal_id": dealID.String(),
 		"source":  source,
 	})
@@ -434,16 +435,16 @@ func (h *Handler) handleInvitationReplyPositive(ctx context.Context, tx pgx.Tx, 
 	if err != nil {
 		return err
 	}
-	if err := mergeCustomProps(ctx, tx, entityTypeDeal, dealID, map[string]any{"follow_up": true}); err != nil {
+	if err := capability.MergeCustomProps(ctx, tx, capability.EntityTypeDeal, dealID, map[string]any{"follow_up": true}); err != nil {
 		return err
 	}
-	if err := emitActivity(ctx, tx, entityTypeDeal, dealID, ev.Event, actorTypeConnector, source, map[string]any{
+	if err := capability.EmitActivity(ctx, tx, capability.EntityTypeDeal, dealID, ev.Event, capability.ActorTypeConnector, source, map[string]any{
 		"invitation_id": inv.ID,
 		"follow_up":     true,
 	}); err != nil {
 		return err
 	}
-	return emitAudit(ctx, tx, "connector."+ev.Event, wsID, map[string]any{
+	return capability.EmitAudit(ctx, tx, "connector."+ev.Event, wsID, capability.ActorTypeConnector, map[string]any{
 		"deal_id": dealID.String(),
 		"source":  source,
 	})
@@ -544,39 +545,4 @@ func resolveStage(ctx context.Context, tx pgx.Tx, name string) (uuid.UUID, strin
 	return uuid.Nil, "", errors.New("connector: pipeline stage not found: " + name)
 }
 
-// mergeCustomProps merges props into the existing custom_properties JSONB
-// bag for (parentType, parentID), following the ADR-010 objects-table
-// storage convention used by the metadata engine. Runs in the caller's
-// transaction (search_path already on the workspace schema).
-func mergeCustomProps(ctx context.Context, tx pgx.Tx, parentType string, parentID uuid.UUID, props map[string]any) error {
-	existing := map[string]any{}
-	var raw []byte
-	err := tx.QueryRow(ctx,
-		`SELECT data FROM objects
-		  WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = $2`,
-		parentType, parentID).Scan(&raw)
-	if err == nil {
-		if e := json.Unmarshal(raw, &existing); e != nil {
-			return e
-		}
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return err
-	}
-	for k, v := range props {
-		existing[k] = v
-	}
-	merged, err := json.Marshal(existing)
-	if err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM objects WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = $2`,
-		parentType, parentID); err != nil {
-		return err
-	}
-	_, err = tx.Exec(ctx,
-		`INSERT INTO objects (object_type, parent_type, parent_id, data)
-		 VALUES ('custom_properties', $1, $2, $3)`,
-		parentType, parentID, merged)
-	return err
-}
+// mergeCustomProps was removed; connector code now uses capability.MergeCustomProps directly.
