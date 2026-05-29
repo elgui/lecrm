@@ -211,8 +211,8 @@ ADR-012 sets direction; the *next* increment is intentionally small, given v0 re
 
 1. **`packages/crm-adapter` capability-layer extraction** — interface shape (per-operation `Principal` arg), and the REST-handler refactor sequence. Increment 1.1.
 2. **MCP read consolidation** — delete `apps/mcp/internal/store/` read logic; repoint at capability layer; confirm `_ro` connection still used for read-only-scoped tokens. Increment 1.2.
-3. **Intent write-tool scope mapping** — define the write scope(s) and the scope→RBAC role mapping for `advance_deal`/`log_interaction`/`capture_lead`. Increment 1.3.
-4. **Dry-run / confirmation contract** — the wire shape of a `dry_run` preview and the confirmation-token handshake for destructive/bulk tools (§6).
+3. ~~**Intent write-tool scope mapping** — define the write scope(s) and the scope→RBAC role mapping for `advance_deal`/`log_interaction`/`capture_lead`. Increment 1.3.~~ **RESOLVED** (Increment 1.3, tasket `20260529-1002`): `crm:write`/`*` → `RoleAdmin` (capped), read-only → denied; gate is `capability.AuthorizeWrite`. See [`docs/mcp/write-safety-contract.md`](../mcp/write-safety-contract.md) §1.
+4. ~~**Dry-run / confirmation contract** — the wire shape of a `dry_run` preview and the confirmation-token handshake for destructive/bulk tools (§6).~~ **RESOLVED** (tasket `20260529-1002`): `Preview` wire shape + HMAC-bound, effect-digest, time-boxed confirmation token (`capability.GuardedWrite`/`Confirmer`). See [`docs/mcp/write-safety-contract.md`](../mcp/write-safety-contract.md) §2–§3.
 5. **`lecrm://workspace/schema` Resource shape** — how `custom_property_definitions` is serialized for LLM consumption (§5). Increment 1.4.
 6. **Prompt-injection / confused-deputy hardening for writes (§8)** — confirm agent-runtime (ADR-005 Tier-2) sanitization covers the write-driven case; document the thin-adapter's non-responsibility explicitly.
 7. **Deferred — MCP OAuth 2.1 authorization server (§7)** — design only when the first end-user-LLM client (S4) is real. Verify §7 non-foreclosure checklist holds at each increment until then.
