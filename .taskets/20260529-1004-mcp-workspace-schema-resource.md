@@ -1,15 +1,17 @@
 ---
 id: 20260529-1004-mcp-workspace-schema-resource
 title: "Expose lecrm://workspace/schema MCP Resource (self-describing custom-property schema)"
-status: todo
+status: done
 priority: p2
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, resources, metadata-engine, self-describing, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 5
 plan: true
-tags: [mcp, resources, metadata-engine, self-describing, adr-012, increment-1]
 ---
 
 # Expose lecrm://workspace/schema MCP Resource (self-describing custom-property schema)

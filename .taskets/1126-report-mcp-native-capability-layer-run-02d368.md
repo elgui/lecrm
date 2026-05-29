@@ -1,16 +1,16 @@
 ---
 id: 1126
-title: "[Report] mcp-native-capability-layer run 02d368"
-status: done
-updated: 2026-05-29
-done: 2026-05-29
+title: [Report] mcp-native-capability-layer run 02d368
+status: now
 priority: p2
 created: 2026-05-29
+updated: 2026-05-29
 tags: [automation, report, mcp, adr-012, increment-1]
 category: tooling
 group: mcp-native-capability-layer
 group_order: 210
 order: 7
+done: 2026-05-29
 ---
 
 ## Report deliverable

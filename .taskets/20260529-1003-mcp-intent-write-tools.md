@@ -1,15 +1,17 @@
 ---
 id: 20260529-1003-mcp-intent-write-tools
 title: "Ship 3 MCP intent write tools: advance_deal, log_interaction, capture_lead"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, write-tools, intent-tools, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 4
 plan: true
-tags: [mcp, write-tools, intent-tools, adr-012, increment-1]
 ---
 
 # Ship 3 MCP intent write tools: advance_deal, log_interaction, capture_lead

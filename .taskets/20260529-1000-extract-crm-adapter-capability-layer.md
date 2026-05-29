@@ -1,15 +1,18 @@
 ---
 id: 20260529-1000-extract-crm-adapter-capability-layer
-title: "Extract packages/crm-adapter capability layer; route REST handlers through it"
-status: todo
+title: Extract packages/crm-adapter capability layer; route REST handlers through it
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, crm-adapter, capability-layer, refactor, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 1
 plan: true
-tags: [mcp, crm-adapter, capability-layer, refactor, adr-012, increment-1]
+done: 2026-05-29
 ---
 
 # Extract packages/crm-adapter capability layer; route REST handlers through it

@@ -1,15 +1,17 @@
 ---
 id: 20260529-1002-mcp-write-safety-contract
 title: "MCP write-safety contract: scope→RBAC mapping + dry-run/confirmation handshake"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, write-safety, rbac, idempotency, dry-run, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 3
 plan: true
-tags: [mcp, write-safety, rbac, idempotency, dry-run, adr-012, increment-1]
 ---
 
 # MCP write-safety contract: scope→RBAC mapping + dry-run/confirmation handshake

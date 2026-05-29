@@ -1,15 +1,17 @@
 ---
 id: 20260529-1001-repoint-mcp-reads-capability-layer
-title: "Repoint apps/mcp reads at the capability layer; delete divergent internal/store"
-status: todo
+title: Repoint apps/mcp reads at the capability layer; delete divergent internal/store
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-29
+done: 2026-05-29
+tags: [mcp, crm-adapter, consolidation, adr-012, increment-1]
 category: project
 group: mcp-native-capability-layer
 group_order: 210
 order: 2
 plan: true
-tags: [mcp, crm-adapter, consolidation, adr-012, increment-1]
 ---
 
 # Repoint apps/mcp reads at the capability layer; delete divergent internal/store
