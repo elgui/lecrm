@@ -18,7 +18,7 @@ tags: [deploy, staging, dns, tls, cloudflare, caddy, leo-test]
 
 1. `grep -i "lecrm.gbconsult.me\|staging" deploy/README.md` -- host + edge strategy recorded (tasket order:1)
 2. `ssh <host> "docker network ls | grep lecrm"` -- network exists
-3. Confirm the staging env file holds a `CLOUDFLARE_API_TOKEN` scoped to DNS:Edit on gbconsult.me.
+3. Confirm the staging env file holds a `CLOUDFLARE_API_TOKEN`, and **verify its scope via the API** (Rook gate #2): `curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" https://api.cloudflare.com/client/v4/user/tokens/verify` → active, and confirm it is DNS:Edit limited to the gbconsult.me zone (not an account-global token).
 
 **If any check fails, STOP and report. Do not proceed.**
 

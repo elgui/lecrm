@@ -30,6 +30,8 @@ With the host, secrets, DNS, and TLS in place, bring the full stack up on the OV
 
 Decisions: **persistent staging** → WAL-G backups ON (OVH Object Storage, per ADR-006 + tasket `20260510-162158-d1ba`). Demo workspace slug `demo` → `demo.lecrm.gbconsult.me`.
 
+> **Portability requirement (council ruling — makes the order:5 Hetzner migration config-only).** Commit the full stack as a **portable, env-parameterized artifact** under `deploy/` (compose overrides + Caddyfile + env template): everything host/provider-specific lives in the SOPS env, nothing OVH-specific is hardcoded. The bar: redeploying to a fresh Hetzner box is `docker compose up` + new secrets + DNS cutover, target <30 min. WAL-G destination must be reachable from Hetzner too (or documented as a re-point step).
+
 Working directory: `/home/gui/Projects/leCRM`. Source of truth: `deploy/README.md`.
 
 ## Steps

@@ -32,17 +32,17 @@ Léo's role here is **product/customer-signal tester only**. He gets a URL + log
 
 The staging app is live and populated. Final step: give Léo a working login, prove the critical path end-to-end, and hand over clean access instructions.
 
-Auth is OIDC-only via Authentik (ADR-009 §7.1; no password-login path in the app). Two ways to give Léo an identity:
-- **Authentik-local account** — create a user in Authentik with a set/emailed password (simplest; fully under our control).
-- **Google upstream** — if Léo logs in with his Google account via Authentik's Google OIDC upstream (matches the eventual real flow).
+Auth is OIDC-only via Authentik (ADR-009 §7.1; no password-login path in the app).
 
-Pick one; record it. Users are keyed on `(issuer, sub)` (tasket `20260515-192005-dd81`), so the choice is durable.
+> **Council ruling (2026-05-29): use a LOCAL Authentik account for Léo** — unanimous. Google-upstream OIDC adds an external trust boundary / lockout risk (a Google suspicious-activity challenge at 11pm before a demo locks Léo out of staging entirely) that isn't worth it for a single tester. A local account is one credential lifecycle we fully control (revoke/rotate on demand). **Document the Google upstream connector as a follow-on** for when there's real multi-user onboarding to validate — not now.
+
+Users are keyed on `(issuer, sub)` (tasket `20260515-192005-dd81`), so this choice is durable.
 
 Working directory: `/home/gui/Projects/leCRM`.
 
 ## Steps
 
-1. **Create Léo's user** in Authentik (chosen method). Reference `scripts/authentik-provision-test-user.py` as a template.
+1. **Create Léo's user** in Authentik as a **local account** (council ruling — no Google upstream). Reference `scripts/authentik-provision-test-user.py` as a template; set a strong password and deliver it to Léo over a secure channel.
 2. **Grant workspace membership + role.** Insert into `core.workspace_members` linking Léo's user to the `demo` workspace. **Role = `admin`** so he can exercise writes (create contacts, move deals) — not `owner` (owner can delete the workspace / manage tokens; not needed for testing). Confirm against `apps/api/internal/rbac/role.go`.
 3. **End-to-end login smoke test.** Run the build-tagged OIDC flow test adapted to the live host, OR do it manually: open `https://demo.lecrm.gbconsult.me`, log in as Léo, and confirm — session cookie `Domain=demo.lecrm.gbconsult.me` (not a parent-domain wildcard, ADR-009 §5.2); `GET /auth/me` returns populated `{user_id, workspace_id}`; the user row is keyed on `(issuer, sub)`.
 4. **Critical-path verification in the browser** (the things Léo will actually do): see seeded data → create a contact → edit it → move a deal across a stage (Kanban) → add a note/activity → CSV export. Fix anything broken before handoff.

@@ -24,7 +24,9 @@ Stand up a **persistent staging instance** of leCRM on an existing OVH VPS via d
 
 The deploy stack is fully scaffolded under `deploy/` (see `deploy/README.md`) and locally verified (Day-2/Day-3 bring-up), but **never booted on a real server**. Compose files exist: `deploy/compose/{postgres,authentik,mcp,migrate,cube,pgbouncer}.yml`; edge at `deploy/caddy/Caddyfile`; WAL-G image under `deploy/postgres/`.
 
-Decisions already made (do not relitigate): **OVH VPS + docker-compose**, domain **`*.lecrm.gbconsult.me`**, **persistent staging** (WAL-G backups on, tasket order:3).
+Decisions (do not relitigate): **OVH VPS + docker-compose** as a **time-boxed stopgap**, domain **`*.lecrm.gbconsult.me`**, **persistent staging** (WAL-G backups on, tasket order:3).
+
+> **Council ruling (2026-05-29, 4-voice debate).** The council unanimously preferred a **fresh Hetzner CAX11** over OVH — the decisive reason is **isolation**: the OVH boxes already run production apps (tele-claude, vps-mngr / static sites), so an internet-exposed, externally-tested CRM stack there shares a blast radius. Guillaume chose **OVH-now for speed, with a hard commitment to migrate to Hetzner within ~2 weeks** (tasket order:5, deadline 2026-06-12). Consequence: Rook's infra-level-isolation gate is **knowingly waived on OVH** and the migration is its remediation. Therefore this tasket MUST (a) pick the OVH box with the **least-sensitive co-tenants**, (b) enforce strict container/network isolation from co-located apps, and (c) build the stack as a **portable, env-parameterized artifact** (committed under `deploy/`) so the order:5 migration is config-only (<30 min).
 
 Working directory: `/home/gui/Projects/leCRM`.
 
@@ -34,6 +36,12 @@ The OVH boxes in `~/.claude/CLAUDE.md` run **Dokku, whose nginx already binds po
 
 - **Option A — dedicated/free-ports box (recommended):** deploy on a box (or a box where Dokku does not claim 80/443) so Caddy binds 80/443 directly. Cleanest; Caddy owns TLS via DNS-01. Candidates: the secondary box `51.77.146.49` (lighter load — tele-claude/vps-mngr) or the static-sites VPS — **verify nothing else holds 80/443** (`sudo ss -tlnp | grep -E ':80|:443'`).
 - **Option B — behind Dokku nginx:** Caddy binds high ports (e.g. 8443) and the existing nginx reverse-proxies `lecrm.gbconsult.me` to it. Adds a hop and splits TLS ownership; only if no box has free 80/443.
+
+## Council security gates (hard — verify before anything ships; from Rook)
+
+1. **Postgres binds `127.0.0.1` only** — never a public port (step 4 below; the crypto-mining scar).
+2. **Cloudflare token scoped to the single `gbconsult.me` zone, DNS:Edit only** — and **verified via the Cloudflare API** before use (`GET /user/tokens/verify`), not trusted because "I made it narrow."
+3. **Isolation from co-located prod apps** — true infra-level isolation is NOT possible on a shared OVH box (that is why we migrate). Compensate while on OVH: dedicated Docker network (no shared network with tele-claude/vps-mngr), host firewall allowing only 80/443 (+22 from your IP), no shared secrets/volumes. This is a *temporary mitigation*, not a substitute for gate 3 — order:5 is the real fix.
 
 ## Steps
 
