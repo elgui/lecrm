@@ -44,9 +44,13 @@ CREATE TABLE IF NOT EXISTS core.service_tokens (
 CREATE INDEX IF NOT EXISTS service_tokens_workspace_id_idx
   ON core.service_tokens (workspace_id);
 
+-- Active-token lookups filter `expires_at IS NULL OR expires_at > now()`.
+-- now() is STABLE (not IMMUTABLE), so it cannot appear in a partial-index
+-- predicate (Postgres rejects it: "functions in index predicate must be
+-- marked IMMUTABLE"). Index (workspace_id, expires_at) instead and let the
+-- planner apply the time filter at query time with now() as a runtime value.
 CREATE INDEX IF NOT EXISTS service_tokens_workspace_active_idx
-  ON core.service_tokens (workspace_id)
-  WHERE expires_at IS NULL OR expires_at > now();
+  ON core.service_tokens (workspace_id, expires_at);
 
 ALTER TABLE core.service_tokens OWNER TO lecrm_provisioner;
 

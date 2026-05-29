@@ -19,7 +19,7 @@
 
 services:
   pgbouncer:
-    image: edoburu/pgbouncer:1.22.0
+    image: edoburu/pgbouncer:1.22.1-p0   # edoburu tags carry a -pN patch suffix; 1.22.0 (no suffix) does not exist
     container_name: lecrm-pgbouncer
     restart: unless-stopped
     environment:

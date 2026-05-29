@@ -1,0 +1,67 @@
+# lecrm-api — the v0 HTTP server (REST /v1/* + embedded React SPA).
+#
+# Local-build service: the release image is built from deploy/Dockerfile
+# (multi-stage: Vite SPA → //go:embed → distroless static binary, ADR-009
+# §5.1). This file is the staging/self-hosted path; a CI-published image
+# (ghcr.io/gbconsult/lecrm-api) is the alternative — see migrate.yml.
+#
+# Boot (after postgres + pgbouncer are up and migrations applied):
+#   docker compose --env-file deploy/.env.staging \
+#     -f deploy/compose/postgres.yml \
+#     -f deploy/compose/pgbouncer.yml \
+#     -f deploy/compose/api.yml up -d --build
+#
+# Portability (Hetzner migration, config-only): nothing host-specific lives
+# here — the image builds from source and every value comes from the
+# SOPS-decrypted env. Re-point LECRM_DATABASE_URL / LECRM_OIDC_ISSUER in the
+# new env and `up`.
+#
+# Edge: Caddy (deploy/caddy/Caddyfile.staging) reverse-proxies
+# *.lecrm.gbconsult.me → lecrm-api:8080 over the lecrm network, so the
+# public port is owned by Caddy/nginx — this service only needs the loopback
+# publish below for direct host-level smoke tests.
+
+services:
+  api:
+    image: lecrm-api:${LECRM_IMAGE_TAG:-staging}
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    container_name: lecrm-api
+    restart: unless-stopped
+    # Explicit env passthrough — only what config.Load() reads. The full
+    # .env.staging (Postgres superuser / Authentik / OVH secrets) is NOT
+    # injected; the API has no business holding them.
+    environment:
+      LECRM_HTTP_ADDR: ${LECRM_HTTP_ADDR:-:8080}
+      LECRM_DATABASE_URL: ${LECRM_DATABASE_URL:?required}
+      LECRM_SESSION_SECRET: ${LECRM_SESSION_SECRET:?required}
+      LECRM_COOKIE_DOMAIN_TLD: ${LECRM_COOKIE_DOMAIN_TLD:?set to lecrm.gbconsult.me for staging}
+      LECRM_COOKIE_SECURE: ${LECRM_COOKIE_SECURE:-true}
+      LECRM_OIDC_ISSUER: ${LECRM_OIDC_ISSUER:?required}
+      LECRM_OIDC_CLIENT_ID: ${LECRM_OIDC_CLIENT_ID:?required}
+      LECRM_OIDC_CLIENT_SECRET: ${LECRM_OIDC_CLIENT_SECRET:?required}
+      LECRM_OIDC_SCOPES: ${LECRM_OIDC_SCOPES:-openid profile email}
+      LECRM_OIDC_CALLBACK_PATH: ${LECRM_OIDC_CALLBACK_PATH:-/auth/callback}
+    ports:
+      # Loopback only — Caddy (on the lecrm network) is the real entry point.
+      - "127.0.0.1:${LECRM_API_HOST_PORT:-8088}:8080"
+    # Depend on postgres (always present). At ≤10 tenants LECRM_DATABASE_URL
+    # points straight at postgres:5432 (ops/connection-pooling.md); the
+    # PgBouncer layer (pgbouncer.yml) is added only at ≥10 tenants, at which
+    # point LECRM_DATABASE_URL is re-pointed to pgbouncer:6432. `restart:
+    # unless-stopped` + the API's fatal-on-unreachable-DB startup means a
+    # brief ordering gap self-heals via restart.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # NOTE: no container healthcheck — the final image is distroless/static
+    # (no shell, curl, or nc to run a probe). Readiness is verified out of
+    # band via the edge: `curl https://demo.lecrm.gbconsult.me/healthz`.
+    networks:
+      - lecrm
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true

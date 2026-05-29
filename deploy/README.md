@@ -149,18 +149,75 @@ is the primary entry point (production deploy).
 
 ## Staging (lecrm.gbconsult.me)
 
-> **Status (2026-05-29):** host + secrets + edge strategy laid (order:1).
-> Edge **LIVE** (order:2, this tasket): custom Caddy issuing the
-> `*.lecrm.gbconsult.me` wildcard via OVH DNS-01, fronted by an nginx L4
-> SNI passthrough on public `:443`. `demo`/`auth.lecrm.gbconsult.me`
-> handshake on the wildcard cert; `demo` 502s pending the API (order:3),
-> `auth` reaches Authentik. Co-located apps (tele-claude/aaraume/
-> conversation/drawlk) relocated to `127.0.0.1:8444`, verified intact.
-> **Still TODO:** lecrm-api/pgbouncer boot + workspace seed (order:3),
-> host firewall (80/443/22-only), Léo access (order:4). **TEMPORARY
-> stopgap** — migrates to a fresh Hetzner CAX11 by **2026-06-12**
-> (order:5) for true infra isolation; the council knowingly waived the
-> isolation gate on OVH (see the tasket).
+> **Status (2026-05-29):** **full stack LIVE (order:3).**
+> `https://demo.lecrm.gbconsult.me` is a working, populated CRM:
+> `/healthz` 200, SPA served, `/auth/login` 302 → Authentik with the
+> state cookie scoped to `demo.lecrm.gbconsult.me`. Running:
+> `lecrm-postgres` (healthy), `lecrm-authentik-{server,worker,postgres}`,
+> `lecrm-api`, `lecrm-caddy`. Edge (order:2) unchanged: custom Caddy +
+> nginx L4 SNI on `:443` over the OVH DNS-01 wildcard.
+> **Still TODO:** WAL-G base backup (order:3 — *blocked* on OVH Object
+> Storage creds; see "WAL-G backups" below), host firewall
+> (80/443/22-only), Léo access (order:4). **TEMPORARY stopgap** —
+> migrates to a fresh Hetzner CAX11 by **2026-06-12** (order:5) for true
+> infra isolation; the council knowingly waived the isolation gate on OVH.
+
+### order:3 bring-up — what runs and how (live runbook)
+
+Bring-up uses `.env.staging` (SOPS-decrypted on host, mode 0600). At ≤10
+tenants there is **no PgBouncer** — `LECRM_DATABASE_URL` points straight at
+`postgres:5432` as `lecrm_api` (ops/connection-pooling.md). Postgres is
+published on host `127.0.0.1:54320` (admin only; 5432/5433/5434 are taken
+by other tenants on the box).
+
+```
+# 1. Postgres (fresh data dir → initdb applies 0001..NNNN + zz-bootstrap).
+docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml up -d --build postgres
+# 2. Authentik (wait ~90s for bootstrap).
+docker compose --env-file deploy/.env.staging -f deploy/compose/authentik.yml up -d
+# 3. OIDC client (staging redirect regex → all *.lecrm.gbconsult.me callbacks):
+docker cp scripts/authentik-provision-oidc-client.py lecrm-authentik-worker:/tmp/p.py
+docker exec -e LECRM_OIDC_REDIRECT_URI_REGEX='^https://[a-z0-9-]+\.lecrm\.gbconsult\.me/auth/callback$' \
+  lecrm-authentik-worker ak shell -c "exec(open('/tmp/p.py').read())"
+# → put CLIENT_SECRET in .env.staging (LECRM_OIDC_CLIENT_SECRET) + re-encrypt .enc.
+# 4. API (builds embedded-SPA image; depends on postgres health).
+docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml -f deploy/compose/api.yml up -d --build api
+# 5. Provision the demo workspace (superuser calls the wrapper; template seeds the 5 pipeline stages):
+docker exec lecrm-postgres psql -U postgres -d lecrm -tAc \
+  "SELECT core.lecrm_provision_workspace_with_registry(gen_random_uuid(),'demo','<email>','<email>','gbconsult-default')"
+# 6. Seed demo data into the workspace schema (idempotent):
+SCHEMA=$(docker exec lecrm-postgres psql -U postgres -d lecrm -tAc "SELECT role_name FROM core.workspaces WHERE slug='demo'")
+docker exec -i lecrm-postgres psql -U postgres -d lecrm -v schema="$SCHEMA" -f /dev/stdin < deploy/seed/demo.sql
+```
+
+**Migrations apply via initdb, not the migrate-runner, on a fresh DB.**
+0010 (`ALTER EXTENSION`) and 0013 require superuser, so the migrate-runner
+(which connects as `lecrm_provisioner`) cannot apply them from scratch. The
+postgres image therefore **bakes** the migrations + `zz-bootstrap.sh` into
+`/docker-entrypoint-initdb.d`; they run as the superuser, then
+`zz-bootstrap.sh` records them in `core.schema_migrations` so the runner
+handles only incremental deploys on an existing DB. The `lecrm_api`
+application role + its per-workspace grants are created by
+`0017_app_role.sql` (it was missing entirely — the API authenticates as
+`lecrm_api`); its password is set out-of-band by `zz-bootstrap.sh` from
+`LECRM_PGBOUNCER_AUTH_PASS`.
+
+**Bugs fixed during this bring-up** (this was the first end-to-end boot):
+`deploy/postgres/Dockerfile` (wal-g `v3.0.3`→`v3.0.7`, drop the musl-stage
+smoke test, bake initdb payload instead of a shadowing bind-mount);
+`0016_service_tokens.sql` (partial index used non-IMMUTABLE `now()`);
+`pgbouncer.yml` image tag (`1.22.0`→`1.22.1-p0`).
+
+### WAL-G backups — BLOCKED (order:3 remaining)
+
+WAL archiving is **OFF** (`archive_mode=off`): `deploy/postgres/walg.env`
+holds only example placeholders, so `zz-bootstrap.sh` deliberately does not
+enable the conf.d include. To finish: provision an OVH **Object Storage**
+bucket (`s3://lecrm-wal/demo`) + prefix-restricted IAM keys, fill
+`deploy/postgres/walg.env` from `.example`, SOPS-encrypt it, then:
+`docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml up -d --force-recreate postgres wal-g-backup`
+(archive_mode change needs a restart) and run `backup-push.sh`. These S3
+creds are separate from the OVH **DNS** creds in `.env.staging`.
 
 ### Host
 

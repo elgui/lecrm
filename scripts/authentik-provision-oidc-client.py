@@ -4,6 +4,7 @@ Idempotent: re-running finds the existing provider by name and prints
 its client_id/client_secret. RedirectURI rows are persisted as JSON in
 the private _redirect_uris field per Authentik 2025.10 schema.
 """
+import os
 import secrets
 
 from authentik.core.models import Application, Token, TokenIntents, User
@@ -62,10 +63,20 @@ provider.client_id = CLIENT_ID
 
 # redirect_uris is a property: getter dataclass-decodes _redirect_uris,
 # setter dataclass-encodes it. Use the dataclass.
+#
+# The regex matches any workspace subdomain's /auth/callback. Override via
+# LECRM_OIDC_REDIRECT_URI_REGEX for other environments — e.g. staging:
+#   ^https://[a-z0-9-]+\.lecrm\.gbconsult\.me/auth/callback$
+# Default is local dev (lecrm.test:8080). Covers demo + every wildcard
+# workspace subdomain in one regex row.
+redirect_regex = os.environ.get(
+    "LECRM_OIDC_REDIRECT_URI_REGEX",
+    r"^http://[a-z0-9-]+\.lecrm\.test:8080/auth/callback$",
+)
 provider.redirect_uris = [
     RedirectURI(
         matching_mode=RedirectURIMatchingMode.REGEX,
-        url=r"^http://[a-z0-9-]+\.lecrm\.test:8080/auth/callback$",
+        url=redirect_regex,
     )
 ]
 provider.save()

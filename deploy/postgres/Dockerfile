@@ -20,7 +20,11 @@
 # deploy/postgres/walg.env.example.
 
 ARG POSTGRES_VERSION=17-alpine
-ARG WALG_VERSION=v3.0.3
+# v3.0.7 is the latest release that still names assets
+# `wal-g-pg-ubuntu-<ver>-<arch>` (v3.0.8 dropped the `ubuntu-` infix, which
+# would break the download line below). Bump the asset pattern too if moving
+# past v3.0.7.
+ARG WALG_VERSION=v3.0.7
 
 FROM alpine:3.20 AS walg
 
@@ -37,8 +41,10 @@ RUN apk add --no-cache curl ca-certificates \
       "https://github.com/wal-g/wal-g/releases/download/${WALG_VERSION}/wal-g-pg-ubuntu-22.04-${WALG_ARCH}.tar.gz" \
  && tar -xzf /tmp/wal-g.tar.gz -C /tmp \
  && mv "/tmp/wal-g-pg-ubuntu-22.04-${WALG_ARCH}" /usr/local/bin/wal-g \
- && chmod +x /usr/local/bin/wal-g \
- && /usr/local/bin/wal-g --version
+ && chmod +x /usr/local/bin/wal-g
+# NB: no `wal-g --version` here — the binary is glibc-linked and this
+# builder is bare alpine (musl), so it cannot execute yet. It is validated
+# in the final stage below, which installs gcompat (the glibc shim).
 
 FROM postgres:${POSTGRES_VERSION}
 
@@ -49,6 +55,10 @@ FROM postgres:${POSTGRES_VERSION}
 RUN apk add --no-cache gnupg ca-certificates gcompat libstdc++
 
 COPY --from=walg /usr/local/bin/wal-g /usr/local/bin/wal-g
+
+# Validate the glibc binary runs under gcompat (the smoke test that cannot
+# run in the musl builder stage).
+RUN /usr/local/bin/wal-g --version
 
 # Bake the lecrm-backup public key into the image. WAL-G will reference
 # it via WALG_PGP_KEY (armored PEM) at runtime, but having the file
@@ -66,7 +76,21 @@ RUN chmod +x /usr/local/bin/lecrm/*.sh
 RUN chown -R postgres:postgres /etc/postgres/gpg /etc/postgresql/conf.d \
  && chmod 0644 /etc/postgres/gpg/lecrm-backup.pub.asc
 
-# Compose mounts an initdb hook that appends `include_dir = conf.d` to
-# postgresql.conf — see deploy/postgres/scripts/00-include-confd.sh.
-COPY deploy/postgres/scripts/00-include-confd.sh /docker-entrypoint-initdb.d/00-include-confd.sh
-RUN chmod +x /docker-entrypoint-initdb.d/00-include-confd.sh
+# initdb payload — BAKED, not bind-mounted. A whole-dir bind mount of the
+# migrations over /docker-entrypoint-initdb.d would shadow these baked files
+# (it silently disabled WAL archiving before this was fixed) and can't host a
+# nested :ro hook mount. Baking keeps the image self-contained: `up --build`
+# on a fresh box runs the full schema + bootstrap with no extra mounts.
+#
+#   *.sql           — schema migrations, applied alphabetically as the
+#                     postgres superuser on a fresh data dir (0010/0013 need
+#                     superuser, so this is the canonical fresh-DB applier).
+#   zz-bootstrap.sh — sorts last: sets the lecrm_api password, conditionally
+#                     enables WAL archiving (only with a real walg.env), and
+#                     records applied migrations in core.schema_migrations.
+#
+# (The old 00-include-confd.sh is superseded: zz-bootstrap.sh now appends the
+# conf.d include conditionally instead of unconditionally.)
+COPY packages/db/migrations/ /docker-entrypoint-initdb.d/
+COPY deploy/postgres/initdb/zz-bootstrap.sh /docker-entrypoint-initdb.d/zz-bootstrap.sh
+RUN chmod +x /docker-entrypoint-initdb.d/zz-bootstrap.sh

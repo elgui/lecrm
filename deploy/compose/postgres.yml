@@ -36,16 +36,25 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?required}
       POSTGRES_DB: lecrm
       PGDATA: /var/lib/postgresql/data/pgdata
+      # Login password for the application role (lecrm_api), created WITHOUT a
+      # password by 0017_app_role.sql (no secret in version control).
+      # zz-bootstrap.sh sets it on a fresh data dir — same value the API and
+      # PgBouncer authenticate with.
+      LECRM_API_DB_PASSWORD: ${LECRM_PGBOUNCER_AUTH_PASS:?set LECRM_PGBOUNCER_AUTH_PASS (= lecrm_api db password)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Bootstrap migrations run alphabetically on a fresh data dir.
-      # Beyond v0 these go through Atlas via cmd/lecrm-migrate as a
-      # Compose pre-deploy job (ADR-009 §8.2); the docker-entrypoint
-      # path is for greenfield local boot only.
-      - ../../packages/db/migrations:/docker-entrypoint-initdb.d:ro
-      # WAL-G env (SOPS-decrypted at deploy time). Mount RO; the file
-      # holds OVH IAM creds + the GPG public-key path. The example
-      # lives at deploy/postgres/walg.env.example.
+      # NOTE: the initdb payload (schema migrations 0001..NNNN + the
+      # zz-bootstrap.sh hook) is BAKED into the image (deploy/postgres/
+      # Dockerfile), not bind-mounted — a whole-dir mount over
+      # /docker-entrypoint-initdb.d shadows the image's baked init scripts and
+      # cannot host a nested hook mount. Rebuild the image (`up --build`) after
+      # changing migrations so a fresh data dir picks them up. The
+      # lecrm_provisioner migrate-runner (migrate.yml) still mounts them for
+      # incremental application on EXISTING databases.
+      # WAL-G env (SOPS-decrypted at deploy time). Mount RO; the file holds
+      # OVH IAM creds + the GPG public-key path. Copy from walg.env.example.
+      # When it still has the example placeholders, zz-bootstrap.sh leaves
+      # archiving OFF so the box boots clean without Object Storage creds.
       - ../postgres/walg.env:/etc/postgres/walg.env:ro
     ports:
       - "127.0.0.1:${LECRM_POSTGRES_HOST_PORT:-5432}:5432"   # bind localhost only; override in dev to avoid conflicts
