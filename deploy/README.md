@@ -149,11 +149,15 @@ is the primary entry point (production deploy).
 
 ## Staging (lecrm.gbconsult.me)
 
-> **Status (2026-05-29):** host + secrets + edge strategy laid (this
-> tasket). Full bring-up (DNS/TLS, api/caddy/pgbouncer, Léo access) is
-> tasket order:2+. **TEMPORARY stopgap** — migrates to a fresh Hetzner
-> CAX11 by **2026-06-12** (tasket order:5) for true infra isolation; the
-> council knowingly waived the isolation gate on OVH (see the tasket).
+> **Status (2026-05-29):** host + secrets + edge strategy laid (order:1).
+> Edge **built** (order:2, this tasket): custom Caddy image + staging
+> Caddyfile + edge compose + staged nginx SNI cutover — see "TLS / DNS-01"
+> below. **Still blocked on the OVH API token** (must be minted in
+> Guillaume's OVH account) before the wildcard cert can issue and the DNS
+> record can be created. Stack boot + workspace seed is order:3; Léo
+> access is order:4. **TEMPORARY stopgap** — migrates to a fresh Hetzner
+> CAX11 by **2026-06-12** (order:5) for true infra isolation; the council
+> knowingly waived the isolation gate on OVH (see the tasket).
 
 ### Host
 
@@ -195,18 +199,38 @@ splitting TLS ownership.
 ### TLS / DNS-01 — OVH provider (not Cloudflare)
 
 - `gbconsult.me` is on **OVH DNS** (`dns104.ovh.net`/`ns104.ovh.net`).
-  `lecrm.gbconsult.me` has no record yet.
-- Caddy must use **`caddy-dns/ovh`** — rebuild with
-  `xcaddy build --with github.com/caddy-dns/ovh` (the current
-  `caddy/Caddyfile` is hardcoded to Cloudflare + `*.lecrm.fr/.test`; it
-  needs a staging variant for `*.lecrm.gbconsult.me` +
-  `auth.lecrm.gbconsult.me`).
-- Secret vars (in `.env.staging`, currently **empty placeholders** —
-  fill before order:2): `OVH_ENDPOINT=ovh-eu`, `OVH_APPLICATION_KEY`,
-  `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY`. Mint a token scoped to
-  `GET/PUT/POST/DELETE /domain/zone/gbconsult.me/*` at
-  <https://eu.api.ovh.com/createToken/>; **verify before use.**
-  `CLOUDFLARE_API_TOKEN` is **not** used for staging.
+  **DNS records (verified 2026-05-29):** apex `lecrm.gbconsult.me` → A
+  `54.37.157.49` (pre-existing redirect, **left untouched** — workspaces
+  live on subdomains, the app does not own the apex). `*.lecrm.gbconsult.me`
+  has **no record yet** — order:2 adds a wildcard **A → `51.77.146.49`**
+  (A-only by decision; DNS-only, OVH has no CF-style proxy). DNS-01 cert
+  issuance is independent of the record type.
+- **Edge built (order:2, this tasket):**
+  - Custom Caddy image **`lecrm-caddy:ovh`** (Caddy **v2.10.2**, built via
+    `deploy/caddy/Dockerfile` = `caddy:2.10-builder` + `xcaddy --with
+    caddy-dns/ovh --with caddy-dns/cloudflare`). Both providers bundled so
+    one image serves prod (`*.lecrm.fr`/Cloudflare) and staging.
+    Rebuild: `sg docker -c "docker build -t lecrm-caddy:ovh deploy/caddy"`.
+  - **`deploy/caddy/Caddyfile.staging`** — `*.lecrm.gbconsult.me` wildcard,
+    OVH DNS-01 `tls`/`acme_dns` blocks, `@auth host` → `authentik-server:9000`,
+    everything else → `lecrm-api:8080` with the ADR-009 §5.2 CSP. A single
+    wildcard cert covers `auth.*` too (no per-host certs). The production
+    `deploy/caddy/Caddyfile` (Cloudflare/`*.lecrm.fr`) is left intact.
+  - **`deploy/compose/caddy.yml`** — `lecrm-caddy` service on the `lecrm`
+    network, publishes `127.0.0.1:8080`/`8443` only (host nginx fronts it),
+    injects only the `OVH_*` creds (not the full env), persists `caddy_data`.
+  - **`deploy/nginx/stream-lecrm.conf` + `README.md`** — staged (NOT
+    applied) layer-4 SNI passthrough: host nginx `:443` → Caddy `:8443` for
+    `*.lecrm.gbconsult.me`, all other SNI → relocated nginx vhosts on
+    `127.0.0.1:8444`. Applying it touches the shared host's public `:443`
+    (tele-claude/aaraume/conversation/drawlk) → runbook + go-ahead required.
+- **⚠️ Still blocked — OVH API token.** Secret vars in `.env.staging` are
+  **empty placeholders**: `OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`,
+  `OVH_CONSUMER_KEY` (only `OVH_ENDPOINT=ovh-eu` is set). Mint a token
+  scoped to `GET/PUT/POST/DELETE /domain/zone/gbconsult.me/*` at
+  <https://eu.api.ovh.com/createToken/>; **verify before use.** Fill them,
+  re-encrypt `.env.staging.enc`, then `up` the edge → Caddy issues the
+  wildcard via DNS-01. `CLOUDFLARE_API_TOKEN` is **not** used for staging.
 
 ### Secrets
 

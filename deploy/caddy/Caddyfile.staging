@@ -1,0 +1,70 @@
+# Caddyfile.staging — leCRM staging edge (lecrm.gbconsult.me).
+#
+# Staging variant of the production deploy/caddy/Caddyfile. The prod file
+# targets *.lecrm.fr via Cloudflare DNS-01; staging targets
+# *.lecrm.gbconsult.me via OVH DNS-01 because the gbconsult.me zone is
+# hosted on OVH (dns104/ns104.ovh.net), NOT Cloudflare. See the
+# deploy/README.md "Staging" decision log.
+#
+# Edge topology (Option B, deploy/README.md): the host runs systemd nginx
+# on 0.0.0.0:80/443 for co-located apps, so Caddy binds high ports
+# (127.0.0.1:8080/8443) and host nginx SNI-passes *.lecrm.gbconsult.me to
+# Caddy's 443 — Caddy still terminates TLS and owns the DNS-01 wildcard.
+#
+# A single wildcard cert (*.lecrm.gbconsult.me) serves every workspace
+# subdomain AND auth.lecrm.gbconsult.me; the @auth matcher routes the auth
+# host to Authentik and everything else to the API. The apex
+# lecrm.gbconsult.me is NOT served here (it keeps its existing redirect on
+# another host, and a wildcard does not cover the bare apex anyway).
+{
+	# ACME account contact for expiry/issue notifications.
+	email ops@gbconsult.me
+
+	# DNS-01 via OVH. Credentials are Tier-1 secrets injected from
+	# .env.staging (SOPS-decrypted at boot). Scope the OVH token to
+	# GET/PUT/POST/DELETE /domain/zone/gbconsult.me/* only.
+	# (Global acme_dns lets the wildcard site below resolve its challenge.)
+	acme_dns ovh {
+		endpoint {env.OVH_ENDPOINT}
+		application_key {env.OVH_APPLICATION_KEY}
+		application_secret {env.OVH_APPLICATION_SECRET}
+		consumer_key {env.OVH_CONSUMER_KEY}
+	}
+}
+
+# One wildcard cert covers all subdomains. auth.lecrm.gbconsult.me is
+# served under the same cert via the @auth matcher (no separate per-host
+# cert), keeping issuance to a single DNS-01 challenge.
+*.lecrm.gbconsult.me {
+	tls {
+		dns ovh {
+			endpoint {env.OVH_ENDPOINT}
+			application_key {env.OVH_APPLICATION_KEY}
+			application_secret {env.OVH_APPLICATION_SECRET}
+			consumer_key {env.OVH_CONSUMER_KEY}
+		}
+	}
+
+	# Authentik admin & OIDC endpoints. No leCRM CSP here — Authentik
+	# ships its own headers and the strict script-src would break its UI.
+	@auth host auth.lecrm.gbconsult.me
+	handle @auth {
+		reverse_proxy authentik-server:9000
+	}
+
+	# All workspace subdomains -> the single lecrm-api binary, which
+	# routes /v1/* to REST handlers and /* to the embedded SPA
+	# (ADR-009 §5.1).
+	handle {
+		# CSP per ADR-009 §5.2. unsafe-inline on style-src is a
+		# shadcn/Tailwind necessity; scripts MUST be 'self' only.
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+			X-Content-Type-Options "nosniff"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			-Server
+		}
+		reverse_proxy lecrm-api:8080
+	}
+}

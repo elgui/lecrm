@@ -1,0 +1,47 @@
+# leCRM staging edge — custom Caddy (caddy-dns/ovh) terminating TLS for
+# *.lecrm.gbconsult.me via the DNS-01 wildcard.
+#
+# Edge Option B (deploy/README.md): host systemd nginx owns the public
+# 0.0.0.0:80/443. Caddy therefore publishes on 127.0.0.1 high ports and
+# host nginx SNI-passes *.lecrm.gbconsult.me to 127.0.0.1:8443. Caddy
+# still terminates TLS and owns the wildcard cert.
+#
+# Build the image once:  sg docker -c "docker build -t lecrm-caddy:ovh deploy/caddy"
+# Boot (needs OVH_* filled in .env.staging):
+#   docker compose --env-file deploy/.env.staging -f deploy/compose/caddy.yml up -d
+
+services:
+  caddy:
+    image: lecrm-caddy:ovh
+    build:
+      context: ../caddy
+      dockerfile: Dockerfile
+    container_name: lecrm-caddy
+    restart: unless-stopped
+    # Only the OVH DNS-01 credentials are injected — NOT the full
+    # .env.staging (Postgres/Authentik/session secrets stay out of the
+    # edge container). Boot fails loudly if any credential is empty.
+    environment:
+      OVH_ENDPOINT: ${OVH_ENDPOINT:?set OVH_ENDPOINT in .env.staging}
+      OVH_APPLICATION_KEY: ${OVH_APPLICATION_KEY:?mint+fill OVH creds in .env.staging}
+      OVH_APPLICATION_SECRET: ${OVH_APPLICATION_SECRET:?mint+fill OVH creds in .env.staging}
+      OVH_CONSUMER_KEY: ${OVH_CONSUMER_KEY:?mint+fill OVH creds in .env.staging}
+    ports:
+      # 127.0.0.1 only — host nginx (same box) proxies/SNI-passes to these.
+      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8443:443"
+    volumes:
+      - ../caddy/Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # ACME account + issued certs (persist!)
+      - caddy_config:/config
+    networks:
+      - lecrm
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  lecrm:
+    name: lecrm
+    external: true
