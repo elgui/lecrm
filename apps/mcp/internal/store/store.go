@@ -52,12 +52,45 @@ type Reader interface {
 	SearchContacts(ctx context.Context, ws uuid.UUID, query string) ([]capability.MCPContact, error)
 }
 
+// Writer is the write surface the MCP intent tools depend on (ADR-012 §3).
+// Like Reader it is an interface seam so the JSON-RPC layer can be unit-tested
+// with a fake; CapabilityWriter is the production implementation. The token's
+// granted scopes flow in per call: the capability layer maps them to a Role
+// and rejects read-only scopes before any mutation (ADR-012 §6/§8).
+type Writer interface {
+	AdvanceDeal(ctx context.Context, ws uuid.UUID, scopes []string, in capability.AdvanceDealInput, opts capability.WriteOptions) (capability.WriteResult, error)
+	LogInteraction(ctx context.Context, ws uuid.UUID, scopes []string, in capability.LogInteractionInput, opts capability.WriteOptions) (capability.WriteResult, error)
+	CaptureLead(ctx context.Context, ws uuid.UUID, scopes []string, in capability.CaptureLeadInput, opts capability.WriteOptions) (capability.WriteResult, error)
+}
+
 // CapabilityReader implements Reader by dispatching to the shared
 // capability layer. Svc must be built on a pool that logs in as the
 // constrained reader role (lecrm_cube_reader); the per-workspace RO role
 // is assumed per read transaction by the Principal this adapter builds.
 type CapabilityReader struct {
 	Svc *capability.Service
+}
+
+// CapabilityWriter implements Writer by dispatching to the shared capability
+// layer's intent write ops. Svc must be built on a pool whose login role can
+// mutate the workspace schema (the write path does NOT assume a RO role).
+// Confirmer signs/verifies the confirmation tokens destructive ops require
+// (advance_deal with mark_closed_at); it must be non-nil.
+type CapabilityWriter struct {
+	Svc       *capability.Service
+	Confirmer *capability.Confirmer
+}
+
+func (w *CapabilityWriter) AdvanceDeal(ctx context.Context, ws uuid.UUID, scopes []string, in capability.AdvanceDealInput, opts capability.WriteOptions) (capability.WriteResult, error) {
+	return w.Svc.AdvanceDeal(ctx, capability.MCPWritePrincipal(ws, scopes), in, opts, w.Confirmer, nil)
+}
+
+func (w *CapabilityWriter) LogInteraction(ctx context.Context, ws uuid.UUID, scopes []string, in capability.LogInteractionInput, opts capability.WriteOptions) (capability.WriteResult, error) {
+	return w.Svc.LogInteraction(ctx, capability.MCPWritePrincipal(ws, scopes), in, opts)
+}
+
+func (w *CapabilityWriter) CaptureLead(ctx context.Context, ws uuid.UUID, scopes []string, in capability.CaptureLeadInput, opts capability.WriteOptions) (capability.WriteResult, error) {
+	return w.Svc.CaptureLead(ctx, capability.MCPWritePrincipal(ws, scopes), in, opts)
 }
 
 func (r *CapabilityReader) principal(ws uuid.UUID) capability.Principal {

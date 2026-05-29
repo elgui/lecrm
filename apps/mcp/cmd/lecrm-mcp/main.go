@@ -11,10 +11,21 @@
 //
 // Configuration (environment):
 //
-//	LECRM_MCP_DATABASE_URL   pgx connection string for lecrm_cube_reader (required)
-//	LECRM_MCP_ADDR           listen address (default ":8081")
-//	LECRM_MCP_RATE_PER_SEC   per (workspace,token) token-bucket rate (default 20)
-//	LECRM_MCP_RATE_BURST     per (workspace,token) bucket capacity (default 40)
+//	LECRM_MCP_DATABASE_URL         pgx connection string for lecrm_cube_reader (required)
+//	LECRM_MCP_ADDR                 listen address (default ":8081")
+//	LECRM_MCP_RATE_PER_SEC         per (workspace,token) token-bucket rate (default 20)
+//	LECRM_MCP_RATE_BURST           per (workspace,token) bucket capacity (default 40)
+//
+// Write surface (ADR-012 §3 — optional; absent ⇒ read-only deployment):
+//
+//	LECRM_MCP_WRITE_DATABASE_URL   pgx connection string for a WRITE-capable
+//	                               login role (mutates the workspace schema).
+//	                               When set, the intent write tools
+//	                               (advance_deal, log_interaction,
+//	                               capture_lead) are enabled.
+//	LECRM_MCP_CONFIRM_SECRET       HMAC secret for the destructive-op
+//	                               confirmation handshake. REQUIRED when the
+//	                               write URL is set (fail-closed otherwise).
 package main
 
 import (
@@ -104,8 +115,37 @@ func run(logger *slog.Logger) error {
 	// enforces SELECT-only access.
 	capSvc := capability.New(pool, logger)
 
+	// Optional write surface (ADR-012 §3). When a write-capable DB URL is
+	// configured, build a second capability Service on a pool whose login
+	// role can mutate the workspace schema, plus the confirmation Confirmer
+	// the destructive-op handshake needs. Absent ⇒ read-only deployment.
+	var writer store.Writer
+	if writeURL := os.Getenv("LECRM_MCP_WRITE_DATABASE_URL"); writeURL != "" {
+		secret := os.Getenv("LECRM_MCP_CONFIRM_SECRET")
+		confirmer, err := capability.NewConfirmer([]byte(secret))
+		if err != nil {
+			return fmt.Errorf("write surface enabled but LECRM_MCP_CONFIRM_SECRET invalid: %w", err)
+		}
+		writePool, err := pgxpool.New(ctx, writeURL)
+		if err != nil {
+			return fmt.Errorf("connect write db: %w", err)
+		}
+		defer writePool.Close()
+		if err := writePool.Ping(ctx); err != nil {
+			return fmt.Errorf("ping write db: %w", err)
+		}
+		writer = &store.CapabilityWriter{
+			Svc:       capability.New(writePool, logger),
+			Confirmer: confirmer,
+		}
+		logger.Info("write surface enabled (intent tools: advance_deal, log_interaction, capture_lead)")
+	} else {
+		logger.Info("read-only deployment (no write surface configured)")
+	}
+
 	srv := mcpserver.New(mcpserver.Config{
 		Reader:  &store.CapabilityReader{Svc: capSvc},
+		Writer:  writer,
 		Limiter: ratelimit.New(ratePerSec, burst),
 		Logger:  logger,
 		Name:    "lecrm-mcp",

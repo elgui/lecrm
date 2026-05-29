@@ -303,59 +303,53 @@ func (h *Handler) handleCandidateEnriched(ctx context.Context, tx pgx.Tx, wsID u
 // upsertConnectorContact matches an existing contact by the connector's
 // external URL (via external_entity_mappings) or by email, updating it;
 // otherwise it creates a new contact and records the mapping.
+//
+// The email-dedup + create path is the shared capability upsert
+// (capability.UpsertContactByEmail) — the *same* op capture_lead (MCP) uses
+// (ADR-012 §3). Only the connector-specific external-URL identity mapping
+// lives here.
 func (h *Handler) upsertConnectorContact(ctx context.Context, tx pgx.Tx, source string, c candidatePayload) (uuid.UUID, error) {
-	var contactID uuid.UUID
-	found := false
-
+	// External-URL identity match (connector-specific): update the mapped
+	// contact in place when this URL has been seen before.
 	if c.URL != "" {
+		var contactID uuid.UUID
 		err := tx.QueryRow(ctx,
 			`SELECT entity_id FROM external_entity_mappings
 			  WHERE provider_id = $1 AND external_id = $2 AND entity_type = 'contact'`,
 			source, c.URL).Scan(&contactID)
 		if err == nil {
-			found = true
-		} else if !errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, err
-		}
-	}
-	if !found && c.Email != "" {
-		err := tx.QueryRow(ctx,
-			`SELECT id FROM contacts WHERE email = $1 ORDER BY created_at LIMIT 1`, c.Email).Scan(&contactID)
-		if err == nil {
-			found = true
+			if _, e := tx.Exec(ctx,
+				`UPDATE contacts SET
+				   first_name = COALESCE(NULLIF($2,''), first_name),
+				   last_name  = COALESCE(NULLIF($3,''), last_name),
+				   email      = COALESCE(NULLIF($4,''), email),
+				   phone      = COALESCE(NULLIF($5,''), phone),
+				   updated_at = now()
+				 WHERE id = $1`,
+				contactID, c.FirstName, c.LastName, c.Email, c.Phone); e != nil {
+				return uuid.Nil, e
+			}
+			return contactID, nil
 		} else if !errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, err
 		}
 	}
 
-	if found {
-		// Update only the fields the connector supplied (COALESCE keeps
-		// existing values when the payload omits a field).
-		_, err := tx.Exec(ctx,
-			`UPDATE contacts SET
-			   first_name = COALESCE(NULLIF($2,''), first_name),
-			   last_name  = COALESCE(NULLIF($3,''), last_name),
-			   email      = COALESCE(NULLIF($4,''), email),
-			   phone      = COALESCE(NULLIF($5,''), phone),
-			   updated_at = now()
-			 WHERE id = $1`,
-			contactID, c.FirstName, c.LastName, c.Email, c.Phone)
-		if err != nil {
-			return uuid.Nil, err
-		}
-		return contactID, nil
-	}
-
-	// Create. Names are NOT NULL in the schema — default blanks to empty
-	// string when the connector only supplied a URL/email.
-	if err := tx.QueryRow(ctx,
-		`INSERT INTO contacts (first_name, last_name, email, phone)
-		 VALUES ($1, $2, NULLIF($3,''), NULLIF($4,''))
-		 RETURNING id`,
-		c.FirstName, c.LastName, c.Email, c.Phone).Scan(&contactID); err != nil {
+	// Shared capability upsert: dedup by email, else create.
+	contactID, created, err := capability.UpsertContactByEmail(ctx, tx, capability.UpsertContactParams{
+		FirstName: c.FirstName,
+		LastName:  c.LastName,
+		Email:     c.Email,
+		Phone:     c.Phone,
+	})
+	if err != nil {
 		return uuid.Nil, err
 	}
-	if c.URL != "" {
+
+	// Record the external-URL mapping only for a freshly created contact (a
+	// contact found by email keeps its existing mappings — matching the prior
+	// behaviour where the mapping was inserted solely on the create branch).
+	if created && c.URL != "" {
 		if _, err := tx.Exec(ctx,
 			`INSERT INTO external_entity_mappings (provider_id, external_id, entity_type, entity_id)
 			 VALUES ($1, $2, 'contact', $3)
