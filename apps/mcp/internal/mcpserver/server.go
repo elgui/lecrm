@@ -16,6 +16,7 @@ import (
 // the configured path and a /healthz probe.
 type Server struct {
 	reader  store.Reader
+	writer  store.Writer
 	limiter *ratelimit.Limiter
 	logger  *slog.Logger
 	name    string
@@ -24,7 +25,11 @@ type Server struct {
 
 // Config configures a Server.
 type Config struct {
-	Reader  store.Reader
+	Reader store.Reader
+	// Writer enables the read-write intent tools (advance_deal,
+	// log_interaction, capture_lead). When nil the server is read-only: the
+	// write tools are absent from the catalog and rejected if called.
+	Writer  store.Writer
 	Limiter *ratelimit.Limiter
 	Logger  *slog.Logger
 	Name    string
@@ -44,6 +49,7 @@ func New(cfg Config) *Server {
 	}
 	return &Server{
 		reader:  cfg.Reader,
+		writer:  cfg.Writer,
 		limiter: cfg.Limiter,
 		logger:  cfg.Logger,
 		name:    cfg.Name,
@@ -121,8 +127,11 @@ func (s *Server) handle(r *http.Request, ws uuid.UUID, req *request) (response, 
 	case "initialize":
 		return resultResponse(req.ID, initializeResult{
 			ProtocolVersion: protocolVersion,
-			Capabilities:    map[string]any{"tools": map[string]any{}},
-			ServerInfo:      serverInfo{Name: s.name, Version: s.version},
+			Capabilities: map[string]any{
+				"tools":     map[string]any{},
+				"resources": map[string]any{},
+			},
+			ServerInfo: serverInfo{Name: s.name, Version: s.version},
 		}), true
 
 	case "notifications/initialized":
@@ -132,7 +141,26 @@ func (s *Server) handle(r *http.Request, ws uuid.UUID, req *request) (response, 
 		return resultResponse(req.ID, map[string]any{}), true
 
 	case "tools/list":
-		return resultResponse(req.ID, listToolsResult{Tools: toolCatalog()}), true
+		return resultResponse(req.ID, listToolsResult{Tools: s.toolCatalog()}), true
+
+	case "resources/list":
+		return resultResponse(req.ID, listResourcesResult{Resources: s.resourceCatalog()}), true
+
+	case "resources/read":
+		if req.isNotification() {
+			return response{}, false
+		}
+		var p readResourceParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return errorResponse(req.ID, codeInvalidParams, "invalid resource params"), true
+		}
+		contents, err := s.dispatchResource(r.Context(), ws, p.URI)
+		if err != nil {
+			// Unknown URI or a scoped read failure: an invalid-params error so
+			// the client sees the message (resources have no isError channel).
+			return errorResponse(req.ID, codeInvalidParams, err.Error()), true
+		}
+		return resultResponse(req.ID, readResourceResult{Contents: []resourceContents{contents}}), true
 
 	case "tools/call":
 		if req.isNotification() {
@@ -142,7 +170,7 @@ func (s *Server) handle(r *http.Request, ws uuid.UUID, req *request) (response, 
 		if err := json.Unmarshal(req.Params, &p); err != nil {
 			return errorResponse(req.ID, codeInvalidParams, "invalid tool params"), true
 		}
-		out, err := s.dispatchTool(r.Context(), ws, p.Name, p.Arguments)
+		out, err := s.dispatchTool(r.Context(), ws, scopesFromRequest(r), p.Name, p.Arguments)
 		if err != nil {
 			// Tool-level failures are reported as isError results, not
 			// transport errors, so the agent can read the message.

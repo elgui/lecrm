@@ -106,3 +106,34 @@ type contentBlock struct {
 func textContent(s string) []contentBlock {
 	return []contentBlock{{Type: "text", Text: s}}
 }
+
+// resourceDef is one entry in a resources/list reply (MCP Resources —
+// ADR-012 §9). Unlike tools, resources are addressable read-only context the
+// client can fetch by URI.
+type resourceDef struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	MimeType    string `json:"mimeType"`
+}
+
+type listResourcesResult struct {
+	Resources []resourceDef `json:"resources"`
+}
+
+// readResourceParams is the params object for resources/read.
+type readResourceParams struct {
+	URI string `json:"uri"`
+}
+
+// resourceContents is one content item in a resources/read reply. Text holds
+// the (compact JSON) body; URI echoes the requested resource.
+type resourceContents struct {
+	URI      string `json:"uri"`
+	MimeType string `json:"mimeType"`
+	Text     string `json:"text"`
+}
+
+type readResourceResult struct {
+	Contents []resourceContents `json:"contents"`
+}
