@@ -7,11 +7,18 @@ layer-4 SNI router so the leCRM Caddy edge can own TLS for
 `*.lecrm.gbconsult.me` while the co-located apps keep their existing TLS
 vhosts. This is **Edge Option B** from `../README.md`.
 
-> **STATUS: STAGED, NOT APPLIED.** Applying this re-points the host's
-> public `:443` and briefly affects `tele-claude`, `aaraume`,
-> `conversation`, and `drawlk`. Apply only with an explicit go-ahead and
-> the rollback below ready. It is the one outward-facing, shared-infra
-> change in the staging bring-up.
+> **STATUS: APPLIED 2026-05-29** on host `vps-25b8e3b3` (51.77.146.49)
+> with Guillaume's go-ahead. Public `:443` is now the stream SNI router;
+> the four co-located vhosts were relocated to `127.0.0.1:8444` and
+> verified intact (tele-claude 302, aaraume 200, conversation 200, drawlk
+> 401 — all `ssl_verify=0`). `demo.lecrm.gbconsult.me` handshakes on the
+> Caddy wildcard. **Applied artifacts diverge slightly from the steps
+> below:** the stream conf was *copied* to
+> `/etc/nginx/streams-enabled/stream-lecrm.conf` (not symlinked, to keep
+> `/etc/nginx` self-contained), and `libnginx-mod-stream` was installed
+> (the Debian stream module ships separately). Pre-cutover backups of all
+> edited files (incl. `nginx.conf`) live in
+> `/home/gui/nginx-pre-lecrm-cutover-20260529/` on the host.
 
 ## Why a stream front (not a plain vhost)
 

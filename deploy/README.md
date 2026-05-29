@@ -150,14 +150,17 @@ is the primary entry point (production deploy).
 ## Staging (lecrm.gbconsult.me)
 
 > **Status (2026-05-29):** host + secrets + edge strategy laid (order:1).
-> Edge **built** (order:2, this tasket): custom Caddy image + staging
-> Caddyfile + edge compose + staged nginx SNI cutover — see "TLS / DNS-01"
-> below. **Still blocked on the OVH API token** (must be minted in
-> Guillaume's OVH account) before the wildcard cert can issue and the DNS
-> record can be created. Stack boot + workspace seed is order:3; Léo
-> access is order:4. **TEMPORARY stopgap** — migrates to a fresh Hetzner
-> CAX11 by **2026-06-12** (order:5) for true infra isolation; the council
-> knowingly waived the isolation gate on OVH (see the tasket).
+> Edge **LIVE** (order:2, this tasket): custom Caddy issuing the
+> `*.lecrm.gbconsult.me` wildcard via OVH DNS-01, fronted by an nginx L4
+> SNI passthrough on public `:443`. `demo`/`auth.lecrm.gbconsult.me`
+> handshake on the wildcard cert; `demo` 502s pending the API (order:3),
+> `auth` reaches Authentik. Co-located apps (tele-claude/aaraume/
+> conversation/drawlk) relocated to `127.0.0.1:8444`, verified intact.
+> **Still TODO:** lecrm-api/pgbouncer boot + workspace seed (order:3),
+> host firewall (80/443/22-only), Léo access (order:4). **TEMPORARY
+> stopgap** — migrates to a fresh Hetzner CAX11 by **2026-06-12**
+> (order:5) for true infra isolation; the council knowingly waived the
+> isolation gate on OVH (see the tasket).
 
 ### Host
 
