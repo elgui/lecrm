@@ -1,15 +1,17 @@
 ---
 id: 20260529-1100-provision-ovh-host-secrets-edge
 title: "Staging: provision OVH host, secrets, and resolve the 80/443 edge strategy"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-29
+tags: [deploy, staging, ovh, secrets, caddy, edge, leo-test, gbconsult]
 category: project
 group: lecrm-staging-deploy
 group_order: 220
 order: 1
 plan: true
-tags: [deploy, staging, ovh, secrets, caddy, edge, leo-test, gbconsult]
+done: 2026-05-29
 ---
 
 # Staging: provision OVH host, secrets, and resolve the 80/443 edge strategy
@@ -78,3 +80,20 @@ The OVH boxes in `~/.claude/CLAUDE.md` run **Dokku, whose nginx already binds po
 - `~/.claude/CLAUDE.md` — OVH infra inventory (hosts), sudo policy
 - memory `feedback_test_postgres_localhost_only` — never expose Postgres publicly
 - ADR-007 / tasket `20260510-162158-1023` — SOPS secrets baseline
+
+## Completion notes (2026-05-29) — status: done
+
+**Committed:** `e06e1f7a` (docs/config only; secrets + age key stay host-local). Full detail in `deploy/README.md` → "Staging (lecrm.gbconsult.me)".
+
+- **Host:** OVH `51.77.146.49` (`vps-25b8e3b3`) — the council-preferred least-sensitive co-tenant box. ⚠️ Infra correction: `CLAUDE.md` lists "Main Dokku 54.37.157.49" and "Static Sites vps-4f99e005" as separate machines — they are the **same box** (worst blast radius); `51.77.146.49` is the right choice. Notably I am running *on* this box (no SSH needed).
+- **Edge:** Option B — host systemd **nginx owns 80/443** (fronts co-located apps), so Caddy binds high ports behind it. Recommended for order:2: nginx `stream{}` SNI passthrough so Caddy keeps TLS/DNS-01 ownership.
+- **DNS-01 provider corrected Cloudflare → OVH:** `gbconsult.me` is on `dns104/ns104.ovh.net`. Use `caddy-dns/ovh`. `CLOUDFLARE_API_TOKEN` replaced by `OVH_ENDPOINT/APPLICATION_KEY/APPLICATION_SECRET/CONSUMER_KEY` (empty placeholders).
+- **Secrets:** `deploy/.env.staging.enc` SOPS-encrypted to a **dedicated DISPOSABLE staging age key** held only on the host (`~/.config/sops/age/keys.txt`), NOT the operator key (ADR-007). Gitignored (host-local). All required vars present + strong; OIDC client secret & OVH creds are placeholders. sops 3.13.1 matches path_regex on the ABSOLUTE path — staging rule uses a `(^|/)` anchor; repo's `^`-anchored rules flagged for the secrets-baseline tasket.
+- **Network/exposure:** `lecrm` docker bridge exists; every DB port is `127.0.0.1`-only (verified on running containers + all compose files). No `0.0.0.0` publish anywhere. Gate 1 ✅. Tooling: age 1.3.1 + sops 3.13.1 via `go install`; `gui` added to docker group.
+
+### ⚠️ KEY FINDING — reconcile in order:2
+A **dev** bring-up is **already running** on this box (~2 weeks): `lecrm-postgres` + `lecrm-authentik-{server,worker,postgres}`, healthy, booted with **`.env.dev`** (hash-confirmed) holding dev-fixture data (1 workspace / 1 user). It is **not** a real staging instance and its secrets ≠ `.env.staging`. order:2 must **tear it down and re-up against `.env.staging` on fresh volumes** (fixtures disposable).
+
+### Handoffs
+- **order:2 tasket `20260529-1101-dns-wildcard-tls-cloudflare-caddy`:** its **Cloudflare** premise is wrong — must use `caddy-dns/ovh`; consider renaming. Also: mint+verify the OVH DNS-01 token, add the staging Caddyfile variant for `*.lecrm.gbconsult.me` + `auth.lecrm.gbconsult.me`, configure host-nginx routing, add the host firewall, and do the dev→staging reconcile above.
+- **order:3:** fill `LECRM_OIDC_CLIENT_SECRET` after Authentik OIDC client provisioning.
