@@ -127,8 +127,11 @@ func (s *Server) handle(r *http.Request, ws uuid.UUID, req *request) (response, 
 	case "initialize":
 		return resultResponse(req.ID, initializeResult{
 			ProtocolVersion: protocolVersion,
-			Capabilities:    map[string]any{"tools": map[string]any{}},
-			ServerInfo:      serverInfo{Name: s.name, Version: s.version},
+			Capabilities: map[string]any{
+				"tools":     map[string]any{},
+				"resources": map[string]any{},
+			},
+			ServerInfo: serverInfo{Name: s.name, Version: s.version},
 		}), true
 
 	case "notifications/initialized":
@@ -139,6 +142,25 @@ func (s *Server) handle(r *http.Request, ws uuid.UUID, req *request) (response, 
 
 	case "tools/list":
 		return resultResponse(req.ID, listToolsResult{Tools: s.toolCatalog()}), true
+
+	case "resources/list":
+		return resultResponse(req.ID, listResourcesResult{Resources: s.resourceCatalog()}), true
+
+	case "resources/read":
+		if req.isNotification() {
+			return response{}, false
+		}
+		var p readResourceParams
+		if err := json.Unmarshal(req.Params, &p); err != nil {
+			return errorResponse(req.ID, codeInvalidParams, "invalid resource params"), true
+		}
+		contents, err := s.dispatchResource(r.Context(), ws, p.URI)
+		if err != nil {
+			// Unknown URI or a scoped read failure: an invalid-params error so
+			// the client sees the message (resources have no isError channel).
+			return errorResponse(req.ID, codeInvalidParams, err.Error()), true
+		}
+		return resultResponse(req.ID, readResourceResult{Contents: []resourceContents{contents}}), true
 
 	case "tools/call":
 		if req.isNotification() {

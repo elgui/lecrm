@@ -21,6 +21,7 @@ type fakeReader struct {
 	lastWS   uuid.UUID
 	contact  capability.MCPContact
 	notFound bool
+	schema   capability.MCPWorkspaceSchema
 }
 
 func (f *fakeReader) ReadContact(_ context.Context, ws, id uuid.UUID) (capability.MCPContact, error) {
@@ -50,6 +51,18 @@ func (f *fakeReader) ListPipelineStages(_ context.Context, ws uuid.UUID) ([]capa
 func (f *fakeReader) SearchContacts(_ context.Context, ws uuid.UUID, _ string) ([]capability.MCPContact, error) {
 	f.lastWS = ws
 	return []capability.MCPContact{f.contact}, nil
+}
+func (f *fakeReader) WorkspaceSchema(_ context.Context, ws uuid.UUID) (capability.MCPWorkspaceSchema, error) {
+	f.lastWS = ws
+	s := f.schema
+	s.WorkspaceID = ws.String()
+	if s.Contact == nil {
+		s.Contact = []capability.MCPPropertyDef{}
+	}
+	if s.Deal == nil {
+		s.Deal = []capability.MCPPropertyDef{}
+	}
+	return s, nil
 }
 
 func newTestServer(r store.Reader) *Server {
@@ -190,7 +203,7 @@ func TestToolsCall_UnknownToolIsToolError(t *testing.T) {
 
 func TestUnknownMethodIsMethodNotFound(t *testing.T) {
 	srv := newTestServer(&fakeReader{})
-	rec := rpc(t, srv, testWS, `{"jsonrpc":"2.0","id":6,"method":"resources/list"}`)
+	rec := rpc(t, srv, testWS, `{"jsonrpc":"2.0","id":6,"method":"prompts/list"}`)
 	resp := decodeResp(t, rec)
 	if resp.Error == nil || resp.Error.Code != codeMethodNotFound {
 		t.Fatalf("want method-not-found, got %+v", resp.Error)

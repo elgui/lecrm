@@ -50,6 +50,10 @@ type Reader interface {
 	ListDeals(ctx context.Context, ws uuid.UUID, p Page) (capability.MCPDeals, error)
 	ListPipelineStages(ctx context.Context, ws uuid.UUID) ([]capability.MCPStage, error)
 	SearchContacts(ctx context.Context, ws uuid.UUID, query string) ([]capability.MCPContact, error)
+	// WorkspaceSchema backs the lecrm://workspace/schema MCP Resource: the
+	// connecting workspace's self-describing custom-property definitions
+	// (ADR-012 §5/§9), scoped to its own schema.
+	WorkspaceSchema(ctx context.Context, ws uuid.UUID) (capability.MCPWorkspaceSchema, error)
 }
 
 // Writer is the write surface the MCP intent tools depend on (ADR-012 §3).
@@ -119,4 +123,8 @@ func (r *CapabilityReader) ListPipelineStages(ctx context.Context, ws uuid.UUID)
 
 func (r *CapabilityReader) SearchContacts(ctx context.Context, ws uuid.UUID, query string) ([]capability.MCPContact, error) {
 	return r.Svc.MCPSearchContacts(ctx, r.principal(ws), query)
+}
+
+func (r *CapabilityReader) WorkspaceSchema(ctx context.Context, ws uuid.UUID) (capability.MCPWorkspaceSchema, error) {
+	return r.Svc.MCPWorkspaceSchema(ctx, r.principal(ws))
 }
