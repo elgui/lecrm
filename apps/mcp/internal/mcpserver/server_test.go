@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gbconsult/lecrm/apps/api/capability"
 	"github.com/gbconsult/lecrm/apps/mcp/internal/ratelimit"
 	"github.com/gbconsult/lecrm/apps/mcp/internal/store"
 )
@@ -18,37 +19,37 @@ import (
 // data, so the JSON-RPC layer can be tested without a database.
 type fakeReader struct {
 	lastWS   uuid.UUID
-	contact  store.Contact
+	contact  capability.MCPContact
 	notFound bool
 }
 
-func (f *fakeReader) ReadContact(_ context.Context, ws, id uuid.UUID) (store.Contact, error) {
+func (f *fakeReader) ReadContact(_ context.Context, ws, id uuid.UUID) (capability.MCPContact, error) {
 	f.lastWS = ws
 	if f.notFound {
-		return store.Contact{}, store.ErrNotFound
+		return capability.MCPContact{}, store.ErrNotFound
 	}
 	f.contact.ID = id
 	return f.contact, nil
 }
-func (f *fakeReader) ListContacts(_ context.Context, ws uuid.UUID, _ store.Page) (store.Contacts, error) {
+func (f *fakeReader) ListContacts(_ context.Context, ws uuid.UUID, _ store.Page) (capability.MCPContacts, error) {
 	f.lastWS = ws
-	return store.Contacts{Data: []store.Contact{f.contact}}, nil
+	return capability.MCPContacts{Data: []capability.MCPContact{f.contact}}, nil
 }
-func (f *fakeReader) ReadDeal(_ context.Context, ws, id uuid.UUID) (store.Deal, error) {
+func (f *fakeReader) ReadDeal(_ context.Context, ws, id uuid.UUID) (capability.MCPDeal, error) {
 	f.lastWS = ws
-	return store.Deal{ID: id, Title: "x"}, nil
+	return capability.MCPDeal{ID: id, Title: "x"}, nil
 }
-func (f *fakeReader) ListDeals(_ context.Context, ws uuid.UUID, _ store.Page) (store.Deals, error) {
+func (f *fakeReader) ListDeals(_ context.Context, ws uuid.UUID, _ store.Page) (capability.MCPDeals, error) {
 	f.lastWS = ws
-	return store.Deals{Data: []store.Deal{}}, nil
+	return capability.MCPDeals{Data: []capability.MCPDeal{}}, nil
 }
-func (f *fakeReader) ListPipelineStages(_ context.Context, ws uuid.UUID) ([]store.Stage, error) {
+func (f *fakeReader) ListPipelineStages(_ context.Context, ws uuid.UUID) ([]capability.MCPStage, error) {
 	f.lastWS = ws
-	return []store.Stage{{Name: "Discovery", OrderIndex: 1, DealCount: 3}}, nil
+	return []capability.MCPStage{{Name: "Discovery", OrderIndex: 1, DealCount: 3}}, nil
 }
-func (f *fakeReader) SearchContacts(_ context.Context, ws uuid.UUID, _ string) ([]store.Contact, error) {
+func (f *fakeReader) SearchContacts(_ context.Context, ws uuid.UUID, _ string) ([]capability.MCPContact, error) {
 	f.lastWS = ws
-	return []store.Contact{f.contact}, nil
+	return []capability.MCPContact{f.contact}, nil
 }
 
 func newTestServer(r store.Reader) *Server {
@@ -136,7 +137,7 @@ func TestToolsListReturnsAllSixTools(t *testing.T) {
 }
 
 func TestToolsCall_ReadContact_PassesWorkspace(t *testing.T) {
-	fr := &fakeReader{contact: store.Contact{FirstName: "Ada", LastName: "Lovelace"}}
+	fr := &fakeReader{contact: capability.MCPContact{FirstName: "Ada", LastName: "Lovelace"}}
 	srv := newTestServer(fr)
 	id := uuid.New()
 	body := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_contact","arguments":{"id":"` + id.String() + `"}}}`

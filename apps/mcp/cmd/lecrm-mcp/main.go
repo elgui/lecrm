@@ -31,6 +31,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/gbconsult/lecrm/apps/api/capability"
 	"github.com/gbconsult/lecrm/apps/mcp/internal/mcpserver"
 	"github.com/gbconsult/lecrm/apps/mcp/internal/ratelimit"
 	"github.com/gbconsult/lecrm/apps/mcp/internal/store"
@@ -96,8 +97,15 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("database connected (read-only reader role)")
 
+	// The MCP adapter is a thin projection over the shared capability
+	// layer (ADR-012 §1). It links — does not re-implement — CRM reads.
+	// The pool logs in as lecrm_cube_reader; per-read the capability layer
+	// assumes the workspace_<id>_ro role (migration 0013), so the DB
+	// enforces SELECT-only access.
+	capSvc := capability.New(pool, logger)
+
 	srv := mcpserver.New(mcpserver.Config{
-		Reader:  &store.PG{Pool: pool},
+		Reader:  &store.CapabilityReader{Svc: capSvc},
 		Limiter: ratelimit.New(ratePerSec, burst),
 		Logger:  logger,
 		Name:    "lecrm-mcp",

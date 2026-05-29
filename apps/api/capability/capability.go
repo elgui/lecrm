@@ -5,7 +5,7 @@
 // and returns domain results — never wire formats.
 //
 // It depends only on the store (sqlcgen + raw pgx) and domain validation.
-// It never imports net/http, chi, or the JSON-RPC layer, and it defines
+// It never imports the HTTP (chi) transport or the JSON-RPC layer, and defines
 // its own Principal type rather than importing apps/api/internal/rbac so
 // that no transport package leaks into it. REST handlers, connector-event
 // handlers (apps/api), and the MCP adapter (apps/mcp) are all thin
@@ -74,6 +74,17 @@ func (r Role) AtLeast(min Role) bool { return r >= min && r != RoleNone }
 //     (workspace.Context.RoleName).
 //   - Role drives RBAC (reads require RoleMember+, writes RoleAdmin+).
 //   - ActorType is recorded on every audit row (ADR-009 §7.2).
+//   - ReadRole optionally names a constrained Postgres role to `SET LOCAL
+//     ROLE` to for the lifetime of a *read* transaction. When non-empty,
+//     readTx assumes it before pinning search_path, so the database — not
+//     the Go code — enforces SELECT-only access. This is how a read-only
+//     adapter (the MCP binary, ADR-009 §9) preserves the DB-level
+//     read-only guarantee: it connects as `lecrm_cube_reader` and sets
+//     ReadRole to the workspace's `workspace_<id>_ro` role (migration
+//     0013). The REST/connector callers leave it empty (their pool login
+//     role already carries the right privileges), so their behaviour is
+//     unchanged. ReadRole is ignored by writeTx — write paths must use a
+//     pool whose login role can mutate.
 type Principal struct {
 	WorkspaceID    uuid.UUID
 	Schema         string
@@ -81,6 +92,7 @@ type Principal struct {
 	ActorType      string
 	Scopes         []string
 	IsServiceToken bool
+	ReadRole       string
 }
 
 // --- typed errors (adapter maps these to transport status codes) ---
@@ -173,7 +185,37 @@ func WriteTx(ctx context.Context, pool *pgxpool.Pool, schema string, fn func(pgx
 	return tx.Commit(ctx)
 }
 
+// ReadTxAsRole is ReadTx plus a `SET LOCAL ROLE role` issued before the
+// search_path is pinned, so the constrained role is the effective
+// principal for the transaction. Both SET LOCAL statements revert on
+// commit/rollback, leaving no role/search_path leakage across pooled
+// connections. The explicit search_path is still required: SET ROLE
+// changes privileges but does not apply the target role's login-time
+// ALTER ROLE search_path, so unqualified names would otherwise resolve
+// against the login role's default path. (Mirrors the old
+// apps/mcp/internal/store.withWorkspace, now folded in here per ADR-012 §1.)
+func ReadTxAsRole(ctx context.Context, pool *pgxpool.Pool, role, schema string, fn func(pgx.Tx) error) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, "SET LOCAL ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
+		return fmt.Errorf("set role: %w", err)
+	}
+	if _, err := tx.Exec(ctx, "SET LOCAL search_path TO "+pgx.Identifier{schema}.Sanitize()); err != nil {
+		return fmt.Errorf("set search_path: %w", err)
+	}
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) readTx(ctx context.Context, p Principal, fn func(pgx.Tx) error) error {
+	if p.ReadRole != "" {
+		return ReadTxAsRole(ctx, s.Pool, p.ReadRole, p.Schema, fn)
+	}
 	return ReadTx(ctx, s.Pool, p.Schema, fn)
 }
 

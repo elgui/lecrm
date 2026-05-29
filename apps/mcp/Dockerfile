@@ -3,9 +3,13 @@
 # Multi-stage release image for the lecrm-mcp binary — the Model Context
 # Protocol adapter (ADR-011 AI-native interface seam).
 #
-# The MCP module depends only on pgx + google/uuid, so the build is
-# self-contained (no workspace siblings, no SPA). GOWORK=off keeps the
-# repo's go.work out of the single-module build.
+# The MCP adapter links the shared capability layer (ADR-012 §1), which
+# lives in the sibling apps/api module. apps/mcp/go.mod resolves it with a
+# local `replace => ../api`, so the build still runs as a single module
+# (GOWORK=off keeps the repo's go.work out of it) but must include the
+# apps/api source tree. The compiled surface is tiny — capability +
+# sqlcgen + domain pull in only pgx + google/uuid + golang.org/x/* — so the
+# separate-binary topology (ADR-009 §4.2) is preserved.
 
 # ----------------------------------------------------------- go build
 FROM golang:1.25-alpine AS go
@@ -13,12 +17,14 @@ FROM golang:1.25-alpine AS go
 WORKDIR /workspace
 ENV GOWORK=off
 
-# Module manifest first for layer caching.
+# Module manifests first for layer caching. apps/api is the replace target.
 COPY apps/mcp/go.mod apps/mcp/go.sum ./apps/mcp/
+COPY apps/api/go.mod apps/api/go.sum ./apps/api/
 RUN cd apps/mcp && go mod download
 
-# Source.
+# Source: the MCP module plus the capability layer it links from apps/api.
 COPY apps/mcp/ ./apps/mcp/
+COPY apps/api/ ./apps/api/
 
 # Static binary so the distroless:static runtime can run it without libc.
 RUN cd apps/mcp/cmd/lecrm-mcp \
