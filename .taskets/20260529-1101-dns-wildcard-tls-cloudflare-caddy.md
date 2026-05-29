@@ -1,7 +1,7 @@
 ---
 id: 20260529-1101-dns-wildcard-tls-cloudflare-caddy
 title: "Staging: DNS + wildcard TLS for *.lecrm.gbconsult.me (Cloudflare DNS-01 + custom Caddy)"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
 category: project
