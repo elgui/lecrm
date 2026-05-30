@@ -42,9 +42,14 @@ func connectWithRetry(ctx context.Context, connStr string, maxWait time.Duration
 	}
 }
 
-// migrationPaths returns absolute paths to the given migration filenames,
-// navigating from this source file to the repository root.
-func migrationPaths(t *testing.T, names ...string) []string {
+// allMigrationPaths returns absolute paths to every migration in
+// packages/db/migrations, in lexical order. Migration filenames are
+// zero-padded (0001…0017…), so lexical order == numeric apply order, and
+// filepath.Glob already returns its matches sorted. Globbing (rather than a
+// hand-maintained list) keeps the provisioning fixture from going stale as new
+// migrations land — the previous fixture seeded only 0001-0003 and so could not
+// resolve core.lecrm_provision_workspace_with_registry (added in 0004+).
+func allMigrationPaths(t *testing.T) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -52,13 +57,13 @@ func migrationPaths(t *testing.T, names ...string) []string {
 	}
 	// thisFile is apps/migrate/internal/provision/provision_test.go
 	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..")
-	paths := make([]string, len(names))
-	for i, name := range names {
-		p := filepath.Join(repoRoot, "packages", "db", "migrations", name)
-		if _, err := os.Stat(p); err != nil {
-			t.Fatalf("migration not found at %s: %v", p, err)
-		}
-		paths[i] = p
+	pattern := filepath.Join(repoRoot, "packages", "db", "migrations", "*.sql")
+	paths, err := filepath.Glob(pattern)
+	if err != nil {
+		t.Fatalf("glob migrations %s: %v", pattern, err)
+	}
+	if len(paths) == 0 {
+		t.Fatalf("no migrations found at %s", pattern)
 	}
 	return paths
 }
@@ -68,11 +73,7 @@ func startPostgres(ctx context.Context, t *testing.T) string {
 
 	testcontainers.SkipIfProviderIsNotHealthy(t)
 
-	migrations := migrationPaths(t,
-		"0001_init.sql",
-		"0002_identity.sql",
-		"0003_metadata_engine.sql",
-	)
+	migrations := allMigrationPaths(t)
 
 	ctr, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("lecrm"),
