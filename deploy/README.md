@@ -2,10 +2,12 @@
 
 ## What this directory is
 
-Compose-file stubs and Caddyfile for the leCRM v0 edge. Validated as
-syntactically correct YAML/Caddy DSL; **not yet booted** as of Day-1
-hand-off. Three external dependencies must land before
-`docker compose up` succeeds:
+Compose files and Caddyfile for the leCRM v0 edge. **As of 2026-05-29 the
+staging stack is LIVE** on `51.77.146.49` (`*.lecrm.gbconsult.me`) — see the
+"Staging" section below for the live runbook, and
+[`docs/INFRASTRUCTURE.md`](../docs/INFRASTRUCTURE.md) for the high-level
+environment/CI/deployment map. The three dependencies below must land before
+a fresh `docker compose up` succeeds on a new host:
 
 1. **SOPS-encrypted `.env`** — secrets baseline tasket
    `20260510-162158-1023` (Sprint 3). Required environment variables:

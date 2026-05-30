@@ -330,6 +330,10 @@ The `email_suppression` table is queried at every step send. Provider-side suppr
 
 ## 6. Deployment Topology
 
+> This section is the **target** phased design. For **what is actually
+> deployed today** (the live staging stack, hosts, edge, CI pipeline, and
+> deployment process), see [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md).
+
 ### 6.1 Phase 1 (1–5 clients): VPS-per-client
 
 ```mermaid

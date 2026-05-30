@@ -389,6 +389,12 @@ this in Léo's shell so the audit trail attributes mutations correctly).
 
 ### Production Dokku deployment (AC-D1..D3, AC-D6)
 
+> **Scope note:** "production Dokku host `54.37.157.49`" below refers to the
+> `lecrm-admin` **CLI** only (one-shot, `Running: false`, invoked via
+> `dokku run`). The leCRM **API/web app does not run on Dokku** — it runs as
+> a Compose stack on `51.77.146.49` (staging). See
+> [`docs/INFRASTRUCTURE.md`](INFRASTRUCTURE.md) for the full environment map.
+
 When 8.1 lands, run these on the production Dokku host (`54.37.157.49`):
 
 ```bash
