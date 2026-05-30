@@ -74,6 +74,41 @@ func (s *Store) Get(ctx context.Context, parentType string, parentID uuid.UUID) 
 	return out, nil
 }
 
+// GetMany returns the custom properties for several parent records of one
+// parent type in a single query, keyed by parent ID. Records with no
+// properties are simply absent from the result map. This is the batch form of
+// Get used by list views to avoid an N+1 fan-out (one request per row).
+func (s *Store) GetMany(ctx context.Context, parentType string, parentIDs []uuid.UUID) (map[uuid.UUID]map[string]any, error) {
+	out := make(map[uuid.UUID]map[string]any, len(parentIDs))
+	if len(parentIDs) == 0 {
+		return out, nil
+	}
+	q := `SELECT parent_id, data FROM ` + pgx.Identifier{s.schema, "objects"}.Sanitize() +
+		` WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = ANY($2)`
+	rows, err := s.pool.Query(ctx, q, parentType, parentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("metadata.GetMany query: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var pid uuid.UUID
+		var rawJSON []byte
+		if err := rows.Scan(&pid, &rawJSON); err != nil {
+			return nil, fmt.Errorf("metadata.GetMany scan: %w", err)
+		}
+		var props map[string]any
+		if err := json.Unmarshal(rawJSON, &props); err != nil {
+			return nil, fmt.Errorf("metadata.GetMany decode: %w", err)
+		}
+		out[pid] = props
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("metadata.GetMany rows: %w", err)
+	}
+	return out, nil
+}
+
 // Set upserts the entire custom-property payload for one parent record.
 // Validates the payload against custom_property_definitions before writing.
 //

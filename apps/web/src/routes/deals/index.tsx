@@ -4,9 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
-import { useDeals, useCreateDeal } from '@/hooks/use-deals';
+import { useDeals, useCreateDeal, useDealDefinitions } from '@/hooks/use-deals';
+import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { usePipelineStages } from '@/hooks/use-pipeline-stages';
 import { useMe } from '@/hooks/use-me';
+import { formatPropertyValue } from '@/lib/format-property';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -134,6 +136,15 @@ function DealList() {
   const { permissions } = useMe();
   const [creating, setCreating] = React.useState(false);
 
+  // Surface the workspace's first couple of custom fields as table columns so
+  // tailorization is visible at a glance, not only on the detail page. Values
+  // are batch-fetched for the whole page in one request (no N+1).
+  const { data: defs } = useDealDefinitions();
+  const customCols = (defs ?? []).slice(0, 2);
+  // Only fetch values when there's at least one custom column to render.
+  const dealIds = customCols.length > 0 ? (data?.data.map((d) => d.id) ?? []) : [];
+  const { data: propsById } = useBatchProperties('deal', dealIds);
+
   const stageName = (id: string | null) =>
     stages?.find((s) => s.id === id)?.name ?? id?.slice(0, 8) ?? null;
 
@@ -180,6 +191,9 @@ function DealList() {
               <TableHead>Title</TableHead>
               <TableHead>Stage</TableHead>
               <TableHead>Amount</TableHead>
+              {customCols.map((def) => (
+                <TableHead key={def.id}>{def.property_key}</TableHead>
+              ))}
               <TableHead>Created</TableHead>
             </TableRow>
           </TableHeader>
@@ -205,6 +219,17 @@ function DealList() {
                 <TableCell className="text-muted-foreground">
                   {formatCurrency(deal.amount, deal.currency)}
                 </TableCell>
+                {customCols.map((def) => {
+                  const formatted = formatPropertyValue(
+                    def,
+                    propsById?.[deal.id]?.[def.property_key],
+                  );
+                  return (
+                    <TableCell key={def.id} className="text-muted-foreground">
+                      {formatted || <span className="text-muted-foreground">-</span>}
+                    </TableCell>
+                  );
+                })}
                 <TableCell className="text-muted-foreground">
                   {new Date(deal.created_at).toLocaleDateString()}
                 </TableCell>

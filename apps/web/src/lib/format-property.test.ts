@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest';
+
+import { formatPropertyValue } from './format-property';
+import type { PropertyDefinition, PropertyType } from '@/lib/types';
+
+function def(type: PropertyType, allowed?: string[]): PropertyDefinition {
+  return {
+    id: '1',
+    parent_type: 'deal',
+    property_key: 'k',
+    property_type: type,
+    allowed_values: allowed,
+    required: false,
+  };
+}
+
+describe('formatPropertyValue', () => {
+  it('renders booleans as Yes/No (accepting string "true")', () => {
+    expect(formatPropertyValue(def('boolean'), true)).toBe('Yes');
+    expect(formatPropertyValue(def('boolean'), false)).toBe('No');
+    expect(formatPropertyValue(def('boolean'), 'true')).toBe('Yes');
+  });
+
+  it('formats numbers, coercing strings', () => {
+    expect(formatPropertyValue(def('number'), 42)).toBe(
+      new Intl.NumberFormat().format(42),
+    );
+    expect(formatPropertyValue(def('number'), '1234.5')).toBe(
+      new Intl.NumberFormat().format(1234.5),
+    );
+  });
+
+  it('passes through enum and string values', () => {
+    expect(formatPropertyValue(def('enum', ['salon', 'web']), 'salon')).toBe('salon');
+    expect(formatPropertyValue(def('string'), 'hello')).toBe('hello');
+  });
+
+  it('stringifies json objects', () => {
+    expect(formatPropertyValue(def('json'), { x: 1 })).toBe('{"x":1}');
+    expect(formatPropertyValue(def('json'), '{"y":2}')).toBe('{"y":2}');
+  });
+
+  it('formats dates as a locale date string', () => {
+    const out = formatPropertyValue(def('date'), '2026-05-30');
+    expect(out).not.toBe('');
+    expect(out).not.toBe('Invalid Date');
+    // Must not echo the raw ISO string unchanged.
+    expect(out).not.toBe('2026-05-30');
+  });
+
+  it('returns empty string for absent values', () => {
+    expect(formatPropertyValue(def('string'), undefined)).toBe('');
+    expect(formatPropertyValue(def('string'), null)).toBe('');
+    expect(formatPropertyValue(def('string'), '')).toBe('');
+  });
+});

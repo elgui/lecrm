@@ -46,10 +46,81 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/v1/metadata/definitions", h.CreateDefinition)
 	r.Delete("/v1/metadata/definitions/{id}", h.DeleteDefinition)
 
+	// Batch property read for list views (avoids N+1). Mounted under the
+	// metadata namespace so it can't collide with /v1/deals/{id}.
+	r.Get("/v1/metadata/properties", h.GetPropertiesBatch)
+
 	r.Get("/v1/contacts/{id}/properties", h.GetProperties("contact"))
 	r.Put("/v1/contacts/{id}/properties", h.SetProperties("contact"))
 	r.Get("/v1/deals/{id}/properties", h.GetProperties("deal"))
 	r.Put("/v1/deals/{id}/properties", h.SetProperties("deal"))
+}
+
+// maxBatchIDs caps how many parent records one batch request may resolve.
+// A list page is at most 50 rows (crm.defaultPageLimit); 200 leaves headroom
+// without letting a caller request an unbounded ANY() array.
+const maxBatchIDs = 200
+
+// GetPropertiesBatch handles GET /v1/metadata/properties?parent_type=deal&ids=id1,id2
+// returning {"properties": {"<id>": {...}}} for every requested record that has
+// custom properties set. Records without properties are omitted. This is the
+// list-view batch read that lets the UI render custom-field columns without one
+// request per row.
+func (h *Handler) GetPropertiesBatch(w http.ResponseWriter, r *http.Request) {
+	store, err := h.storeFromCtx(r)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "workspace context missing")
+		return
+	}
+
+	parentType := r.URL.Query().Get("parent_type")
+	if parentType == "" {
+		writeErr(w, http.StatusBadRequest, "parent_type query parameter required")
+		return
+	}
+	if !validParentTypes[parentType] {
+		writeErr(w, http.StatusBadRequest, "parent_type must be 'contact' or 'deal'")
+		return
+	}
+
+	idsParam := strings.TrimSpace(r.URL.Query().Get("ids"))
+	if idsParam == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"properties": map[string]any{}})
+		return
+	}
+
+	parts := strings.Split(idsParam, ",")
+	if len(parts) > maxBatchIDs {
+		writeErr(w, http.StatusBadRequest, "too many ids requested")
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		id, err := uuid.Parse(p)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid id in ids list")
+			return
+		}
+		ids = append(ids, id)
+	}
+
+	props, err := store.GetMany(r.Context(), parentType, ids)
+	if err != nil {
+		h.Logger.ErrorContext(r.Context(), "get properties batch failed", "err", err, "parent_type", parentType)
+		writeErr(w, http.StatusInternalServerError, "get properties failed")
+		return
+	}
+
+	// Re-key by string id for JSON output.
+	byID := make(map[string]map[string]any, len(props))
+	for id, p := range props {
+		byID[id.String()] = p
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"properties": byID})
 }
 
 // ListDefinitions handles GET /v1/metadata/definitions?parent_type=contact

@@ -4,8 +4,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus } from 'lucide-react';
-import { useContacts, useCreateContact } from '@/hooks/use-contacts';
+import { useContacts, useCreateContact, useContactDefinitions } from '@/hooks/use-contacts';
+import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { useMe } from '@/hooks/use-me';
+import { formatPropertyValue } from '@/lib/format-property';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -115,6 +117,14 @@ function ContactList() {
   const { permissions } = useMe();
   const [creating, setCreating] = React.useState(false);
 
+  // First couple of custom fields shown as columns; values batch-fetched for
+  // the whole page in one request (no N+1).
+  const { data: defs } = useContactDefinitions();
+  const customCols = (defs ?? []).slice(0, 2);
+  // Only fetch values when there's at least one custom column to render.
+  const contactIds = customCols.length > 0 ? (data?.data.map((c) => c.id) ?? []) : [];
+  const { data: propsById } = useBatchProperties('contact', contactIds);
+
   return (
     <div className="p-8">
       <div className="mb-6 flex items-center justify-between">
@@ -161,6 +171,9 @@ function ContactList() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Company</TableHead>
+                {customCols.map((def) => (
+                  <TableHead key={def.id}>{def.property_key}</TableHead>
+                ))}
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -182,6 +195,17 @@ function ContactList() {
                   <TableCell className="text-muted-foreground">
                     {contact.company_id ? contact.company_id.slice(0, 8) + '…' : '-'}
                   </TableCell>
+                  {customCols.map((def) => {
+                    const formatted = formatPropertyValue(
+                      def,
+                      propsById?.[contact.id]?.[def.property_key],
+                    );
+                    return (
+                      <TableCell key={def.id} className="text-muted-foreground">
+                        {formatted || '-'}
+                      </TableCell>
+                    );
+                  })}
                   <TableCell className="text-muted-foreground">
                     {new Date(contact.created_at).toLocaleDateString()}
                   </TableCell>

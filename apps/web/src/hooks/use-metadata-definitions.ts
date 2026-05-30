@@ -30,6 +30,27 @@ export function useDefinitions(parentType: DefinitionParentType) {
   });
 }
 
+/**
+ * useBatchProperties fetches custom-property values for many records of one
+ * parent type in a single request (GET /v1/metadata/properties?ids=...),
+ * powering list-view custom-field columns without an N+1 fan-out. The query
+ * key includes the sorted id list so a changed page re-fetches. Records with
+ * no properties are simply absent from the returned map.
+ */
+export function useBatchProperties(parentType: DefinitionParentType, ids: string[]) {
+  const sorted = [...ids].sort();
+  return useQuery<Record<string, Record<string, unknown>>>({
+    queryKey: ['metadata', 'properties', parentType, sorted],
+    enabled: sorted.length > 0,
+    queryFn: async () => {
+      const res = await api.get<{ properties: Record<string, Record<string, unknown>> }>(
+        `/v1/metadata/properties?parent_type=${parentType}&ids=${sorted.join(',')}`,
+      );
+      return res.properties ?? {};
+    },
+  });
+}
+
 export function useCreateDefinition() {
   const qc = useQueryClient();
   return useMutation({

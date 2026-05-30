@@ -526,4 +526,57 @@ func TestMetadata_Set_FailClosed_AuditRollback(t *testing.T) {
 	}
 }
 
+// GetMany batch-reads several records' properties in one query (list-view
+// path, avoids N+1). Verifies: requested records return their props keyed by
+// id, records without props are simply absent, and an empty id list is a no-op.
+func TestMetadata_GetMany_BatchRead(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	t.Cleanup(cancel)
+	env := setupEnv(t, ctx)
+	store := metadata.New(env.pool, env.schema, env.wsID)
+
+	if _, err := store.CreateDefinition(ctx, metadata.CreateDefinitionInput{
+		ParentType:   "deal",
+		PropertyKey:  "source",
+		PropertyType: "string",
+	}); err != nil {
+		t.Fatalf("create definition: %v", err)
+	}
+
+	d1, d2, d3 := uuid.New(), uuid.New(), uuid.New()
+	if err := store.Set(ctx, "deal", d1, map[string]any{"source": "salon"}); err != nil {
+		t.Fatalf("set d1: %v", err)
+	}
+	if err := store.Set(ctx, "deal", d2, map[string]any{"source": "referral"}); err != nil {
+		t.Fatalf("set d2: %v", err)
+	}
+	// d3 deliberately has no properties.
+
+	got, err := store.GetMany(ctx, "deal", []uuid.UUID{d1, d2, d3})
+	if err != nil {
+		t.Fatalf("GetMany: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 records with props, got %d: %v", len(got), got)
+	}
+	if got[d1]["source"] != "salon" {
+		t.Errorf("d1 source = %v, want salon", got[d1]["source"])
+	}
+	if got[d2]["source"] != "referral" {
+		t.Errorf("d2 source = %v, want referral", got[d2]["source"])
+	}
+	if _, present := got[d3]; present {
+		t.Errorf("d3 has no props and must be absent from result, got %v", got[d3])
+	}
+
+	// Empty id list is a no-op, not an error.
+	empty, err := store.GetMany(ctx, "deal", nil)
+	if err != nil {
+		t.Fatalf("GetMany empty: %v", err)
+	}
+	if len(empty) != 0 {
+		t.Errorf("expected empty map for no ids, got %v", empty)
+	}
+}
+
 // migrationPath is declared in fail_closed_test.go — shared across test files.
