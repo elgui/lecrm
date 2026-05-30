@@ -89,7 +89,20 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 				r.Get("/v1/_test/workspaces", deps.TestList.ServeHTTP)
 			}
 			if deps.Metadata != nil {
-				deps.Metadata.RegisterRoutes(r)
+				// Custom-property definition + value endpoints are RBAC-gated
+				// like CRM CRUD: reads (GET) require member+, writes (POST /
+				// PUT / DELETE — schema changes and value edits) require
+				// admin+. Without a resolver the routes mount unguarded
+				// (test seam, matches the CRM fallback below).
+				if deps.RBAC != nil {
+					r.Group(func(r chi.Router) {
+						r.Use(deps.RBAC.Resolve)
+						r.Use(rbac.RequireRoleByMethod(rbac.RoleMember, rbac.RoleAdmin))
+						deps.Metadata.RegisterRoutes(r)
+					})
+				} else {
+					deps.Metadata.RegisterRoutes(r)
+				}
 			}
 			if deps.CRM != nil {
 				// Apply role-based access control to CRM CRUD when an RBAC
