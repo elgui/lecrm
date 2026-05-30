@@ -1,5 +1,5 @@
 import { createRootRoute, Outlet, Link } from '@tanstack/react-router';
-import { Users, Building2, CircleDollarSign, BarChart3, Kanban, CheckSquare, Settings, UserCog, SlidersHorizontal, LogOut } from 'lucide-react';
+import { Users, Building2, CircleDollarSign, BarChart3, Kanban, CheckSquare, Settings, UserCog, SlidersHorizontal, LogOut, CircleHelp } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
@@ -101,7 +101,7 @@ function RootLayout() {
         <div className="border-t p-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-              {user?.name?.charAt(0).toUpperCase() ?? '?'}
+              {(user?.name || user?.email)?.charAt(0)?.toUpperCase() ?? '?'}
             </div>
             <div className="flex-1 truncate">
               <p className="truncate text-sm font-medium">{user?.name}</p>
@@ -109,6 +109,17 @@ function RootLayout() {
                 {user?.email}
               </p>
             </div>
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Help"
+            >
+              <Link to="/help" aria-label="Help">
+                <CircleHelp className="h-4 w-4" />
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="icon"

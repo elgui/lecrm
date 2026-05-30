@@ -62,6 +62,21 @@ func (s *Store) WorkspaceBySlug(ctx context.Context, slug string) (uuid.UUID, er
 	return id, nil
 }
 
+// GetUserProfile returns the user's email and display name for /auth/me.
+// Both are best-effort: a missing column is returned as an empty string,
+// and an unknown user yields ("", "", nil) so callers can fail open.
+func (s *Store) GetUserProfile(ctx context.Context, userID uuid.UUID) (email, displayName string, err error) {
+	const q = `SELECT COALESCE(email, ''), COALESCE(display_name, '') FROM core.users WHERE id = $1`
+	err = s.pool.QueryRow(ctx, q, userID).Scan(&email, &displayName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", nil
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("get user profile: %w", err)
+	}
+	return email, displayName, nil
+}
+
 // EnsureMember ensures the user has at least 'member' role in the
 // workspace. New users auto-join as 'member' at v0; RBAC promotion is
 // Sprint 8 work. The function does NOT downgrade roles.

@@ -10,6 +10,7 @@ import { Route as tasksIndexRoute } from './routes/tasks/index';
 import { Route as settingsIndexRoute } from './routes/settings/index';
 import { Route as settingsMembersRoute } from './routes/settings/members';
 import { Route as settingsCustomFieldsRoute } from './routes/settings/custom-fields';
+import { Route as helpRoute } from './routes/help';
 import { Route as reportsRoute } from './routes/reports/$workspaceId';
 import { Route as pipelineRoute } from './routes/pipeline/$workspaceId';
 
@@ -25,6 +26,7 @@ export const routeTree = rootRoute.addChildren([
   settingsIndexRoute,
   settingsMembersRoute,
   settingsCustomFieldsRoute,
+  helpRoute,
   reportsRoute,
   pipelineRoute,
 ]);

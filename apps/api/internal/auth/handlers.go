@@ -237,9 +237,23 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 				"workspace_slug", subdomain)
 		}
 	}
+	// Enrich with identity for the UI (avatar initial, footer name/email,
+	// workspace label). Best-effort: a lookup error (or absent Store) must
+	// not fail /auth/me — the session is already authenticated.
+	var email, displayName string
+	if h.Store != nil {
+		var profErr error
+		email, displayName, profErr = h.Store.GetUserProfile(r.Context(), s.UserID)
+		if profErr != nil && h.Logger != nil {
+			h.Logger.Warn("auth/me: profile lookup failed", "user_id", s.UserID, "err", profErr)
+		}
+	}
 	body := map[string]string{
-		"user_id":      s.UserID.String(),
-		"workspace_id": s.WorkspaceID.String(),
+		"user_id":        s.UserID.String(),
+		"workspace_id":   s.WorkspaceID.String(),
+		"workspace_slug": subdomain,
+		"email":          email,
+		"name":           displayName,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(body)
@@ -419,4 +433,3 @@ func (h *Handler) error(w http.ResponseWriter, ctx string, err error) {
 	}
 	http.Error(w, fmt.Sprintf("%s: %v", ctx, err), http.StatusInternalServerError)
 }
-
