@@ -126,6 +126,87 @@ Runs 14 invariants AC-I-01..AC-I-14 sequentially. Each prints one line:
 Exit 0 if all pass; non-zero on the first `[FAIL]`. Pass `--all-failures`
 to scan every invariant even after a failure (useful for triage).
 
+## Integrator workspace access (grant / revoke / list)
+
+GB Consult's integrator (you, Léo) administrates a client workspace as a
+**distinct, non-billable principal** — hidden from the client's member list
+and tagged in `core.audit_log`. Whether you can switch into a workspace is
+governed by `core.integrator_grants`, an email-keyed pending-grant table.
+The grant is recorded against your **email**, not a user row, so it exists
+*before you have ever logged into that tenant* — first login materializes the
+real membership from the grant.
+
+### Auto-grant on provision (the common case)
+
+When you provision a tenant with `--owner-email`, the same flow that creates
+the workspace also writes a matching integrator grant for that email — **in
+the same Postgres transaction** as provisioning (or on the same connection,
+immediately after, for the non-destructive paths). So a freshly-provisioned
+tenant is switch-able the moment `create` returns:
+
+```bash
+gb-tenant create --slug chauvet79 --admin-email contact@chauvet79.fr \
+    --owner-email leo@vernayo.com
+# ... provisioning output ...
+# [PROVISION] integrator grant: leo@vernayo.com
+```
+
+Notes:
+
+- The grant is written **only** for `--owner-email` (the integrator). The
+  client's `--admin-email` is a normal owner and is **never** auto-granted
+  integrator access. Omit `--owner-email` and no grant is created.
+- It is idempotent: re-running `create --upsert` does not duplicate the
+  grant (`ON CONFLICT DO NOTHING` on the case-insensitive
+  `(workspace_id, lower(email))` index).
+- `granted_by` is attributed to `$LECRM_OPERATOR_EMAIL` (set this in your
+  shell so the audit trail shows who created the grant).
+
+### Explicit grant / revoke / list (tenants you did not provision)
+
+For tenants that already exist — or to grant a second integrator — use the
+`integrator` subcommands:
+
+```bash
+# Grant integrator access (idempotent)
+gb-tenant integrator grant --slug chauvet79 --email leo@vernayo.com
+
+# Revoke it (idempotent — "nothing to revoke" if absent, still exits 0)
+gb-tenant integrator revoke --slug chauvet79 --email leo@vernayo.com
+
+# List grants for one tenant ...
+gb-tenant integrator list --slug chauvet79
+
+# ... or across every workspace
+gb-tenant integrator list
+```
+
+`list` prints a table joined to `core.workspaces.slug`:
+
+```
+SLUG       EMAIL             GRANTED_BY          GRANTED_AT
+chauvet79  leo@vernayo.com   ops@gbconsult.me    2026-05-30T16:18:42Z
+```
+
+Flags:
+
+| Command  | Flag       | Meaning                                                   |
+|----------|------------|-----------------------------------------------------------|
+| `grant`  | `--slug`   | Tenant slug (required)                                     |
+| `grant`  | `--email`  | Integrator email to grant (required)                      |
+| `grant`  | `--granted-by` | Operator attribution (defaults to `$LECRM_OPERATOR_EMAIL`) |
+| `revoke` | `--slug`   | Tenant slug (required)                                     |
+| `revoke` | `--email`  | Integrator email to revoke (required)                     |
+| `list`   | `--slug`   | Filter to one tenant (optional; omit to list all)         |
+
+An unknown or tombstoned slug fails loud with a `tenant_not_found`
+structured error rather than silently doing nothing.
+
+> **Login-time elevation and the workspace switcher UI are later slices.**
+> This phase only *writes and manages the grants*; the grant is the
+> precondition the login flow reads to materialize an `integrator`
+> membership row.
+
 ## Phase 2 — Versioned Methodology Config (Sprint 9)
 
 Phase 2 makes Léo's 5-element methodology a portable, diffable, replayable

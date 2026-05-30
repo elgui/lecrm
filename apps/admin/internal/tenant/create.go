@@ -38,6 +38,7 @@ type CreateOptions struct {
 	Slug          string
 	AdminEmail    string
 	OwnerEmail    string // CLI alias: creator_email — Léo's identity
+	OperatorEmail string // who ran the provision (LECRM_OPERATOR_EMAIL); grant attribution
 	DisplayName   string // unused in 8.1; reserved for v1 (no DB column yet)
 	Template      string
 	ForceRecreate bool
@@ -80,20 +81,27 @@ func Create(ctx context.Context, conn *pgx.Conn, opts CreateOptions, stdout io.W
 		template = templates.GBConsultDefaultName
 	}
 
+	// Auto-grant integrator access only when --owner-email was explicitly
+	// passed. The integrator is the owner-email (Léo); when it is absent
+	// creatorEmail falls back to the CLIENT's admin-email, who is a normal
+	// owner and must NOT be turned into a hidden, non-billable integrator.
+	integratorEmail := opts.OwnerEmail
+	grantedBy := opts.OperatorEmail
+
 	switch {
 	case opts.ForceRecreate:
-		return createForceRecreate(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, template, stdout)
+		return createForceRecreate(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 	case opts.Upsert:
-		return createUpsert(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, template, stdout)
+		return createUpsert(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 	default:
-		return createFresh(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, template, stdout)
+		return createFresh(ctx, conn, opts.Slug, opts.AdminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 	}
 }
 
 // createFresh is the default path. Fails loud (AC-F2) if the slug is
 // already in core.workspaces. Also rejects reserved and tombstoned slugs
 // to prevent subdomain takeover (council-architecture-review-2026-05-24).
-func createFresh(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+func createFresh(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template string, stdout io.Writer) (CreateResult, error) {
 	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
 		return CreateResult{}, err
 	}
@@ -121,13 +129,13 @@ func createFresh(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorE
 		return CreateResult{}, New(ErrKindDBProvision, "mint UUIDv7: %v", err)
 	}
 
-	return callWrapper(ctx, conn, id, slug, adminEmail, creatorEmail, template, stdout)
+	return callWrapper(ctx, conn, id, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 }
 
 // createUpsert looks up the existing UUID by slug (if any) and re-runs
 // the wrapper. The wrapper's ON CONFLICT (id) DO NOTHING path keeps DB
 // state bit-identical (AC-F3 / AC-I-10).
-func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template string, stdout io.Writer) (CreateResult, error) {
 	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
 		return CreateResult{}, err
 	}
@@ -139,14 +147,14 @@ func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creator
 	case err == nil:
 		// Existing workspace: re-run wrapper with the same UUID; ON CONFLICT
 		// (id) DO NOTHING preserves state.
-		return callWrapper(ctx, conn, existingID, slug, adminEmail, creatorEmail, template, stdout)
+		return callWrapper(ctx, conn, existingID, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 	case errors.Is(err, pgx.ErrNoRows):
 		// Fresh provision via the --upsert flag.
 		id, err := uuid.NewV7()
 		if err != nil {
 			return CreateResult{}, New(ErrKindDBProvision, "mint UUIDv7: %v", err)
 		}
-		return callWrapper(ctx, conn, id, slug, adminEmail, creatorEmail, template, stdout)
+		return callWrapper(ctx, conn, id, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template, stdout)
 	default:
 		return CreateResult{}, New(ErrKindDBConnect, "lookup workspace by slug: %v", err)
 	}
@@ -156,7 +164,7 @@ func createUpsert(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creator
 // schemas + role) inside a single transaction, then provisions a fresh
 // UUIDv7 via the wrapper in the SAME transaction. If anything fails, the
 // txn rolls back and the original tenant survives intact.
-func createForceRecreate(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+func createForceRecreate(ctx context.Context, conn *pgx.Conn, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template string, stdout io.Writer) (CreateResult, error) {
 	if err := checkSlugBlocked(ctx, conn, slug); err != nil {
 		return CreateResult{}, err
 	}
@@ -195,10 +203,22 @@ func createForceRecreate(ctx context.Context, conn *pgx.Conn, slug, adminEmail, 
 		return CreateResult{}, New(ErrKindDBProvision, "provision wrapper: %v", err)
 	}
 
+	// Auto-grant the integrator inside the SAME transaction as provisioning
+	// (AC-T1 atomicity): either the workspace and its grant both commit, or
+	// neither does.
+	if integratorEmail != "" {
+		if err := InsertIntegratorGrant(ctx, tx, id, integratorEmail, grantedBy); err != nil {
+			return CreateResult{}, err
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return CreateResult{}, New(ErrKindDBProvision, "commit tx: %v", err)
 	}
 
+	if integratorEmail != "" {
+		_, _ = fmt.Fprintf(stdout, "[PROVISION] integrator grant: %s\n", integratorEmail)
+	}
 	emitResult(stdout, id, slug, roleName)
 	return CreateResult{WorkspaceID: id, Slug: slug, RoleName: roleName}, nil
 }
@@ -234,12 +254,22 @@ func dropExistingWorkspace(ctx context.Context, tx pgx.Tx, id uuid.UUID, roleNam
 
 // callWrapper invokes the SECURITY DEFINER wrapper for the non-destructive
 // paths (createFresh, createUpsert) and emits the structured output line.
-func callWrapper(ctx context.Context, conn *pgx.Conn, id uuid.UUID, slug, adminEmail, creatorEmail, template string, stdout io.Writer) (CreateResult, error) {
+func callWrapper(ctx context.Context, conn *pgx.Conn, id uuid.UUID, slug, adminEmail, creatorEmail, integratorEmail, grantedBy, template string, stdout io.Writer) (CreateResult, error) {
 	var roleName string
 	if err := conn.QueryRow(ctx,
 		`SELECT core.lecrm_provision_workspace_with_registry($1, $2, $3, $4, $5)`,
 		id, slug, adminEmail, creatorEmail, template).Scan(&roleName); err != nil {
 		return CreateResult{}, New(ErrKindDBProvision, "provision wrapper: %v", err)
+	}
+
+	// Auto-grant the integrator on the same connection right after the
+	// wrapper committed. ON CONFLICT DO NOTHING keeps --upsert re-runs
+	// idempotent (re-granting an existing grant is a no-op).
+	if integratorEmail != "" {
+		if err := InsertIntegratorGrant(ctx, conn, id, integratorEmail, grantedBy); err != nil {
+			return CreateResult{}, err
+		}
+		_, _ = fmt.Fprintf(stdout, "[PROVISION] integrator grant: %s\n", integratorEmail)
 	}
 
 	emitResult(stdout, id, slug, roleName)
