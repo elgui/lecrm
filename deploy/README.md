@@ -159,7 +159,11 @@ is the primary entry point (production deploy).
 > **WAL-G backups: LIVE (2026-05-30)** — pivoted from OVH Object Storage
 > to **Cloudflare R2** (`lecrm-wal` bucket); base backup pushed, WAL
 > archiving green (see "WAL-G backups" below).
-> **Still TODO:** host firewall (80/443/22-only), Léo access (order:4).
+> **Léo access: LIVE (2026-05-30)** — Authentik user `leo`
+> (leo@vernayo.com) provisioned; verified a full browser login through
+> Authentik → `/auth/callback` → seeded CRM (auto-created his `core.users`
+> row + `member` of the `demo` workspace). See "Access / auth model" below.
+> **Still TODO:** host firewall (80/443/22-only).
 > **TEMPORARY stopgap** —
 > migrates to a fresh Hetzner CAX11 by **2026-06-12** (order:5) for true
 > infra isolation; the council knowingly waived the isolation gate on OVH.
@@ -370,6 +374,30 @@ splitting TLS ownership.
   secrets-baseline tasket to fix the other rules.
 - Tooling: `age` v1.3.1 + `sops` 3.13.1 installed via `go install` to
   `~/go/bin` (userspace, no sudo). `gui` added to the `docker` group.
+
+### Access / auth model (staging)
+
+- **Login flow:** `https://<ws>.lecrm.gbconsult.me/auth/login` → Authentik
+  (`auth.lecrm.gbconsult.me`, OIDC app `lecrm-api`) → `/auth/callback`.
+  On callback the API does `UpsertUser` + `EnsureMember(workspace, user)`
+  — first login auto-provisions the `core.users` row and a `member`
+  binding to the workspace named by the subdomain.
+- **⚠️ Open door — by-design gap to close before real clients.** The
+  `lecrm` Authentik application has **no policy binding** (default-allow)
+  and the callback has **no email allowlist/invite gate**. Net effect:
+  **any** Authentik account that authenticates becomes a `member` of the
+  workspace it logs into. Acceptable for this stopgap because Authentik is
+  `127.0.0.1`-bound, self-registration is off, and users are provisioned
+  by hand. **Before prod / Hetzner:** bind the `lecrm` app to a per-client
+  group (or add an invite/allowlist check in `Callback`).
+- **Provisioned users:** `akadmin` (Authentik admin), `guillaume-e2e`
+  (dev e2e fixture), and **`leo`** (leo@vernayo.com — GB Consult partner,
+  demo viewer). Add users via `ak shell` on `lecrm-authentik-worker`
+  (pattern: `scripts/authentik-provision-test-user.py`).
+- **e2e test caveat:** `apps/api/internal/auth/e2e_test.go`
+  (`TestE2EOIDCFlow`) is **dev-only** — it hard-skips on any non-`.test`
+  TLD and its redirect regex is pinned to `:8080`/`lecrm.test`, so it does
+  **not** cover the staging host. Verify staging logins in a real browser.
 
 ### ⚠️ Current running state — reconcile in order:2
 
