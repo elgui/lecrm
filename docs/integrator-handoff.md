@@ -173,6 +173,7 @@ gb-tenant integrator grant --slug chauvet79 --email leo@vernayo.com
 
 # Revoke it (idempotent — "nothing to revoke" if absent, still exits 0)
 gb-tenant integrator revoke --slug chauvet79 --email leo@vernayo.com
+# → integrator access revoked: leo@vernayo.com on chauvet79 (grant removed, 1 live membership(s) cleared)
 
 # List grants for one tenant ...
 gb-tenant integrator list --slug chauvet79
@@ -202,10 +203,22 @@ Flags:
 An unknown or tombstoned slug fails loud with a `tenant_not_found`
 structured error rather than silently doing nothing.
 
-> **Login-time elevation and the workspace switcher UI are later slices.**
-> This phase only *writes and manages the grants*; the grant is the
-> precondition the login flow reads to materialize an `integrator`
-> membership row.
+`revoke` is a complete off-switch: it deletes the pending grant **and** any
+already-materialized `role='integrator'` membership row for that email,
+within a single transaction. Removing the live membership matters because
+once you have logged into a tenant, login-time elevation has written a real
+`workspace_members` row that is independent of the grant — deleting the grant
+alone would stop *future* elevation but leave your current owner-equivalent
+access intact. Access ends effective immediately: the rbac middleware
+re-resolves your role from `workspace_members` on every request, so the next
+request after revoke carries no integrator principal. (A genuine non-integrator
+membership that happens to share the email — e.g. you are also a real owner
+somewhere — is never touched: the delete is scoped to `role='integrator'`.)
+
+> **Login-time elevation and the workspace switcher UI now ship alongside
+> this.** The grant is the precondition the login flow reads to materialize an
+> `integrator` membership row; `GET /auth/workspaces` and the
+> `WorkspaceSwitcher` component surface the workspaces you can switch into.
 
 ## Phase 2 — Versioned Methodology Config (Sprint 9)
 

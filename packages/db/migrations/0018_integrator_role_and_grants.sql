@@ -1,6 +1,6 @@
 -- 0018_integrator_role_and_grants.sql — data-model foundation for the
 -- integrator workspace-switching feature (Sprint: lecrm-integrator-switching,
--- step 1/5).
+-- step 1/8).
 --
 -- WHY THIS EXISTS
 -- ---------------

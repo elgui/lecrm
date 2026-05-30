@@ -1,5 +1,5 @@
 -- 0019_integrator_audit_actor.sql — tag integrator-actor writes in the
--- canonical audit trail (Sprint: lecrm-integrator-switching, step 3/6).
+-- canonical audit trail (Sprint: lecrm-integrator-switching, step 3/8).
 --
 -- WHY THIS EXISTS
 -- ---------------

@@ -204,6 +204,129 @@ func TestIntegratorGrantRevokeListRoundTrip(t *testing.T) {
 	}
 }
 
+// integratorMembershipExists reports whether a materialized role='integrator'
+// workspace_members row exists for (slug, email).
+func integratorMembershipExists(t *testing.T, conn *pgx.Conn, slug, email string) bool {
+	t.Helper()
+	var exists bool
+	if err := conn.QueryRow(context.Background(),
+		`SELECT EXISTS (
+			SELECT 1
+			  FROM core.workspace_members m
+			  JOIN core.workspaces w ON w.id = m.workspace_id
+			  JOIN core.users u       ON u.id = m.user_id
+			 WHERE w.slug = $1 AND lower(u.email) = lower($2) AND m.role = 'integrator')`,
+		slug, email).Scan(&exists); err != nil {
+		t.Fatalf("check integrator membership for %s/%s: %v", slug, email, err)
+	}
+	return exists
+}
+
+// TestIntegratorRevokeClearsMaterializedMembership is the regression test for
+// the "off switch that didn't turn off" gap: once an integrator has logged in,
+// login-time elevation has written a real role='integrator' workspace_members
+// row that is independent of the grant. Revoke MUST delete that row too, or the
+// integrator keeps live owner-equivalent access after revoke.
+func TestIntegratorRevokeClearsMaterializedMembership(t *testing.T) {
+	conn := newConn(t)
+	ctx := context.Background()
+	slug := uniqueSlug(t, conn)
+
+	res, err := tenant.Create(ctx, conn, tenant.CreateOptions{
+		Slug:       slug,
+		AdminEmail: "admin@client.example",
+		OwnerEmail: "leo@vernayo.com",
+		Template:   templates.GBConsultDefaultName,
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Simulate login-time elevation: a core.users row plus a materialized
+	// role='integrator' membership for the granted email.
+	var leoID uuid.UUID
+	if err := conn.QueryRow(ctx,
+		`INSERT INTO core.users (issuer, subject, email) VALUES ('test', $1, 'Leo@Vernayo.com')
+		 RETURNING id`, uuid.NewString()).Scan(&leoID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO core.workspace_members (workspace_id, user_id, role, joined_at)
+		 VALUES ($1, $2, 'integrator', now())`, res.WorkspaceID, leoID); err != nil {
+		t.Fatalf("insert integrator membership: %v", err)
+	}
+	if !integratorMembershipExists(t, conn, slug, "leo@vernayo.com") {
+		t.Fatal("precondition: integrator membership should exist before revoke")
+	}
+
+	// Revoke (mixed case) clears BOTH the grant and the live membership.
+	var revOut bytes.Buffer
+	if err := integrator.Revoke(ctx, conn, integrator.RevokeOptions{
+		Slug:  slug,
+		Email: "LEO@vernayo.com",
+	}, &revOut); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+	if emails := grantEmails(t, conn, slug); len(emails) != 0 {
+		t.Errorf("after revoke, grant should be gone, got %v", emails)
+	}
+	if integratorMembershipExists(t, conn, slug, "leo@vernayo.com") {
+		t.Error("after revoke, materialized integrator membership should be deleted")
+	}
+	if !strings.Contains(revOut.String(), "1 live membership(s) cleared") {
+		t.Errorf("revoke output should report the cleared membership:\n%s", revOut.String())
+	}
+}
+
+// TestIntegratorRevokePreservesNonIntegratorMembership asserts revoke does not
+// touch genuine non-integrator memberships that happen to share the email
+// (email is a non-unique claim in core.users).
+func TestIntegratorRevokePreservesNonIntegratorMembership(t *testing.T) {
+	conn := newConn(t)
+	ctx := context.Background()
+	slug := uniqueSlug(t, conn)
+
+	res, err := tenant.Create(ctx, conn, tenant.CreateOptions{
+		Slug:       slug,
+		AdminEmail: "admin@client.example",
+		OwnerEmail: "leo@vernayo.com",
+		Template:   templates.GBConsultDefaultName,
+	}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// A genuine owner whose email collides with the integrator's.
+	var ownerID uuid.UUID
+	if err := conn.QueryRow(ctx,
+		`INSERT INTO core.users (issuer, subject, email) VALUES ('test', $1, 'leo@vernayo.com')
+		 RETURNING id`, uuid.NewString()).Scan(&ownerID); err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO core.workspace_members (workspace_id, user_id, role, joined_at)
+		 VALUES ($1, $2, 'owner', now())`, res.WorkspaceID, ownerID); err != nil {
+		t.Fatalf("insert owner membership: %v", err)
+	}
+
+	if err := integrator.Revoke(ctx, conn, integrator.RevokeOptions{
+		Slug:  slug,
+		Email: "leo@vernayo.com",
+	}, &bytes.Buffer{}); err != nil {
+		t.Fatalf("Revoke: %v", err)
+	}
+
+	var role string
+	if err := conn.QueryRow(ctx,
+		`SELECT role FROM core.workspace_members WHERE workspace_id = $1 AND user_id = $2`,
+		res.WorkspaceID, ownerID).Scan(&role); err != nil {
+		t.Fatalf("owner membership should survive revoke: %v", err)
+	}
+	if role != "owner" {
+		t.Errorf("owner role mutated by revoke: got %q", role)
+	}
+}
+
 // TestIntegratorGrantUnknownSlug asserts a loud tenant_not_found error.
 func TestIntegratorGrantUnknownSlug(t *testing.T) {
 	conn := newConn(t)

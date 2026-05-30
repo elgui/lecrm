@@ -166,8 +166,14 @@ type AccessibleWorkspace struct {
 // exists before any workspace_members row does. The query reads only the
 // caller's own rows ($1/$2) — there is no cross-user or slug-enumeration path.
 func (s *Store) ListAccessibleWorkspaces(ctx context.Context, userID uuid.UUID, email string) ([]AccessibleWorkspace, error) {
+	// A live integrator grant always wins the displayed role: navigating to
+	// such a workspace elevates the user to 'integrator' at login, so a stale
+	// 'member' row from a prior life must not shadow the grant in the switcher.
+	// Falls back to the membership role, then 'integrator' (grant-only, no row).
 	const q = `
-		SELECT w.slug, COALESCE(m.role, 'integrator') AS role
+		SELECT w.slug,
+			CASE WHEN g.workspace_id IS NOT NULL THEN 'integrator'
+			     ELSE COALESCE(m.role, 'integrator') END AS role
 		FROM core.workspaces w
 		LEFT JOIN core.workspace_members m
 			ON m.workspace_id = w.id AND m.user_id = $1

@@ -64,9 +64,32 @@ func Grant(ctx context.Context, conn *pgx.Conn, opts GrantOptions, stdout io.Wri
 	return nil
 }
 
-// Revoke deletes the integrator grant for (slug, email), case-insensitively
-// on email. Revoking a non-existent grant is not an error — it prints a
-// "no grant found" notice and exits zero so scripted revokes are idempotent.
+// Revoke removes integrator access for (slug, email), case-insensitively on
+// email. It is the feature's "off switch", so it must turn off access for the
+// COMMON case — an integrator who has already logged in. That requires
+// deleting TWO things, not one:
+//
+//  1. The pending grant in core.integrator_grants (stops any FUTURE
+//     login-time elevation), and
+//  2. Any already-materialized core.workspace_members row with
+//     role='integrator' for the user(s) behind that email (removes LIVE
+//     owner-equivalent access). Without this second delete, login elevation
+//     would have already written a real membership row that is independent of
+//     the grant and untouched by deleting the grant alone — leaving the
+//     integrator with hidden, owner-equivalent access until someone manually
+//     deleted the row.
+//
+// Both deletes run in a single transaction so revoke is all-or-nothing. The
+// membership delete is scoped to role='integrator' so it can never remove a
+// genuine owner/admin/member row that happens to share the email (email is a
+// non-unique claim in core.users). Access is removed effective immediately:
+// the rbac middleware resolves the role per request via LookupRole, so the
+// next request after the row is gone resolves to no principal — no separate
+// session revocation is needed (and a user-wide session revoke would wrongly
+// log the integrator out of every other workspace too).
+//
+// Revoking when nothing exists is not an error — it prints a "nothing to
+// revoke" notice and exits zero so scripted revokes are idempotent.
 func Revoke(ctx context.Context, conn *pgx.Conn, opts RevokeOptions, stdout io.Writer) error {
 	if err := tenant.ValidateSlug(opts.Slug); err != nil {
 		return err
@@ -78,17 +101,42 @@ func Revoke(ctx context.Context, conn *pgx.Conn, opts RevokeOptions, stdout io.W
 	if err != nil {
 		return err
 	}
-	tag, err := conn.Exec(ctx,
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return tenant.New(tenant.ErrKindDBProvision, "begin revoke tx: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	grantTag, err := tx.Exec(ctx,
 		`DELETE FROM core.integrator_grants WHERE workspace_id = $1 AND lower(email) = lower($2)`,
 		id, opts.Email)
 	if err != nil {
 		return tenant.New(tenant.ErrKindDBProvision, "revoke integrator grant for %q: %v", opts.Email, err)
 	}
-	if tag.RowsAffected() == 0 {
-		_, _ = fmt.Fprintf(stdout, "no integrator grant for %s on %s (nothing to revoke)\n", opts.Email, opts.Slug)
+
+	// Also clear any materialized integrator membership so a previously
+	// logged-in integrator loses live access, not just future elevation.
+	memberTag, err := tx.Exec(ctx,
+		`DELETE FROM core.workspace_members
+		  WHERE workspace_id = $1
+		    AND role = 'integrator'
+		    AND user_id IN (SELECT id FROM core.users WHERE lower(email) = lower($2))`,
+		id, opts.Email)
+	if err != nil {
+		return tenant.New(tenant.ErrKindDBProvision, "revoke integrator membership for %q: %v", opts.Email, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return tenant.New(tenant.ErrKindDBProvision, "commit revoke tx: %v", err)
+	}
+
+	if grantTag.RowsAffected() == 0 && memberTag.RowsAffected() == 0 {
+		_, _ = fmt.Fprintf(stdout, "no integrator access for %s on %s (nothing to revoke)\n", opts.Email, opts.Slug)
 		return nil
 	}
-	_, _ = fmt.Fprintf(stdout, "integrator grant revoked: %s on %s\n", opts.Email, opts.Slug)
+	_, _ = fmt.Fprintf(stdout, "integrator access revoked: %s on %s (grant removed, %d live membership(s) cleared)\n",
+		opts.Email, opts.Slug, memberTag.RowsAffected())
 	return nil
 }
 

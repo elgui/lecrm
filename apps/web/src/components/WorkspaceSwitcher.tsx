@@ -19,7 +19,7 @@ export function WorkspaceSwitcher() {
 
   const currentSlug = user?.workspace_slug ?? '';
   const isIntegrator =
-    user?.workspace_slug !== undefined &&
+    currentSlug !== '' &&
     workspaces.some((ws) => ws.slug === currentSlug && ws.role === 'integrator');
 
   const triggerLabel = isIntegrator
