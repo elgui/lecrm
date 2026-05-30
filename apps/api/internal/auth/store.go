@@ -78,20 +78,120 @@ func (s *Store) GetUserProfile(ctx context.Context, userID uuid.UUID) (email, di
 }
 
 // EnsureMember ensures the user has at least 'member' role in the
-// workspace. New users auto-join as 'member' at v0; RBAC promotion is
-// Sprint 8 work. The function does NOT downgrade roles.
+// workspace. New users auto-join as 'member' at v0. It is a thin wrapper
+// over EnsureMemberWithRole and, like it, NEVER downgrades an existing
+// higher role.
 func (s *Store) EnsureMember(ctx context.Context, workspaceID, userID uuid.UUID) error {
-	const q = `
+	return s.EnsureMemberWithRole(ctx, workspaceID, userID, "member")
+}
+
+// roleRankCase is a SQL fragment that maps a role column/value to its
+// position in the rbac total order (member < admin < owner < integrator).
+// Unknown values rank 0 so they never win an upgrade comparison. It mirrors
+// apps/api/internal/rbac/role.go; auth cannot import rbac (rbac imports auth),
+// so the hierarchy is duplicated here as an inline CASE rather than shared.
+const roleRankCase = `CASE %s WHEN 'member' THEN 1 WHEN 'admin' THEN 2 WHEN 'owner' THEN 3 WHEN 'integrator' THEN 4 ELSE 0 END`
+
+// validRoles is the set of role strings EnsureMemberWithRole accepts. The
+// workspace_members.role CHECK constraint is the ultimate guard, but
+// validating in Go turns a typo into a clear error instead of a constraint
+// violation buried in a transaction.
+var validRoles = map[string]bool{"member": true, "admin": true, "owner": true, "integrator": true}
+
+// EnsureMemberWithRole ensures the user is a member of the workspace at AT
+// LEAST the given role. On an existing membership it UPGRADES to role only
+// when role outranks the stored role — it never downgrades (ADR-009: a
+// returning owner who logs in as a plain member keeps owner; an integrator
+// grant elevates a member to integrator). A pending invite (joined_at NULL)
+// is materialized to "joined" on first login via the COALESCE.
+func (s *Store) EnsureMemberWithRole(ctx context.Context, workspaceID, userID uuid.UUID, role string) error {
+	if !validRoles[role] {
+		return fmt.Errorf("ensure membership: unknown role %q", role)
+	}
+	q := fmt.Sprintf(`
 		INSERT INTO core.workspace_members (workspace_id, user_id, role, joined_at)
-		VALUES ($1, $2, 'member', now())
+		VALUES ($1, $2, $3, now())
 		ON CONFLICT (workspace_id, user_id) DO UPDATE SET
+			role = CASE
+				WHEN (%s) > (%s) THEN EXCLUDED.role
+				ELSE core.workspace_members.role
+			END,
 			joined_at = COALESCE(core.workspace_members.joined_at, now())
-	`
-	_, err := s.pool.Exec(ctx, q, workspaceID, userID)
-	if err != nil {
+	`,
+		fmt.Sprintf(roleRankCase, "EXCLUDED.role"),
+		fmt.Sprintf(roleRankCase, "core.workspace_members.role"),
+	)
+	if _, err := s.pool.Exec(ctx, q, workspaceID, userID, role); err != nil {
 		return fmt.Errorf("ensure membership: %w", err)
 	}
 	return nil
+}
+
+// IntegratorGrantExists reports whether core.integrator_grants holds a
+// pending grant for (workspaceID, lower(email)). It is the login-time
+// elevation check: a match means the freshly-authenticated human should be
+// materialized as an 'integrator' member rather than a plain 'member'. An
+// empty email never matches (an integrator grant is always email-keyed).
+func (s *Store) IntegratorGrantExists(ctx context.Context, workspaceID uuid.UUID, email string) (bool, error) {
+	if email == "" {
+		return false, nil
+	}
+	const q = `
+		SELECT EXISTS (
+			SELECT 1 FROM core.integrator_grants
+			WHERE workspace_id = $1 AND lower(email) = lower($2)
+		)
+	`
+	var exists bool
+	if err := s.pool.QueryRow(ctx, q, workspaceID, email).Scan(&exists); err != nil {
+		return false, fmt.Errorf("integrator grant exists: %w", err)
+	}
+	return exists, nil
+}
+
+// AccessibleWorkspace is one workspace a user can switch into, with the role
+// they hold there. Role is the membership role when a workspace_members row
+// exists, else "integrator" (the access comes from a pending grant).
+type AccessibleWorkspace struct {
+	Slug string
+	Role string
+}
+
+// ListAccessibleWorkspaces returns the UNION of the workspaces the user is a
+// member of (by user_id) and the workspaces they hold an integrator grant for
+// (by lower(email)), restricted to live workspaces (tombstoned_at IS NULL).
+//
+// It is the data behind GET /auth/workspaces: a freshly-provisioned tenant
+// the integrator has never logged into still appears, because the grant row
+// exists before any workspace_members row does. The query reads only the
+// caller's own rows ($1/$2) — there is no cross-user or slug-enumeration path.
+func (s *Store) ListAccessibleWorkspaces(ctx context.Context, userID uuid.UUID, email string) ([]AccessibleWorkspace, error) {
+	const q = `
+		SELECT w.slug, COALESCE(m.role, 'integrator') AS role
+		FROM core.workspaces w
+		LEFT JOIN core.workspace_members m
+			ON m.workspace_id = w.id AND m.user_id = $1
+		LEFT JOIN core.integrator_grants g
+			ON g.workspace_id = w.id AND lower(g.email) = lower($2)
+		WHERE w.tombstoned_at IS NULL
+			AND (m.user_id IS NOT NULL OR g.workspace_id IS NOT NULL)
+		ORDER BY w.slug ASC
+	`
+	rows, err := s.pool.Query(ctx, q, userID, email)
+	if err != nil {
+		return nil, fmt.Errorf("list accessible workspaces: %w", err)
+	}
+	defer rows.Close()
+
+	var out []AccessibleWorkspace
+	for rows.Next() {
+		var a AccessibleWorkspace
+		if err := rows.Scan(&a.Slug, &a.Role); err != nil {
+			return nil, fmt.Errorf("scan accessible workspace: %w", err)
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 // Pool returns the underlying connection pool for operations that need

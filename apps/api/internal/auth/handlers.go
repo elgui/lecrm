@@ -59,6 +59,7 @@ func (h *Handler) Register(m interface {
 	m.Get("/auth/login", h.Login)
 	m.Get("/auth/callback", h.Callback)
 	m.Get("/auth/me", h.Me)
+	m.Get("/auth/workspaces", h.Workspaces)
 	m.Post("/auth/logout", h.Logout)
 	m.Post("/auth/revoke", h.Revoke)
 	m.Post("/auth/revoke-all", h.RevokeAll)
@@ -169,7 +170,21 @@ func (h *Handler) Callback(w http.ResponseWriter, r *http.Request) {
 		h.error(w, "upsert user", err)
 		return
 	}
-	if err := h.Store.EnsureMember(r.Context(), workspaceID, userID); err != nil {
+	// Login-time integrator elevation: if a pending grant exists for this
+	// workspace + email, materialize the membership as 'integrator' instead
+	// of the default 'member'. A grant-lookup failure must NOT lock the user
+	// out — fail open to the least-privileged role (never over-elevate, and
+	// EnsureMemberWithRole never downgrades an existing higher role anyway).
+	role := "member"
+	if granted, gErr := h.Store.IntegratorGrantExists(r.Context(), workspaceID, email); gErr != nil {
+		if h.Logger != nil {
+			h.Logger.Warn("integrator grant check failed; defaulting to member",
+				"err", gErr, "workspace_id", workspaceID, "user_id", userID)
+		}
+	} else if granted {
+		role = "integrator"
+	}
+	if err := h.Store.EnsureMemberWithRole(r.Context(), workspaceID, userID, role); err != nil {
 		h.error(w, "ensure member", err)
 		return
 	}
@@ -257,6 +272,81 @@ func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(body)
+}
+
+// workspaceEntry is one switch-able workspace returned by GET /auth/workspaces.
+type workspaceEntry struct {
+	Slug string `json:"slug"`
+	Role string `json:"role"`
+	URL  string `json:"url"`
+}
+
+// Workspaces lists the workspaces the authenticated caller can switch into:
+// the UNION of their memberships and their pending integrator grants
+// (auth.Store.ListAccessibleWorkspaces). It is the data source for the
+// frontend workspace switcher, including freshly-provisioned tenants the
+// integrator has never logged into.
+//
+// SECURITY (ADR-009 §5.2): this is session-scoped and returns ONLY the
+// caller's own access — it reads core via the auth Store pool, never a
+// workspace role connection, and there is no slug-enumeration surface. It
+// does NOT mint cross-workspace sessions; each returned url is a full
+// navigation target that obtains its own per-subdomain cookie after SSO.
+func (h *Handler) Workspaces(w http.ResponseWriter, r *http.Request) {
+	subdomain, err := SubdomainFromHost(r.Host, h.DomainTLD)
+	if err != nil {
+		http.Error(w, "unknown workspace", http.StatusNotFound)
+		return
+	}
+	s, _, ok := SessionFromRequestV2(r, subdomain, h.SessionSecret)
+	if !ok {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	if h.isRevoked(r.Context(), s) {
+		http.Error(w, "session revoked", http.StatusUnauthorized)
+		return
+	}
+	if h.Store == nil {
+		http.Error(w, "store unavailable", http.StatusInternalServerError)
+		return
+	}
+	// The grant union is keyed on the user's email; look it up best-effort.
+	email, _, profErr := h.Store.GetUserProfile(r.Context(), s.UserID)
+	if profErr != nil && h.Logger != nil {
+		h.Logger.Warn("auth/workspaces: profile lookup failed", "user_id", s.UserID, "err", profErr)
+	}
+	accessible, err := h.Store.ListAccessibleWorkspaces(r.Context(), s.UserID, email)
+	if err != nil {
+		h.error(w, "list accessible workspaces", err)
+		return
+	}
+	out := make([]workspaceEntry, 0, len(accessible))
+	for _, a := range accessible {
+		out = append(out, workspaceEntry{
+			Slug: a.Slug,
+			Role: a.Role,
+			URL:  h.workspaceURL(a.Slug, r.Host),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": out})
+}
+
+// workspaceURL builds the absolute switch URL for a workspace slug from the
+// configured DomainTLD. Scheme follows CookieSecure (https in prod, http in
+// dev); the inbound Host's port is preserved in dev so links work behind the
+// dev proxy (e.g. acme.lecrm.test:8080).
+func (h *Handler) workspaceURL(slug, hostFromRequest string) string {
+	host := slug + "." + h.DomainTLD
+	scheme := "https"
+	if !h.CookieSecure {
+		scheme = "http"
+		if idx := indexByte(hostFromRequest, ':'); idx >= 0 {
+			host += hostFromRequest[idx:]
+		}
+	}
+	return scheme + "://" + host + "/"
 }
 
 // Logout clears the session cookie and revokes the current session's JTI

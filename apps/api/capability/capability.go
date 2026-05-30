@@ -254,6 +254,14 @@ const (
 	ActorTypeInternalService = "internal_service"
 	ActorTypeSystem          = "system"
 	ActorTypeConnector       = "connector"
+	// ActorTypeIntegrator tags writes performed by GB Consult's integrator
+	// principal in the canonical audit trail (core.audit_log). Migration 0019
+	// extends the core.audit_log actor_type CHECK to admit it. The
+	// per-workspace activities table CHECK predates the integrator role and is
+	// NOT migrated per-schema; emitEntityActivity therefore maps integrator →
+	// human_api for that entity timeline (the security-relevant attribution
+	// lives in core.audit_log).
+	ActorTypeIntegrator = "integrator"
 )
 
 // Entity types — must match the CHECK constraint in migration 0015.
@@ -294,6 +302,13 @@ func EmitActivity(ctx context.Context, tx pgx.Tx, entityType string, entityID uu
 func (s *Service) emitEntityActivity(ctx context.Context, tx pgx.Tx, p Principal, entityType string, entityID uuid.UUID, eventType string, payload any) error {
 	actor := p.ActorType
 	if actor == "" {
+		actor = ActorTypeHumanAPI
+	}
+	// The per-workspace activities table's actor_type CHECK does not include
+	// 'integrator' (it is not migrated per-schema). The canonical integrator
+	// attribution is recorded in core.audit_log via EmitAudit; for the entity
+	// timeline, map integrator → human_api so the fail-closed write succeeds.
+	if actor == ActorTypeIntegrator {
 		actor = ActorTypeHumanAPI
 	}
 	return EmitActivity(ctx, tx, entityType, entityID, eventType, actor, "", payload)
