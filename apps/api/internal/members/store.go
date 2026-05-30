@@ -80,13 +80,17 @@ func (s *PgMemberStore) LookupRole(ctx context.Context, workspaceID, userID uuid
 }
 
 // ListMembers returns all members of the workspace, pending invites
-// included, ordered by invitation time.
+// included, ordered by invitation time. Integrator rows are EXCLUDED: the
+// GB Consult integrator (Léo) is a non-billable cross-workspace principal,
+// not a client seat, and must not appear in or be counted against the
+// client's member list (see rbac.RoleIntegrator). LookupRole still resolves
+// integrator for authorization — only this client-facing listing hides it.
 func (s *PgMemberStore) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]Member, error) {
 	rows, err := s.Pool.Query(ctx, `
 		SELECT m.user_id, u.email, u.display_name, m.role, m.invited_at, m.joined_at
 		FROM core.workspace_members m
 		JOIN core.users u ON u.id = m.user_id
-		WHERE m.workspace_id = $1
+		WHERE m.workspace_id = $1 AND m.role <> 'integrator'
 		ORDER BY m.invited_at ASC, m.user_id ASC
 	`, workspaceID)
 	if err != nil {

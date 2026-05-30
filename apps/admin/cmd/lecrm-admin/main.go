@@ -44,6 +44,7 @@ import (
 
 	"github.com/gbconsult/lecrm/apps/admin/internal/audit"
 	"github.com/gbconsult/lecrm/apps/admin/internal/config"
+	"github.com/gbconsult/lecrm/apps/admin/internal/integrator"
 	"github.com/gbconsult/lecrm/apps/admin/internal/safety"
 	"github.com/gbconsult/lecrm/apps/admin/internal/tenant"
 	"github.com/gbconsult/lecrm/apps/admin/internal/tenant/templates"
@@ -84,6 +85,11 @@ func main() {
 				Name:        "audit",
 				Usage:       "Per-tenant audit-log query (Phase 3 observability surface)",
 				Subcommands: auditSubcommands(logger),
+			},
+			{
+				Name:        "integrator",
+				Usage:       "Grant, revoke, and list integrator workspace access",
+				Subcommands: integratorSubcommands(logger),
 			},
 		},
 		// urfave/cli v2 default error printer is fine; we surface
@@ -154,6 +160,7 @@ func runCreate(c *cli.Context, logger *slog.Logger) error {
 		Slug:          c.String("slug"),
 		AdminEmail:    c.String("admin-email"),
 		OwnerEmail:    c.String("owner-email"),
+		OperatorEmail: os.Getenv(config.OperatorEmailEnv),
 		DisplayName:   c.String("display-name"),
 		Template:      c.String("template"),
 		ForceRecreate: c.Bool("force-recreate"),
@@ -292,7 +299,7 @@ func runSessionRevoke(c *cli.Context, logger *slog.Logger) error {
 		return fmt.Errorf("revoke user sessions: %w", err)
 	}
 	logger.Info("all sessions revoked", "user_id", uid)
-	fmt.Fprintf(c.App.Writer, "All sessions revoked for user %s\n", uid)
+	_, _ = fmt.Fprintf(c.App.Writer, "All sessions revoked for user %s\n", uid)
 	return nil
 }
 
@@ -495,6 +502,81 @@ func runAuditQuery(c *cli.Context, logger *slog.Logger) error {
 	default:
 		return audit.FormatTable(os.Stdout, entries)
 	}
+}
+
+func integratorSubcommands(logger *slog.Logger) []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:  "grant",
+			Usage: "Grant integrator access to a workspace (idempotent)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+				&cli.StringFlag{Name: "email", Usage: "Integrator email to grant", Required: true},
+				&cli.StringFlag{Name: "granted-by", Usage: "Operator attribution (defaults to $LECRM_OPERATOR_EMAIL)"},
+			},
+			Action: func(c *cli.Context) error { return runIntegratorGrant(c, logger) },
+		},
+		{
+			Name:  "revoke",
+			Usage: "Revoke integrator access to a workspace",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Tenant slug", Required: true},
+				&cli.StringFlag{Name: "email", Usage: "Integrator email to revoke", Required: true},
+			},
+			Action: func(c *cli.Context) error { return runIntegratorRevoke(c, logger) },
+		},
+		{
+			Name:  "list",
+			Usage: "List integrator grants (optionally for one --slug)",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "slug", Usage: "Filter to one tenant slug (optional)"},
+			},
+			Action: func(c *cli.Context) error { return runIntegratorList(c, logger) },
+		},
+	}
+}
+
+func runIntegratorGrant(c *cli.Context, _ *slog.Logger) error {
+	ctx := c.Context
+	grantedBy := c.String("granted-by")
+	if grantedBy == "" {
+		grantedBy = os.Getenv(config.OperatorEmailEnv)
+	}
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	return integrator.Grant(ctx, conn, integrator.GrantOptions{
+		Slug:      c.String("slug"),
+		Email:     c.String("email"),
+		GrantedBy: grantedBy,
+	}, os.Stdout)
+}
+
+func runIntegratorRevoke(c *cli.Context, _ *slog.Logger) error {
+	ctx := c.Context
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	return integrator.Revoke(ctx, conn, integrator.RevokeOptions{
+		Slug:  c.String("slug"),
+		Email: c.String("email"),
+	}, os.Stdout)
+}
+
+func runIntegratorList(c *cli.Context, _ *slog.Logger) error {
+	ctx := c.Context
+	conn, err := openConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+	return integrator.List(ctx, conn, integrator.ListOptions{
+		Slug: c.String("slug"),
+	}, os.Stdout)
 }
 
 func parseTimeArg(v string) (time.Time, error) {

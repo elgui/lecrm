@@ -85,10 +85,18 @@ func (rs *Resolver) Resolve(next http.Handler) http.Handler {
 				return
 			}
 			if found {
+				// Tag integrator-actor writes distinctly in the audit trail
+				// (core.audit_log): an integrator session is owner-equivalent
+				// but a separate, non-billable principal. Other human sessions
+				// stay "human_api".
+				actorType := "human_api"
+				if role == RoleIntegrator {
+					actorType = "integrator"
+				}
 				p := &Principal{
 					Role:      role,
 					UserID:    sess.UserID,
-					ActorType: "human_api",
+					ActorType: actorType,
 				}
 				next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 				return

@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 
 const NAV_ITEMS = [
   { to: '/contacts' as const, label: 'Contacts', icon: Users },
@@ -99,6 +100,7 @@ function RootLayout() {
         </nav>
 
         <div className="border-t p-4">
+          <WorkspaceSwitcher />
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
               {(user?.name || user?.email)?.charAt(0)?.toUpperCase() ?? '?'}

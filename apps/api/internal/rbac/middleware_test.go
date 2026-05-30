@@ -24,6 +24,8 @@ func TestParseRole(t *testing.T) {
 		{"member", RoleMember, true},
 		{"admin", RoleAdmin, true},
 		{"owner", RoleOwner, true},
+		{"integrator", RoleIntegrator, true},
+		{"INTEGRATOR", RoleIntegrator, true},
 		{"OWNER", RoleOwner, true},
 		{"  admin  ", RoleAdmin, true},
 		{"", RoleNone, false},
@@ -70,6 +72,34 @@ func TestPermissionsFor(t *testing.T) {
 	}
 	if p := PermissionsFor(RoleOwner); !p.CanRead || !p.CanWrite || !p.CanManageMembers || !p.CanManageTokens || !p.CanDeleteWorkspace {
 		t.Errorf("owner perms wrong: %+v", p)
+	}
+	// Integrator is owner-equivalent: every capability is granted.
+	if p := PermissionsFor(RoleIntegrator); !p.CanRead || !p.CanWrite || !p.CanManageMembers || !p.CanManageTokens || !p.CanDeleteWorkspace {
+		t.Errorf("integrator perms wrong: %+v", p)
+	}
+}
+
+// TestRoleIntegrator pins the new cross-workspace integrator principal:
+// highest in the total order, owner-equivalent, and round-trips through its
+// wire string.
+func TestRoleIntegrator(t *testing.T) {
+	if got, ok := ParseRole("integrator"); got != RoleIntegrator || !ok {
+		t.Errorf(`ParseRole("integrator") = (%v,%v), want (%v,true)`, got, ok, RoleIntegrator)
+	}
+	if RoleIntegrator.String() != "integrator" {
+		t.Errorf("RoleIntegrator.String() = %q, want %q", RoleIntegrator.String(), "integrator")
+	}
+	// Sits at the top of the total order: satisfies every gate, including owner.
+	if !RoleIntegrator.AtLeast(RoleOwner) {
+		t.Error("RoleIntegrator.AtLeast(RoleOwner) = false, want true")
+	}
+	if !RoleIntegrator.AtLeast(RoleIntegrator) {
+		t.Error("RoleIntegrator.AtLeast(RoleIntegrator) = false, want true")
+	}
+	// Owner must NOT be treated as an integrator (the integrator is a distinct,
+	// non-billable principal, not just the top capability tier).
+	if RoleOwner.AtLeast(RoleIntegrator) {
+		t.Error("RoleOwner.AtLeast(RoleIntegrator) = true, want false")
 	}
 }
 

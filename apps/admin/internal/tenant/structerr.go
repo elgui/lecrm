@@ -18,6 +18,7 @@ const (
 	ErrKindAPIEnvLeak      ErrKind = "api_env_leak"
 	ErrKindDBConnect       ErrKind = "db_connect"
 	ErrKindDBProvision     ErrKind = "db_provision"
+	ErrKindTenantNotFound  ErrKind = "tenant_not_found"
 )
 
 // StructErr is the wire shape of every loud failure printed by
