@@ -91,15 +91,72 @@ INSERT INTO notes (id, entity_type, entity_id, body, author_id) VALUES
   ('0e700000-0000-4000-8000-000000000003', 'contact', '11110000-0000-4000-8000-000000000003', 'Préfère être contactée par email. Très réactive.', '00000000-0000-4000-8000-0000000000a1')
 ON CONFLICT (id) DO NOTHING;
 
+-- ------------------------------------------------ custom-property definitions
+-- ADR-010 "tailorization" — realistic French custom fields so every record
+-- lights up the existing custom-properties editor instead of the empty state.
+-- Definitions are deduped on the table's UNIQUE (parent_type, property_key);
+-- value rows (objects) use fixed UUIDs + ON CONFLICT (id) DO NOTHING. Both are
+-- idempotent and safe to re-apply. Value types match metadata validateValue:
+-- enum/string/date -> JSON string, number -> JSON number (no quotes).
+INSERT INTO custom_property_definitions (parent_type, property_key, property_type, allowed_values, required) VALUES
+  ('deal',    'source_du_lead',  'enum',   '["Site web","Recommandation","Salon","LinkedIn"]'::jsonb, false),
+  ('deal',    'probabilite',     'number', NULL,                                                       false),
+  ('deal',    'canal_signature', 'string', NULL,                                                       false),
+  ('contact', 'fonction',        'string', NULL,                                                       false),
+  ('contact', 'canal_prefere',   'enum',   '["Email","Téléphone","WhatsApp"]'::jsonb,                  false)
+ON CONFLICT (parent_type, property_key) DO NOTHING;
+
+-- ----------------------------------------------------- custom-property values
+-- Stored in the generic objects table (object_type='custom_properties'), keyed
+-- by parent_type + parent_id — the exact shape metadata.Get/Set read & write.
+INSERT INTO objects (id, object_type, parent_type, parent_id, data) VALUES
+  -- deals
+  ('cf000000-0000-4000-8000-00000000d001', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000001',
+     '{"source_du_lead":"Site web","probabilite":30,"canal_signature":"Visio"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d002', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000002',
+     '{"source_du_lead":"Recommandation","probabilite":55,"canal_signature":"En personne"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d003', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000003',
+     '{"source_du_lead":"Salon","probabilite":65,"canal_signature":"En personne"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d004', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000004',
+     '{"source_du_lead":"LinkedIn","probabilite":80,"canal_signature":"Visio"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d005', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000005',
+     '{"source_du_lead":"Recommandation","probabilite":100,"canal_signature":"Email"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d006', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000006',
+     '{"source_du_lead":"Salon","probabilite":0,"canal_signature":"Téléphone"}'::jsonb),
+  -- contacts
+  ('cf000000-0000-4000-8000-00000000c001', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000001',
+     '{"fonction":"Gérante","canal_prefere":"Téléphone"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c002', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000002',
+     '{"fonction":"Responsable commercial","canal_prefere":"Email"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c003', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000003',
+     '{"fonction":"Directrice artistique","canal_prefere":"Email"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c004', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000004',
+     '{"fonction":"Développeur","canal_prefere":"WhatsApp"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c005', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000005',
+     '{"fonction":"Directrice logistique","canal_prefere":"Téléphone"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c006', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000006',
+     '{"fonction":"Responsable flotte","canal_prefere":"Email"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c007', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000007',
+     '{"fonction":"Médecin chef","canal_prefere":"Email"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c008', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000008',
+     '{"fonction":"Responsable SI","canal_prefere":"WhatsApp"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c009', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000009',
+     '{"fonction":"Indépendante","canal_prefere":"WhatsApp"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000c010', 'custom_properties', 'contact', '11110000-0000-4000-8000-000000000010',
+     '{"fonction":"Consultant","canal_prefere":"Email"}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 -- ------------------------------------------------------------------ summary
 DO $$
-DECLARE n_co INT; n_ct INT; n_de INT; n_ac INT; n_no INT;
+DECLARE n_co INT; n_ct INT; n_de INT; n_ac INT; n_no INT; n_cd INT; n_cv INT;
 BEGIN
   SELECT count(*) INTO n_co FROM companies;
   SELECT count(*) INTO n_ct FROM contacts;
   SELECT count(*) INTO n_de FROM deals;
   SELECT count(*) INTO n_ac FROM activities;
   SELECT count(*) INTO n_no FROM notes;
-  RAISE NOTICE 'demo seed: % companies, % contacts, % deals, % activities, % notes',
-    n_co, n_ct, n_de, n_ac, n_no;
+  SELECT count(*) INTO n_cd FROM custom_property_definitions;
+  SELECT count(*) INTO n_cv FROM objects WHERE object_type = 'custom_properties';
+  RAISE NOTICE 'demo seed: % companies, % contacts, % deals, % activities, % notes, % custom-prop defs, % custom-prop values',
+    n_co, n_ct, n_de, n_ac, n_no, n_cd, n_cv;
 END$$;
