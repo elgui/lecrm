@@ -64,9 +64,20 @@ private-key blob from Bitwarden, decrypt with the symmetric passphrase
 (also in Bitwarden under the same entry), import to a fresh YubiKey or
 a dedicated restore host. Annual recovery drill verifies this path.
 
-## Placeholder until first keygen
+## Status — staging key generated 2026-05-30
 
-This repo currently ships a *placeholder* `lecrm-backup.pub.asc` so the
-Dockerfile `COPY` succeeds for CI builds. The placeholder is rejected
-at runtime by `wal-g wal-push` (signature check fails). It MUST be
-replaced with the real public key before the first client is signed.
+The placeholder has been **replaced with a real rsa4096 public key**
+(fingerprint in `lecrm-backup.fingerprint`, encryption subkey present),
+generated to unblock staging WAL-G backups on Cloudflare R2.
+
+⚠️ **Staging-grade custody, not the canonical flow above.** This key was
+generated **on the staging host** (no air-gapped laptop / YubiKey
+available), then the private key was AES256-symmetric-wrapped and stored
+in Bitwarden ("leCRM — backup GPG private key (encrypted)"); the on-host
+private material was shredded. The YubiKey-primary path (steps 4–6) was
+**not** performed. Before signing a real client, regenerate per the
+canonical air-gapped + YubiKey bootstrap and rotate this staging key out.
+
+(Originally this repo shipped a placeholder `lecrm-backup.pub.asc` so the
+Dockerfile `COPY` succeeds for CI builds — it decoded to literal
+`PLACEHOLDER` and was rejected at runtime by `wal-g` encryption.)

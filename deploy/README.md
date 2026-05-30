@@ -156,9 +156,11 @@ is the primary entry point (production deploy).
 > `lecrm-postgres` (healthy), `lecrm-authentik-{server,worker,postgres}`,
 > `lecrm-api`, `lecrm-caddy`. Edge (order:2) unchanged: custom Caddy +
 > nginx L4 SNI on `:443` over the OVH DNS-01 wildcard.
-> **Still TODO:** WAL-G base backup (order:3 — *blocked* on OVH Object
-> Storage creds; see "WAL-G backups" below), host firewall
-> (80/443/22-only), Léo access (order:4). **TEMPORARY stopgap** —
+> **WAL-G backups: LIVE (2026-05-30)** — pivoted from OVH Object Storage
+> to **Cloudflare R2** (`lecrm-wal` bucket); base backup pushed, WAL
+> archiving green (see "WAL-G backups" below).
+> **Still TODO:** host firewall (80/443/22-only), Léo access (order:4).
+> **TEMPORARY stopgap** —
 > migrates to a fresh Hetzner CAX11 by **2026-06-12** (order:5) for true
 > infra isolation; the council knowingly waived the isolation gate on OVH.
 
@@ -208,16 +210,65 @@ smoke test, bake initdb payload instead of a shadowing bind-mount);
 `0016_service_tokens.sql` (partial index used non-IMMUTABLE `now()`);
 `pgbouncer.yml` image tag (`1.22.0`→`1.22.1-p0`).
 
-### WAL-G backups — BLOCKED (order:3 remaining)
+### WAL-G backups — LIVE (Cloudflare R2, 2026-05-30)
 
-WAL archiving is **OFF** (`archive_mode=off`): `deploy/postgres/walg.env`
-holds only example placeholders, so `zz-bootstrap.sh` deliberately does not
-enable the conf.d include. To finish: provision an OVH **Object Storage**
-bucket (`s3://lecrm-wal/demo`) + prefix-restricted IAM keys, fill
-`deploy/postgres/walg.env` from `.example`, SOPS-encrypt it, then:
-`docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml up -d --force-recreate postgres wal-g-backup`
-(archive_mode change needs a restart) and run `backup-push.sh`. These S3
-creds are separate from the OVH **DNS** creds in `.env.staging`.
+WAL archiving is **ON**; base backup pushed and verified. We pivoted the
+destination from OVH Object Storage to **Cloudflare R2** (easier to mint
+S3 creds). State on the box:
+
+- **Bucket:** `lecrm-wal` (R2, WEUR). Account S3 endpoint
+  `https://38346469bb9dc53151669b6cd6490009.r2.cloudflarestorage.com`
+  (no bucket suffix — the bucket lives in `WALG_S3_PREFIX`). Per-workspace
+  prefix `s3://lecrm-wal/demo`. R2 layout: `basebackups_005/`, `wal_005/`.
+- **`deploy/postgres/walg.env`** filled with R2 knobs (gitignored, `0600`):
+  `AWS_REGION=auto`, `AWS_S3_FORCE_PATH_STYLE=true`, account endpoint,
+  Object-Read&Write token keys. Adapted from `.example` (which is
+  OVH-specific: `AWS_REGION=gra` + OVH endpoint — **do not** copy those).
+- **GPG key generated** — the repo previously shipped a *placeholder*
+  `gpg/lecrm-backup.pub.asc` (decoded to literal `PLACEHOLDER`). A real
+  rsa4096 keypair was generated (fpr in `gpg/lecrm-backup.fingerprint`,
+  encryption subkey present). Public key committed; **private key is
+  AES256-wrapped in Bitwarden** ("leCRM — backup GPG private key"), never
+  on the host. Restore needs that private key (ADR-006).
+
+**Two gotchas that bit the bring-up (keep for the Hetzner migration):**
+
+1. **`walg.env` must be readable by container-uid 70.** The bind-mounted
+   `walg.env` is `0600` owned by host uid 1001, but Postgres (and the
+   sidecar's `su postgres`) run as **uid 70** inside the image, so
+   `archive_command`/`backup-push.sh` silently skip sourcing it
+   (`[[ -r ]]` false → `prefix=unset` → "Failed to find any configured
+   storage"). Fix without world-reading the secret or sudo: a POSIX ACL —
+   `setfacl -m u:70:r deploy/postgres/walg.env` (base mode stays 0600,
+   `other::---`). The ACL is lost if the file inode is replaced (rewrite),
+   so re-apply after editing `walg.env`. **On a fresh box this is the #1
+   thing to redo.**
+2. **Single-file bind mounts pin an inode.** After rewriting `walg.env`
+   the running container still saw the *old* content until
+   `docker restart lecrm-postgres` re-resolved the mount.
+
+**Public key into the running containers (durability note):** the real
+pub key was `docker cp`'d into `lecrm-postgres` + `lecrm-walg-backup` at
+`/etc/postgres/gpg/lecrm-backup.pub.asc` (the image still has the baked
+placeholder). This survives `restart`/reboot but is **lost on container
+recreate** — rebuild the image to bake it permanently:
+`sg docker -c "docker build -t lecrm/postgres:v0 deploy/postgres"` then
+recreate. The committed repo file means the next build picks it up.
+
+**Enabling archiving on an existing data dir (no volume reset):** the
+data dir was initialized while `walg.env` was placeholders, so
+`zz-bootstrap.sh` did **not** append the conf.d include. Added it manually
+(never re-init — that wipes the demo): appended
+`include_dir = '/etc/postgresql/conf.d'` to `$PGDATA/postgresql.conf` and
+`docker restart lecrm-postgres` (archive_mode is restart-only).
+
+**Run / re-run a backup:**
+`sg docker -c 'docker exec lecrm-walg-backup su postgres -c /usr/local/bin/lecrm/backup-push.sh'`
+The `wal-g-backup` sidecar (busybox crond) also runs it weekly Sun 03:00
+UTC and once at boot. **Verify:** `wal-g backup-list`; archiver health via
+`SELECT * FROM pg_stat_archiver` (want `failed_count=0`, `last_archived_wal`
+advancing). These R2 S3 creds are separate from the OVH **DNS** creds in
+`.env.staging`.
 
 ### Host
 
