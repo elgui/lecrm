@@ -31,9 +31,9 @@ Custom fields are THE thing a CRM integrator evaluates (it's his daily HubSpot w
 
 ## Done When
 
-- [ ] Demo workspace has >=3 Deal + >=2 Contact custom-property definitions (French, mixed types incl. an enum)
-- [ ] Seeded deals/contacts show populated custom-property values in the detail UI
-- [ ] Seeding path is idempotent and committed (seed script or documented API calls)
+- [x] Demo workspace has >=3 Deal + >=2 Contact custom-property definitions (French, mixed types incl. an enum)
+- [x] Seeded deals/contacts show populated custom-property values in the detail UI
+- [x] Seeding path is idempotent and committed (seed script or documented API calls)
 
 ## References
 
@@ -41,3 +41,28 @@ Custom fields are THE thing a CRM integrator evaluates (it's his daily HubSpot w
 - `apps/web/src/components/custom-properties-editor.tsx` (consumes definitions+values)
 - `deploy/seed/demo.sql` (existing idempotent seed; demo schema = `core.workspaces.role_name WHERE slug='demo'`)
 - Live host `51.77.146.49`, container `lecrm-postgres`, db `lecrm`
+
+## Remediation (task #1132 — 2026-05-30)
+
+The original run seeded + DB-verified but left three gaps. All now closed:
+
+1. **Pushed to remote.** `origin/main` advanced `9346a6a1..f5e459cf` (fast-forward,
+   10 commits incl. the two custom-property commits `f4867e01` seed + `f5e459cf`
+   status-flip). `github.com:elgui/lecrm.git`.
+2. **Deployment / seed re-apply on demo (idempotent).** Re-ran `deploy/seed/demo.sql`
+   against demo schema `workspace_99433671a69342869dbcd2c25f1d902f` — every INSERT
+   reported `0 0` (no-op), confirming idempotency. No app code changed (data-only
+   seed) so no API rebuild required; `lecrm-api` already serves the data. DB counts:
+   5 defs / 16 values.
+3. **Live HTTP verification** against `https://demo.lecrm.gbconsult.me`:
+   - `GET /v1/metadata/definitions?parent_type=contact` → 2 defs (`canal_prefere`
+     enum, `fonction` string); `?parent_type=deal` → 3 defs (`source_du_lead` enum,
+     `probabilite` number, `canal_signature` string). **5 total.**
+   - `GET /v1/deals/{id}/properties` → populated, e.g. deal #1
+     `{"canal_signature":"Visio","probabilite":30,"source_du_lead":"Site web"}`.
+   - `GET /v1/contacts/{id}/properties` → populated, e.g. contact #1
+     `{"canal_prefere":"Téléphone","fonction":"Gérante"}`.
+
+   Note: custom-property values are exposed via the dedicated `/v1/{entity}/{id}/properties`
+   sub-resource (metadata route, workspace-scoped, no RBAC gate), not embedded in the
+   RBAC-gated `/v1/{entity}/{id}` CRM payload — the canonical shape the web editor reads.
