@@ -8,10 +8,15 @@
 //
 // Capability summary (see Permissions):
 //
-//   - member: read all CRM entities.
-//   - admin:  member + create / update / delete CRM entities.
-//   - owner:  admin + manage workspace members + service tokens +
+//   - member:     read all CRM entities.
+//   - admin:      member + create / update / delete CRM entities.
+//   - owner:      admin + manage workspace members + service tokens +
 //     delete the workspace.
+//   - integrator: GB Consult's cross-workspace integrator principal. Sits at
+//     the top of the total order with owner-equivalent capabilities, but is a
+//     distinct, non-billable identity (hidden from the client member list,
+//     actions tagged in core.audit_log). Materialized at login time from a
+//     core.integrator_grants pending grant.
 package rbac
 
 import "strings"
@@ -31,14 +36,21 @@ const (
 	// RoleOwner can do everything admin can, plus manage members,
 	// service tokens, and delete the workspace.
 	RoleOwner
+	// RoleIntegrator is GB Consult's cross-workspace integrator principal.
+	// It is the highest level in the total order and yields owner-equivalent
+	// capabilities, but is a distinct, non-billable identity (hidden from the
+	// client member list; actions tagged in core.audit_log). It is
+	// materialized at login from a core.integrator_grants pending grant.
+	RoleIntegrator
 )
 
 // roleNames maps each role to its canonical wire string. RoleNone has no
 // wire representation (it never round-trips through the database).
 var roleNames = map[Role]string{
-	RoleMember: "member",
-	RoleAdmin:  "admin",
-	RoleOwner:  "owner",
+	RoleMember:     "member",
+	RoleAdmin:      "admin",
+	RoleOwner:      "owner",
+	RoleIntegrator: "integrator",
 }
 
 // String returns the canonical wire name ("member"/"admin"/"owner"), or
@@ -61,6 +73,8 @@ func ParseRole(s string) (Role, bool) {
 		return RoleAdmin, true
 	case "owner":
 		return RoleOwner, true
+	case "integrator":
+		return RoleIntegrator, true
 	default:
 		return RoleNone, false
 	}
@@ -81,7 +95,10 @@ type Permissions struct {
 	CanDeleteWorkspace bool `json:"can_delete_workspace"`
 }
 
-// PermissionsFor expands a role into its capability bundle.
+// PermissionsFor expands a role into its capability bundle. Because the role
+// hierarchy is a total order and RoleIntegrator sits above RoleOwner, the
+// AtLeast(RoleOwner) checks below already grant the integrator every
+// owner-equivalent capability.
 func PermissionsFor(r Role) Permissions {
 	return Permissions{
 		CanRead:            r.AtLeast(RoleMember),
