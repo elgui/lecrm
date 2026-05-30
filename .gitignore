@@ -1,6 +1,12 @@
 # Automation run progress (transient, regenerated per run)
 .automation-progress-*.json
 
+# Group Automator run reports belong under docs/automation/, never the repo
+# root. The leading slash anchors this to the root so committed reports in
+# docs/automation/ are unaffected. Belt-and-suspenders for the automator fix
+# (AutomationOps/workflows/Report.md now writes to docs/automation/ directly).
+/automation-report-ga-*.md
+
 # Unsubstituted template placeholder (artefact of project bootstrap)
 {output_folder}/
 
