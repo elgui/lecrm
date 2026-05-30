@@ -119,3 +119,9 @@ export interface PaginatedResponse<T> {
   next_cursor: string | null;
   has_more: boolean;
 }
+
+export interface AccessibleWorkspace {
+  slug: string;
+  role: string;
+  url: string;
+}
