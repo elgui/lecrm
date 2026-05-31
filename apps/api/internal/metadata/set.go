@@ -83,9 +83,16 @@ func (s *Store) GetMany(ctx context.Context, parentType string, parentIDs []uuid
 	if len(parentIDs) == 0 {
 		return out, nil
 	}
+	// The pool runs in simple-protocol mode (see internal/db), which cannot
+	// encode a []uuid.UUID parameter (it resolves to OID 0 / "unknown type").
+	// Pass the IDs as text and cast back to uuid[] in SQL so Postgres parses them.
+	idStrs := make([]string, len(parentIDs))
+	for i, id := range parentIDs {
+		idStrs[i] = id.String()
+	}
 	q := `SELECT parent_id, data FROM ` + pgx.Identifier{s.schema, "objects"}.Sanitize() +
-		` WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = ANY($2)`
-	rows, err := s.pool.Query(ctx, q, parentType, parentIDs)
+		` WHERE object_type = 'custom_properties' AND parent_type = $1 AND parent_id = ANY($2::uuid[])`
+	rows, err := s.pool.Query(ctx, q, parentType, idStrs)
 	if err != nil {
 		return nil, fmt.Errorf("metadata.GetMany query: %w", err)
 	}
