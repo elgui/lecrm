@@ -11,6 +11,7 @@ import { BASELINE_DASHBOARDS, type DashboardSpec } from '@/lib/reports';
 import { CubeFrame } from '@/components/reports/cube-frame';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { EmptyState } from '@/components/empty-state';
 import { cn } from '@/lib/utils';
 
 export const Route = createRoute({
@@ -50,9 +51,11 @@ function ReportsPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center gap-3">
-        <BarChart3 className="h-6 w-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Reports</h1>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Dashboards for your pipeline and activity.
+        </p>
       </div>
 
       {auth.isLoading && (
@@ -108,14 +111,11 @@ export function ReportsBody({
   if (hasNoDeals && !dealsQuery.isLoading) {
     return (
       <Card>
-        <CardContent className="py-16 text-center">
-          <p className="text-lg text-muted-foreground">
-            No data to report yet
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first deal to see dashboards populated here.
-          </p>
-        </CardContent>
+        <EmptyState
+          icon={BarChart3}
+          title="No data to report yet"
+          description="Create your first deal to see dashboards populated here."
+        />
       </Card>
     );
   }

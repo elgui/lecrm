@@ -115,7 +115,7 @@ export function CustomPropertiesEditor({
                       checked={val === true}
                       disabled={!canWrite}
                       onChange={(e) => set(def.property_key, e.target.checked)}
-                      className="ml-1 h-4 w-4 align-middle"
+                      className="ml-1 h-4 w-4 cursor-pointer rounded align-middle accent-primary"
                     />
                   ) : def.property_type === 'enum' ? (
                     <select
@@ -123,7 +123,7 @@ export function CustomPropertiesEditor({
                       value={String(val ?? '')}
                       disabled={!canWrite}
                       onChange={(e) => set(def.property_key, e.target.value)}
-                      className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                      className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50"
                     >
                       <option value="">—</option>
                       {(def.allowed_values ?? []).map((opt) => (

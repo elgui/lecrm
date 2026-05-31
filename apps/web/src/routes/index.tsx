@@ -1,6 +1,7 @@
 import { createRoute, Link } from '@tanstack/react-router';
-import { Users, Building2, CircleDollarSign } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Users, Building2, CircleDollarSign, ArrowRight } from 'lucide-react';
+import { Card } from '@/components/ui/card';
+import { PageHeader } from '@/components/page-header';
 import { Route as rootRoute } from './__root';
 
 export const Route = createRoute({
@@ -9,44 +10,56 @@ export const Route = createRoute({
   component: Dashboard,
 });
 
+const TILES = [
+  {
+    to: '/contacts' as const,
+    icon: Users,
+    title: 'Contacts',
+    description: 'Manage your contacts and relationships',
+    tone: 'bg-blue-50 text-blue-600',
+  },
+  {
+    to: '/companies' as const,
+    icon: Building2,
+    title: 'Companies',
+    description: 'Track organizations and accounts',
+    tone: 'bg-violet-50 text-violet-600',
+  },
+  {
+    to: '/deals' as const,
+    icon: CircleDollarSign,
+    title: 'Deals',
+    description: 'Manage your pipeline and revenue',
+    tone: 'bg-emerald-50 text-emerald-600',
+  },
+];
+
 function Dashboard() {
   return (
-    <div className="p-8">
-      <h1 className="mb-6 text-2xl font-semibold">Dashboard</h1>
+    <div className="mx-auto max-w-7xl p-8">
+      <PageHeader
+        title="Dashboard"
+        description="A quick overview of your workspace."
+      />
       <div className="grid gap-4 md:grid-cols-3">
-        <Link to="/contacts">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Contacts</CardTitle>
+        {TILES.map(({ to, icon: Icon, title, description, tone }) => (
+          <Link key={to} to={to} className="group">
+            <Card className="h-full p-5 transition-all hover:-translate-y-0.5 hover:shadow-card-hover">
+              <div className="flex items-start justify-between">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${tone}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground/40 transition-colors group-hover:text-primary" />
               </div>
-              <CardDescription>Manage your contacts and relationships</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link to="/companies">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <Building2 className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Companies</CardTitle>
-              </div>
-              <CardDescription>Track organizations and accounts</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-        <Link to="/deals">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Deals</CardTitle>
-              </div>
-              <CardDescription>Manage your pipeline and revenue</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
+              <h3 className="mt-4 text-base font-semibold text-foreground">
+                {title}
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );

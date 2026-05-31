@@ -13,7 +13,6 @@ import {
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CircleDollarSign } from 'lucide-react';
 
 import { Route as rootRoute } from '../__root';
 import { useAuth } from '@/hooks/use-auth';
@@ -43,9 +42,11 @@ function PipelinePage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6 flex items-center gap-3">
-        <CircleDollarSign className="h-6 w-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Pipeline</h1>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Drag deals across stages to update their status.
+        </p>
       </div>
 
       {auth.isLoading && (
@@ -224,17 +225,21 @@ function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
       data-testid={`pipeline-column-${stage.id}`}
       data-stage-name={stage.name}
       className={cn(
-        'flex w-72 shrink-0 flex-col rounded-md border bg-muted/20 p-3',
-        isOver && 'border-primary bg-primary/5',
+        'flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/50 p-3 transition-colors',
+        isOver && 'border-primary/50 bg-primary/5 ring-2 ring-primary/20',
       )}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">{stage.name}</h2>
-        <span className="text-xs text-muted-foreground">{deals.length}</span>
+      <div className="mb-3 flex items-center justify-between px-1">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {stage.name}
+        </h2>
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1.5 text-xs font-medium text-muted-foreground">
+          {deals.length}
+        </span>
       </div>
       <div className="flex flex-col gap-2">
         {deals.length === 0 && (
-          <p className="rounded-md border border-dashed py-6 text-center text-xs text-muted-foreground">
+          <p className="rounded-md border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
             No deals
           </p>
         )}
@@ -297,16 +302,16 @@ function DealCard({ deal, onClick }: DealCardProps) {
       role="button"
       tabIndex={0}
       className={cn(
-        'cursor-grab rounded-md border bg-background p-3 text-left shadow-sm transition-shadow hover:shadow-md',
+        'cursor-grab rounded-lg border border-border bg-card p-3 text-left shadow-xs transition-all hover:border-primary/30 hover:shadow-card-hover active:cursor-grabbing',
         overdue && 'border-destructive/40',
       )}
     >
-      <p className="line-clamp-2 text-sm font-medium">{deal.title}</p>
+      <p className="line-clamp-2 text-sm font-medium text-foreground">{deal.title}</p>
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{amount ?? '—'}</span>
+        <span className="font-medium tabular-nums text-foreground">{amount ?? '—'}</span>
         {deal.expected_close_date && (
-          <span className={cn(overdue && 'text-destructive font-medium')}>
-            {overdue ? 'Overdue ' : ''}
+          <span className={cn('tabular-nums', overdue && 'font-medium text-destructive')}>
+            {overdue ? 'Overdue · ' : ''}
             {deal.expected_close_date}
           </span>
         )}

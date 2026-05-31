@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { stageBadgeVariant } from '@/lib/format';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { NotesPanel } from '@/components/notes-panel';
 import { TasksPanel } from '@/components/tasks-panel';
@@ -93,18 +95,40 @@ function DealDetail() {
     );
   }
 
+  const stageNameValue =
+    stages?.find((s) => s.id === deal.stage_id)?.name ?? null;
+  const amountLabel =
+    deal.amount !== null && deal.currency
+      ? new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: deal.currency,
+        }).format(deal.amount)
+      : null;
+
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <Link
-            to="/deals"
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to deals
-          </Link>
-          <h1 className="text-2xl font-semibold">{deal.title}</h1>
+    <div className="mx-auto max-w-5xl p-8">
+      <Link
+        to="/deals"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to deals
+      </Link>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-xl font-semibold tracking-tight">{deal.title}</h1>
+          <div className="flex items-center gap-2">
+            {stageNameValue && (
+              <Badge variant={stageBadgeVariant(stageNameValue)}>
+                {stageNameValue}
+              </Badge>
+            )}
+            {amountLabel && (
+              <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                {amountLabel}
+              </span>
+            )}
+          </div>
         </div>
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
@@ -141,7 +165,7 @@ function DealDetail() {
                   id="stage_id"
                   disabled={!canWrite}
                   {...form.register('stage_id')}
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50"
+                  className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50"
                 >
                   <option value="">—</option>
                   {stages?.map((s) => (
@@ -168,7 +192,7 @@ function DealDetail() {
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save changes'}
                   </Button>
-                  {updateMutation.isSuccess && <p className="text-sm text-green-600">Saved</p>}
+                  {updateMutation.isSuccess && <p className="text-sm font-medium text-emerald-600">Saved</p>}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">

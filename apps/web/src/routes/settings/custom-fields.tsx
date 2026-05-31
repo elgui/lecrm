@@ -84,8 +84,8 @@ function CustomFieldsPage() {
   // Schema changes are an admin+ capability (can_write === RoleAdmin or above).
   if (!permissions.can_write) {
     return (
-      <div className="p-8">
-        <h1 className="mb-2 text-2xl font-semibold">Custom Fields</h1>
+      <div className="mx-auto max-w-5xl p-8">
+        <h1 className="mb-2 text-xl font-semibold tracking-tight">Custom Fields</h1>
         <p className="text-destructive">
           Only workspace admins can manage custom fields.
         </p>
@@ -94,9 +94,9 @@ function CustomFieldsPage() {
   }
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="mx-auto max-w-5xl space-y-6 p-8">
       <div>
-        <h1 className="text-2xl font-semibold">Custom Fields</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Custom Fields</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Add any field, of any type, to any object — live, no engineer
           required.
@@ -210,7 +210,7 @@ function CreateFieldForm({
                 onChange={(e) =>
                   setPropertyType(e.target.value as PropertyType)
                 }
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-10 rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
               >
                 {PROPERTY_TYPES.map((t) => (
                   <option key={t} value={t}>
@@ -219,12 +219,12 @@ function CreateFieldForm({
                 ))}
               </select>
             </div>
-            <label className="flex items-center gap-2 pb-2 text-sm">
+            <label className="flex cursor-pointer items-center gap-2 pb-3 text-sm">
               <input
                 type="checkbox"
                 checked={required}
                 onChange={(e) => setRequired(e.target.checked)}
-                className="h-4 w-4 rounded border"
+                className="h-4 w-4 cursor-pointer rounded accent-primary"
               />
               Required
             </label>
@@ -340,6 +340,7 @@ function DefinitionsTable({
                       size="sm"
                       disabled={remove.isPending}
                       onClick={() => onDelete(d.id, d.property_key)}
+                      className="text-muted-foreground hover:text-destructive"
                     >
                       Delete
                     </Button>

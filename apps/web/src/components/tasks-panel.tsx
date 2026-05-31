@@ -97,21 +97,26 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
         )}
 
         {tasks && tasks.length === 0 && (
-          <p className="text-sm text-muted-foreground">No tasks.</p>
+          <p className="rounded-md border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+            No tasks yet.
+          </p>
         )}
 
-        <ul className="divide-y">
+        <ul className="-mx-2 space-y-0.5">
           {tasks?.map((task) => {
             const done = !!task.completed_at;
             return (
-              <li key={task.id} className="flex items-center gap-3 py-2">
+              <li
+                key={task.id}
+                className="group flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/60"
+              >
                 <input
                   type="checkbox"
                   checked={done}
                   disabled={!canWrite || toggle.isPending}
                   onChange={() => toggle.mutate(task.id)}
                   aria-label={`Mark ${task.title} ${done ? 'incomplete' : 'complete'}`}
-                  className="h-4 w-4"
+                  className="h-4 w-4 cursor-pointer rounded accent-primary"
                 />
                 <div className="flex-1">
                   <p
@@ -135,6 +140,7 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
                     variant="ghost"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(task.id)}
+                    className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   >
                     Delete
                   </Button>

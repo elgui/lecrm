@@ -3,18 +3,21 @@ import { createRoute, Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus } from 'lucide-react';
+import { Plus, CircleDollarSign } from 'lucide-react';
 import { useDeals, useCreateDeal, useDealDefinitions } from '@/hooks/use-deals';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { usePipelineStages } from '@/hooks/use-pipeline-stages';
 import { useMe } from '@/hooks/use-me';
 import { formatPropertyValue } from '@/lib/format-property';
+import { stageBadgeVariant } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
 import {
   Table,
@@ -33,7 +36,7 @@ export const Route = createRoute({
 });
 
 function formatCurrency(amount: number | null, currency: string | null) {
-  if (amount === null || !currency) return '-';
+  if (amount === null || !currency) return '—';
   return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
 }
 
@@ -102,7 +105,7 @@ function CreateDealForm({ onDone }: { onDone: () => void }) {
             <select
               id="stage_id"
               {...register('stage_id')}
-              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+              className="h-10 w-full rounded-md border border-input bg-card px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
             >
               <option value="">—</option>
               {stages?.map((s) => (
@@ -148,49 +151,37 @@ function DealList() {
   const stageName = (id: string | null) =>
     stages?.find((s) => s.id === id)?.name ?? id?.slice(0, 8) ?? null;
 
+  const colSpan = 4 + customCols.length;
+
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Deals</h1>
-        <div className="flex items-center gap-2">
-          <ExportButton resource="deals" />
-          {permissions.can_write && !creating && (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New deal
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl p-8">
+      <PageHeader
+        title="Deals"
+        description="Manage your pipeline and revenue"
+        actions={
+          <>
+            <ExportButton resource="deals" />
+            {permissions.can_write && !creating && (
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                New deal
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {creating && <CreateDealForm onDone={() => setCreating(false)} />}
 
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      )}
-
       {error && <p className="text-destructive">Failed to load deals: {error.message}</p>}
 
-      {data && data.data.length === 0 && !creating && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-lg text-muted-foreground">No deals yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first deal to get started.
-          </p>
-        </div>
-      )}
-
-      {data && data.data.length > 0 && (
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="hover:bg-transparent">
               <TableHead>Title</TableHead>
               <TableHead>Stage</TableHead>
-              <TableHead>Amount</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
               {customCols.map((def) => (
                 <TableHead key={def.id}>{def.property_key}</TableHead>
               ))}
@@ -198,46 +189,100 @@ function DealList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.data.map((deal) => (
-              <TableRow key={deal.id}>
-                <TableCell>
-                  <Link
-                    to="/deals/$dealId"
-                    params={{ dealId: deal.id }}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {deal.title}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  {deal.stage_id ? (
-                    <Badge variant="secondary">{stageName(deal.stage_id)}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {formatCurrency(deal.amount, deal.currency)}
-                </TableCell>
-                {customCols.map((def) => {
-                  const formatted = formatPropertyValue(
-                    def,
-                    propsById?.[deal.id]?.[def.property_key],
-                  );
-                  return (
-                    <TableCell key={def.id} className="text-muted-foreground">
-                      {formatted || <span className="text-muted-foreground">-</span>}
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={i} className="hover:bg-transparent">
+                  <TableCell>
+                    <Skeleton className="h-4 w-40" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-20 rounded-full" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Skeleton className="ml-auto h-4 w-20" />
+                  </TableCell>
+                  {customCols.map((def) => (
+                    <TableCell key={def.id}>
+                      <Skeleton className="h-4 w-16" />
                     </TableCell>
-                  );
-                })}
-                <TableCell className="text-muted-foreground">
-                  {new Date(deal.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
-            ))}
+                  ))}
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : !data || data.data.length === 0 ? (
+              !creating && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={colSpan} className="p-0">
+                    <EmptyState
+                      icon={CircleDollarSign}
+                      title="No deals yet"
+                      description="Create your first deal to start tracking revenue."
+                      action={
+                        permissions.can_write && (
+                          <Button onClick={() => setCreating(true)}>
+                            <Plus />
+                            New deal
+                          </Button>
+                        )
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            ) : (
+              data.data.map((deal) => {
+                const name = stageName(deal.stage_id);
+                return (
+                  <TableRow key={deal.id} className="group">
+                    <TableCell>
+                      <Link
+                        to="/deals/$dealId"
+                        params={{ dealId: deal.id }}
+                        className="font-medium text-primary group-hover:underline"
+                      >
+                        {deal.title}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      {deal.stage_id && name ? (
+                        <Badge variant={stageBadgeVariant(name)}>{name}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrency(deal.amount, deal.currency)}
+                    </TableCell>
+                    {customCols.map((def) => {
+                      const formatted = formatPropertyValue(
+                        def,
+                        propsById?.[deal.id]?.[def.property_key],
+                      );
+                      return (
+                        <TableCell key={def.id} className="text-muted-foreground">
+                          {formatted || <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {new Date(deal.created_at).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
-      )}
+        {!isLoading && data && data.data.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+            <span>
+              {data.data.length} {data.data.length === 1 ? 'deal' : 'deals'}
+            </span>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

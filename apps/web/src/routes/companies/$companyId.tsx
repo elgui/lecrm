@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Avatar } from '@/components/ui/avatar';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { NotesPanel } from '@/components/notes-panel';
 import { TasksPanel } from '@/components/tasks-panel';
@@ -83,17 +84,30 @@ function CompanyDetail() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <Link
-            to="/companies"
-            className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to companies
-          </Link>
-          <h1 className="text-2xl font-semibold">{company.name}</h1>
+    <div className="mx-auto max-w-5xl p-8">
+      <Link
+        to="/companies"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to companies
+      </Link>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Avatar
+            name={company.name || '?'}
+            seed={company.id}
+            size="lg"
+            className="rounded-lg"
+          />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              {company.name}
+            </h1>
+            {company.domain && (
+              <p className="text-sm text-muted-foreground">{company.domain}</p>
+            )}
+          </div>
         </div>
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
@@ -136,7 +150,7 @@ function CompanyDetail() {
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save changes'}
                   </Button>
-                  {updateMutation.isSuccess && <p className="text-sm text-green-600">Saved</p>}
+                  {updateMutation.isSuccess && <p className="text-sm font-medium text-emerald-600">Saved</p>}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">

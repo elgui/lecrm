@@ -80,7 +80,9 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
         )}
 
         {notes && notes.length === 0 && (
-          <p className="text-sm text-muted-foreground">No notes yet.</p>
+          <p className="rounded-md border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
+            No notes yet.
+          </p>
         )}
 
         <ul className="space-y-3">
@@ -88,7 +90,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
             const isOwn = note.author_id === authorId;
             const isEditing = editingId === note.id;
             return (
-              <li key={note.id} className="rounded-md border p-3">
+              <li key={note.id} className="rounded-lg border border-border bg-muted/30 p-3">
                 {isEditing ? (
                   <div className="space-y-2">
                     <Textarea

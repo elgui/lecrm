@@ -3,7 +3,7 @@ import { createRoute, Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { useContacts, useCreateContact, useContactDefinitions } from '@/hooks/use-contacts';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { useMe } from '@/hooks/use-me';
@@ -13,6 +13,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar } from '@/components/ui/avatar';
+import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
 import {
   Table,
@@ -125,104 +128,151 @@ function ContactList() {
   const contactIds = customCols.length > 0 ? (data?.data.map((c) => c.id) ?? []) : [];
   const { data: propsById } = useBatchProperties('contact', contactIds);
 
+  const colSpan = 4 + customCols.length;
+
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Contacts</h1>
-        <div className="flex items-center gap-2">
-          <ExportButton resource="contacts" />
-          {permissions.can_write && !creating && (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New contact
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl p-8">
+      <PageHeader
+        title="Contacts"
+        description="Manage your contacts and relationships"
+        actions={
+          <>
+            <ExportButton resource="contacts" />
+            {permissions.can_write && !creating && (
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                New contact
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {creating && <CreateContactForm onDone={() => setCreating(false)} />}
-
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      )}
 
       {error && (
         <p className="text-destructive">Failed to load contacts: {error.message}</p>
       )}
 
-      {data && data.data.length === 0 && !creating && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-lg text-muted-foreground">No contacts yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first contact to get started.
-          </p>
-        </div>
-      )}
-
-      {data && data.data.length > 0 && (
-        <>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Company</TableHead>
-                {customCols.map((def) => (
-                  <TableHead key={def.id}>{def.property_key}</TableHead>
-                ))}
-                <TableHead>Created</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.data.map((contact) => (
-                <TableRow key={contact.id}>
+      <Card className="overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Company</TableHead>
+              {customCols.map((def) => (
+                <TableHead key={def.id}>{def.property_key}</TableHead>
+              ))}
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={i} className="hover:bg-transparent">
                   <TableCell>
-                    <Link
-                      to="/contacts/$contactId"
-                      params={{ contactId: contact.id }}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {contact.first_name} {contact.last_name}
-                    </Link>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-9 w-9 rounded-full" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {contact.email ?? '-'}
+                  <TableCell>
+                    <Skeleton className="h-4 w-40" />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {contact.company_id ? contact.company_id.slice(0, 8) + '…' : '-'}
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
                   </TableCell>
-                  {customCols.map((def) => {
-                    const formatted = formatPropertyValue(
-                      def,
-                      propsById?.[contact.id]?.[def.property_key],
-                    );
-                    return (
-                      <TableCell key={def.id} className="text-muted-foreground">
-                        {formatted || '-'}
-                      </TableCell>
-                    );
-                  })}
-                  <TableCell className="text-muted-foreground">
-                    {new Date(contact.created_at).toLocaleDateString()}
+                  {customCols.map((def) => (
+                    <TableCell key={def.id}>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                  ))}
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
                   </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-
-          {data.has_more && (
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline" disabled>
+              ))
+            ) : !data || data.data.length === 0 ? (
+              !creating && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={colSpan} className="p-0">
+                    <EmptyState
+                      icon={Users}
+                      title="No contacts yet"
+                      description="Add your first contact to start building relationships."
+                      action={
+                        permissions.can_write && (
+                          <Button onClick={() => setCreating(true)}>
+                            <Plus />
+                            New contact
+                          </Button>
+                        )
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            ) : (
+              data.data.map((contact) => {
+                const name =
+                  `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() ||
+                  contact.email ||
+                  'Unknown';
+                return (
+                  <TableRow key={contact.id} className="group">
+                    <TableCell>
+                      <Link
+                        to="/contacts/$contactId"
+                        params={{ contactId: contact.id }}
+                        className="flex items-center gap-3"
+                      >
+                        <Avatar name={name} seed={contact.id} />
+                        <span className="font-medium text-primary group-hover:underline">
+                          {contact.first_name} {contact.last_name}
+                        </span>
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {contact.email ?? '—'}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {contact.company_id ? contact.company_id.slice(0, 8) + '…' : '—'}
+                    </TableCell>
+                    {customCols.map((def) => {
+                      const formatted = formatPropertyValue(
+                        def,
+                        propsById?.[contact.id]?.[def.property_key],
+                      );
+                      return (
+                        <TableCell key={def.id} className="text-muted-foreground">
+                          {formatted || '—'}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {new Date(contact.created_at).toLocaleDateString()}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+        {!isLoading && data && data.data.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+            <span>
+              {data.data.length}{' '}
+              {data.data.length === 1 ? 'contact' : 'contacts'}
+            </span>
+            {data.has_more && (
+              <Button variant="ghost" size="sm" disabled>
                 Load more
               </Button>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

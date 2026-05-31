@@ -53,8 +53,8 @@ function MembersPage() {
   // Owner-only page: members and admins are not allowed here.
   if (!isOwner) {
     return (
-      <div className="p-8">
-        <h1 className="mb-2 text-2xl font-semibold">Members</h1>
+      <div className="mx-auto max-w-5xl p-8">
+        <h1 className="mb-2 text-xl font-semibold tracking-tight">Members</h1>
         <p className="text-destructive">
           Only workspace owners can manage members.
         </p>
@@ -84,8 +84,13 @@ function MembersManager({ currentUserId }: { currentUserId: string }) {
   };
 
   return (
-    <div className="space-y-6 p-8">
-      <h1 className="text-2xl font-semibold">Members</h1>
+    <div className="mx-auto max-w-5xl space-y-6 p-8">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">Members</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Invite teammates and manage their access to this workspace.
+        </p>
+      </div>
 
       <Card>
         <CardHeader>
@@ -113,7 +118,7 @@ function MembersManager({ currentUserId }: { currentUserId: string }) {
                 id="invite-role"
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
-                className="h-9 rounded-md border bg-background px-3 text-sm"
+                className="h-10 rounded-md border border-input bg-card px-3 text-sm capitalize shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25"
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -179,7 +184,7 @@ function MembersManager({ currentUserId }: { currentUserId: string }) {
                               role: e.target.value as Role,
                             })
                           }
-                          className="h-8 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+                          className="h-9 rounded-md border border-input bg-card px-2 text-sm capitalize shadow-xs focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/25 disabled:opacity-50"
                         >
                           {ROLES.map((r) => (
                             <option key={r} value={r}>
@@ -190,9 +195,9 @@ function MembersManager({ currentUserId }: { currentUserId: string }) {
                       </TableCell>
                       <TableCell>
                         {m.pending ? (
-                          <Badge variant="secondary">pending</Badge>
+                          <Badge variant="warning">Pending</Badge>
                         ) : (
-                          <Badge>active</Badge>
+                          <Badge variant="success">Active</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -201,6 +206,7 @@ function MembersManager({ currentUserId }: { currentUserId: string }) {
                           size="sm"
                           disabled={isSelf || remove.isPending}
                           onClick={() => remove.mutate(m.user_id)}
+                          className="text-muted-foreground hover:text-destructive"
                           title={
                             isSelf ? 'You cannot remove yourself' : 'Remove member'
                           }

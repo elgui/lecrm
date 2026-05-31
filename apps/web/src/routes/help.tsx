@@ -20,9 +20,9 @@ function HelpPage() {
   const { role } = useMe();
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="mx-auto max-w-4xl space-y-6 p-8">
       <div>
-        <h1 className="text-2xl font-semibold">Help</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Help</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           How leCRM works, who can do what, and how to get support.
         </p>

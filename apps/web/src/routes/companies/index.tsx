@@ -3,7 +3,7 @@ import { createRoute, Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus } from 'lucide-react';
+import { Plus, Building2 } from 'lucide-react';
 import { useCompanies, useCreateCompany } from '@/hooks/use-companies';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar } from '@/components/ui/avatar';
+import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
 import {
   Table,
@@ -107,75 +110,115 @@ function CompanyList() {
   const [creating, setCreating] = React.useState(false);
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Companies</h1>
-        <div className="flex items-center gap-2">
-          <ExportButton resource="companies" />
-          {permissions.can_write && !creating && (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New company
-            </Button>
-          )}
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl p-8">
+      <PageHeader
+        title="Companies"
+        description="Track organizations and accounts"
+        actions={
+          <>
+            <ExportButton resource="companies" />
+            {permissions.can_write && !creating && (
+              <Button onClick={() => setCreating(true)}>
+                <Plus />
+                New company
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {creating && <CreateCompanyForm onDone={() => setCreating(false)} />}
-
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      )}
 
       {error && (
         <p className="text-destructive">Failed to load companies: {error.message}</p>
       )}
 
-      {data && data.data.length === 0 && !creating && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-lg text-muted-foreground">No companies yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Create your first company to get started.
-          </p>
-        </div>
-      )}
-
-      {data && data.data.length > 0 && (
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="hover:bg-transparent">
               <TableHead>Name</TableHead>
               <TableHead>Domain</TableHead>
               <TableHead>Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.data.map((company) => (
-              <TableRow key={company.id}>
-                <TableCell className="font-medium">
-                  <Link
-                    to="/companies/$companyId"
-                    params={{ companyId: company.id }}
-                    className="text-primary hover:underline"
-                  >
-                    {company.name}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {company.domain ?? '-'}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {new Date(company.created_at).toLocaleDateString()}
-                </TableCell>
-              </TableRow>
-            ))}
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <TableRow key={i} className="hover:bg-transparent">
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-9 w-9 rounded-md" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-40" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : !data || data.data.length === 0 ? (
+              !creating && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={3} className="p-0">
+                    <EmptyState
+                      icon={Building2}
+                      title="No companies yet"
+                      description="Add your first company to track accounts and organizations."
+                      action={
+                        permissions.can_write && (
+                          <Button onClick={() => setCreating(true)}>
+                            <Plus />
+                            New company
+                          </Button>
+                        )
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            ) : (
+              data.data.map((company) => (
+                <TableRow key={company.id} className="group">
+                  <TableCell>
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: company.id }}
+                      className="flex items-center gap-3"
+                    >
+                      <Avatar
+                        name={company.name || '?'}
+                        seed={company.id}
+                        className="rounded-md"
+                      />
+                      <span className="font-medium text-primary group-hover:underline">
+                        {company.name}
+                      </span>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {company.domain ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground tabular-nums">
+                    {new Date(company.created_at).toLocaleDateString()}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
-      )}
+        {!isLoading && data && data.data.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
+            <span>
+              {data.data.length}{' '}
+              {data.data.length === 1 ? 'company' : 'companies'}
+            </span>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
