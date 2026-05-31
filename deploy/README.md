@@ -196,6 +196,9 @@ docker cp scripts/authentik-brand-lecrm.py lecrm-authentik-worker:/tmp/brand.py
 docker exec lecrm-authentik-worker ak shell -c "exec(open('/tmp/brand.py').read())"
 # Verify: curl https://auth.lecrm.gbconsult.me/api/v3/core/brands/current/
 #   → "branding_title":"leCRM" and a data: branding_logo.
+# Applied + verified live on staging 2026-05-31: brands/current returns
+#   branding_title=leCRM (logo/favicon = leCRM SVG), default-authentication-flow
+#   title="Bienvenue sur leCRM", and the login page <title> is leCRM (HTTP 200).
 # 4. API (builds embedded-SPA image; depends on postgres health).
 docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml -f deploy/compose/api.yml up -d --build api
 # 5. Provision the demo workspace (superuser calls the wrapper; template seeds the 5 pipeline stages):
