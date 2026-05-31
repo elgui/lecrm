@@ -12,12 +12,15 @@ import {
   SlidersHorizontal,
   LogOut,
   CircleHelp,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useMe } from '@/hooks/use-me';
+import { useIntegratorContext } from '@/hooks/use-integrator-context';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Wordmark } from '@/components/wordmark';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 
 const navLinkClass =
@@ -51,7 +54,7 @@ function NavLink({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+    <p className="px-3 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
       {children}
     </p>
   );
@@ -60,6 +63,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function RootLayout() {
   const { user, isLoading, isUnauthenticated } = useAuth();
   const { isOwner, permissions } = useMe();
+  const integrator = useIntegratorContext();
 
   if (isLoading) {
     return (
@@ -80,14 +84,9 @@ function RootLayout() {
   return (
     <div className="flex h-screen bg-background">
       <aside className="flex w-64 flex-col border-r border-border bg-sidebar">
-        <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-              l
-            </span>
-            <span className="text-[17px] font-semibold tracking-tight text-foreground">
-              le<span className="text-primary">CRM</span>
-            </span>
+        <div className="flex h-14 items-center border-b border-border px-4">
+          <Link to="/" aria-label="leCRM — accueil">
+            <Wordmark />
           </Link>
         </div>
 
@@ -180,8 +179,22 @@ function RootLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-background">
-        <Outlet />
+      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        {integrator.isIntegrator && (
+          <div
+            role="status"
+            className="flex items-center gap-2.5 border-b border-amber-300 bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-200"
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span>
+              Mode intégrateur · vous administrez le compte client{' '}
+              <strong className="font-semibold">{integrator.clientLabel}</strong>
+            </span>
+          </div>
+        )}
+        <div className="flex-1 overflow-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

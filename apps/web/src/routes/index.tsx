@@ -64,9 +64,9 @@ function StatCard({
       </div>
       <p className="mt-4 text-sm text-muted-foreground">{label}</p>
       {value === null ? (
-        <Skeleton className="mt-1 h-8 w-20" />
+        <Skeleton className="mt-1.5 h-9 w-24" />
       ) : (
-        <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-foreground">
+        <p className="mt-1.5 text-3xl font-semibold tracking-tight tabular-nums text-foreground">
           {value}
         </p>
       )}

@@ -2,6 +2,7 @@ import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from 
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useWorkspaces } from '@/hooks/use-workspaces';
+import { useIntegratorContext } from '@/hooks/use-integrator-context';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ function wsRoleLabel(role: string): string {
 export function WorkspaceSwitcher() {
   const { user } = useAuth();
   const { workspaces } = useWorkspaces();
+  const { isIntegrator, clientLabel } = useIntegratorContext();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -29,13 +31,12 @@ export function WorkspaceSwitcher() {
   }
 
   const currentSlug = user?.workspace_slug ?? '';
-  const isIntegrator =
-    currentSlug !== '' &&
-    workspaces.some((ws) => ws.slug === currentSlug && ws.role === 'integrator');
 
-  const triggerLabel = isIntegrator
-    ? `GB Consult · administre ${currentSlug}`
-    : currentSlug;
+  // Stacked label: a short caption that never truncates, over the account name.
+  // The earlier single-line "GB Consult · administre {slug}" overflowed the
+  // sidebar and clipped to "GB Consult · admini…".
+  const triggerCaption = isIntegrator ? 'Compte client · admin' : 'Espace de travail';
+  const triggerPrimary = isIntegrator ? clientLabel : currentSlug;
 
   const dropdownLabel = isIntegrator ? 'Comptes clients' : 'Vos espaces de travail';
 
@@ -44,7 +45,8 @@ export function WorkspaceSwitcher() {
       containerRef={containerRef}
       open={open}
       setOpen={setOpen}
-      triggerLabel={triggerLabel}
+      triggerCaption={triggerCaption}
+      triggerPrimary={triggerPrimary}
       dropdownLabel={dropdownLabel}
       workspaces={workspaces}
       currentSlug={currentSlug}
@@ -58,7 +60,8 @@ interface InnerProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
-  triggerLabel: string;
+  triggerCaption: string;
+  triggerPrimary: string;
   dropdownLabel: string;
   workspaces: { slug: string; role: string; url: string }[];
   currentSlug: string;
@@ -68,7 +71,8 @@ function WorkspaceSwitcherInner({
   containerRef,
   open,
   setOpen,
-  triggerLabel,
+  triggerCaption,
+  triggerPrimary,
   dropdownLabel,
   workspaces,
   currentSlug,
@@ -92,14 +96,20 @@ function WorkspaceSwitcherInner({
     <div ref={containerRef} className="relative">
       <Button
         variant="outline"
-        size="sm"
-        className="max-w-[200px] truncate"
+        className="h-auto w-full justify-between gap-2 px-2.5 py-1.5"
         onClick={() => setOpen((prev) => !prev)}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
-        <span className="truncate">{triggerLabel}</span>
-        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        <span className="flex min-w-0 flex-col items-start text-left">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {triggerCaption}
+          </span>
+          <span className="max-w-full truncate text-sm font-medium text-foreground">
+            {triggerPrimary}
+          </span>
+        </span>
+        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
       </Button>
 
       {open && (
