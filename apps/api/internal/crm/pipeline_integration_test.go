@@ -287,7 +287,7 @@ func TestPipeline_ListStages_ReturnsSeededStagesOrdered(t *testing.T) {
 	env := setupPipelineEnv(t)
 
 	stages := env.listStages(t, env.wsA)
-	want := []string{"Discovery", "Qualified", "Proposal Sent", "Negotiation", "Closed-Won/Lost"}
+	want := []string{"Découverte", "Qualifié", "Proposition envoyée", "Négociation", "Gagné / Perdu"}
 	if len(stages) != len(want) {
 		t.Fatalf("len(stages): got %d want %d", len(stages), len(want))
 	}

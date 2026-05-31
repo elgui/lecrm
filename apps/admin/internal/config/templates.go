@@ -51,7 +51,7 @@ var GBConsultDefault = MethodologyConfig{
 	PipelineStages: []PipelineStage{
 		{
 			Key:             "discovery",
-			Label:           "Discovery",
+			Label:           "Découverte",
 			OrderIndex:      1,
 			EntryConditions: []string{},
 			ExitConditions:  []string{"contact_info_complete", "budget_range_identified"},
@@ -67,7 +67,7 @@ var GBConsultDefault = MethodologyConfig{
 		},
 		{
 			Key:             "qualified",
-			Label:           "Qualified",
+			Label:           "Qualifié",
 			OrderIndex:      2,
 			EntryConditions: []string{"contact_info_complete", "budget_range_identified"},
 			ExitConditions:  []string{"decision_maker_identified", "timeline_confirmed", "needs_documented"},
@@ -81,7 +81,7 @@ var GBConsultDefault = MethodologyConfig{
 		},
 		{
 			Key:             "proposal-sent",
-			Label:           "Proposal Sent",
+			Label:           "Proposition envoyée",
 			OrderIndex:      3,
 			EntryConditions: []string{"decision_maker_identified", "needs_documented"},
 			ExitConditions:  []string{"proposal_reviewed", "feedback_received"},
@@ -94,7 +94,7 @@ var GBConsultDefault = MethodologyConfig{
 		},
 		{
 			Key:             "negotiation",
-			Label:           "Negotiation",
+			Label:           "Négociation",
 			OrderIndex:      4,
 			EntryConditions: []string{"proposal_reviewed"},
 			ExitConditions:  []string{"terms_agreed", "contract_ready"},
@@ -107,7 +107,7 @@ var GBConsultDefault = MethodologyConfig{
 		},
 		{
 			Key:             "closed-won-lost",
-			Label:           "Closed-Won/Lost",
+			Label:           "Gagné / Perdu",
 			OrderIndex:      5,
 			EntryConditions: []string{"terms_agreed"},
 			ExitConditions:  []string{},

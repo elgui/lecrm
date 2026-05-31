@@ -292,23 +292,23 @@ func TestConnector_CandidateEnriched_CreatesContactWithProperties(t *testing.T) 
 
 func TestConnector_InvitationClaimed_MovesDealToClosedWonAndCreatesActivity(t *testing.T) {
 	e := setupConnectorEnv(t)
-	// created → deal at Discovery
+	// created → deal at Découverte
 	if st, _, b := e.post(t, "acme-a", e.tokenA, "chatboting",
 		invitationEnvelope("invitation.created", "k-created-1", "inv-1")); st != http.StatusOK {
 		t.Fatalf("created: status=%d body=%s", st, b)
 	}
 	_, stage, _ := e.dealByExternalID(t, e.wsA, "chatboting", "inv-1")
-	if stage != "Discovery" {
-		t.Fatalf("stage after created = %q, want Discovery", stage)
+	if stage != "Découverte" {
+		t.Fatalf("stage after created = %q, want Découverte", stage)
 	}
-	// claimed → Closed-Won (resolves to combined Closed-Won/Lost), closed_at set
+	// claimed → Closed-Won (resolves to combined "Gagné / Perdu"), closed_at set
 	if st, _, b := e.post(t, "acme-a", e.tokenA, "chatboting",
 		invitationEnvelope("invitation.claimed", "k-claimed-1", "inv-1")); st != http.StatusOK {
 		t.Fatalf("claimed: status=%d body=%s", st, b)
 	}
 	dealID, stage, closed := e.dealByExternalID(t, e.wsA, "chatboting", "inv-1")
-	if stage != "Closed-Won/Lost" {
-		t.Fatalf("stage after claimed = %q, want Closed-Won/Lost", stage)
+	if stage != "Gagné / Perdu" {
+		t.Fatalf("stage after claimed = %q, want Gagné / Perdu", stage)
 	}
 	if !closed {
 		t.Fatal("closed_at should be set after claim")

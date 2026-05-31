@@ -10,12 +10,17 @@ package templates
 // GBConsultDefaultStages is the 5-stage default pipeline that ships with
 // every tenant created by the integrator (per Story 8.1 AC-F5). The order
 // matches order_index 1..5 in the seeded pipeline_stages table.
+//
+// Labels are French to match the French-SMB ICP (deal titles, custom fields
+// and the ICP are all French). The combined "Gagné / Perdu" stage keeps the
+// legacy single-closed-stage shape; splitting Won vs Lost into two stages is
+// flagged for Guillaume (changes the stage count — see tasket 0077).
 var GBConsultDefaultStages = []string{
-	"Discovery",
-	"Qualified",
-	"Proposal Sent",
-	"Negotiation",
-	"Closed-Won/Lost",
+	"Découverte",
+	"Qualifié",
+	"Proposition envoyée",
+	"Négociation",
+	"Gagné / Perdu",
 }
 
 // GBConsultDefaultName is the template identifier the CLI passes to the

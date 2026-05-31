@@ -57,12 +57,14 @@ var knownConnectorEvents = map[string]struct{}{
 	evtInvitationReplyPos: {},
 }
 
-// Pipeline stage names the connector advances deals through. "Closed-Won"
-// and "Closed-Lost" resolve to the seeded combined "Closed-Won/Lost"
-// stage via resolveStage's Closed-prefix fallback.
+// Pipeline stage names the connector advances deals through. These match the
+// French gbconsult-default labels (tasket 0077). "Closed-Won"/"Closed-Lost"
+// stay as logical sentinels — they never name a real stage; resolveStage's
+// closed-stage fallback maps them to the seeded combined "Gagné / Perdu"
+// stage (and still to the legacy "Closed-Won/Lost" stage on older tenants).
 const (
-	stageDiscovery    = "Discovery"
-	stageProposalSent = "Proposal Sent"
+	stageDiscovery    = "Découverte"
+	stageProposalSent = "Proposition envoyée"
 	stageClosedWon    = "Closed-Won"
 	stageClosedLost   = "Closed-Lost"
 )
@@ -512,8 +514,10 @@ func (h *Handler) resolveCandidateContact(ctx context.Context, tx pgx.Tx, source
 }
 
 // resolveStage finds a pipeline stage by exact name, falling back to a
-// Closed-prefix match so the connector's logical "Closed-Won"/"Closed-Lost"
-// targets resolve to the seeded combined "Closed-Won/Lost" stage.
+// closed-stage match so the connector's logical "Closed-Won"/"Closed-Lost"
+// targets resolve to the seeded combined closed stage — "Gagné / Perdu" on
+// French (gbconsult-default) tenants, or the legacy "Closed-Won/Lost" on
+// older English ones.
 func resolveStage(ctx context.Context, tx pgx.Tx, name string) (uuid.UUID, string, error) {
 	var id uuid.UUID
 	var actual string
@@ -527,7 +531,9 @@ func resolveStage(ctx context.Context, tx pgx.Tx, name string) (uuid.UUID, strin
 	}
 	if len(name) >= 6 && name[:6] == "Closed" {
 		err = tx.QueryRow(ctx,
-			`SELECT id, name FROM pipeline_stages WHERE name ILIKE 'Closed%' ORDER BY order_index LIMIT 1`).
+			`SELECT id, name FROM pipeline_stages
+			   WHERE name ILIKE 'Closed%' OR name ILIKE '%Gagné%' OR name ILIKE '%Perdu%'
+			   ORDER BY order_index LIMIT 1`).
 			Scan(&id, &actual)
 		if err == nil {
 			return id, actual, nil
