@@ -16,43 +16,52 @@ export const Route = createRoute({
   component: HelpPage,
 });
 
+const ROLE_LABELS: Record<string, string> = {
+  member: 'Membre',
+  admin: 'Admin',
+  owner: 'Propriétaire',
+};
+
 function HelpPage() {
   const { role } = useMe();
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Help</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Aide</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          How leCRM works, who can do what, and how to get support.
+          Comment fonctionne leCRM, qui peut faire quoi, et comment obtenir de
+          l’aide.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Quick start</CardTitle>
-          <CardDescription>Get productive in a few minutes.</CardDescription>
+          <CardTitle className="text-lg">Démarrage rapide</CardTitle>
+          <CardDescription>Soyez opérationnel en quelques minutes.</CardDescription>
         </CardHeader>
         <CardContent>
           <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
             <li>
-              Add a <strong>Contact</strong> or <strong>Company</strong> from
-              the left-hand navigation.
+              Ajoutez un <strong>Contact</strong> ou une{' '}
+              <strong>Entreprise</strong> depuis la navigation de gauche.
             </li>
             <li>
-              Create a <strong>Deal</strong> and track its value and stage.
+              Créez une <strong>Affaire</strong> et suivez sa valeur et son
+              étape.
             </li>
             <li>
-              Open the <strong>Pipeline</strong> (Kanban) to drag deals through
-              your sales stages.
+              Ouvrez le <strong>Pipeline</strong> (Kanban) pour faire glisser
+              vos affaires entre les étapes de vente.
             </li>
             <li>
-              Log follow-ups in <strong>Tasks</strong> so nothing slips.
+              Notez vos relances dans les <strong>Tâches</strong> pour ne rien
+              laisser passer.
             </li>
             <li>
-              Use <strong>Reports</strong> for an at-a-glance overview, and{' '}
-              <strong>Settings → Custom Fields</strong> to tailor records to
-              your business.
+              Utilisez les <strong>Rapports</strong> pour une vue d’ensemble, et{' '}
+              <strong>Réglages → Champs personnalisés</strong> pour adapter les
+              fiches à votre activité.
             </li>
           </ol>
         </CardContent>
@@ -60,28 +69,32 @@ function HelpPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Accounts &amp; access</CardTitle>
+          <CardTitle className="text-lg">Comptes &amp; accès</CardTitle>
           <CardDescription>
-            Each person has a role scoped to this workspace.
+            Chaque personne a un rôle propre à cet espace de travail.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
           {role !== 'none' && (
             <p>
-              Your current role: <Badge variant="secondary">{role}</Badge>
+              Votre rôle actuel :{' '}
+              <Badge variant="secondary">{ROLE_LABELS[role] ?? role}</Badge>
             </p>
           )}
           <ul className="space-y-2">
             <li>
-              <strong>Member</strong> — read-only access to all records.
+              <strong>Membre</strong> — accès en lecture seule à toutes les
+              fiches.
             </li>
             <li>
-              <strong>Admin</strong> — everything a member can do, plus create
-              and edit records and manage custom fields.
+              <strong>Admin</strong> — tout ce que peut faire un membre, plus la
+              création et la modification de fiches et la gestion des champs
+              personnalisés.
             </li>
             <li>
-              <strong>Owner</strong> — everything an admin can do, plus invite
-              or remove members and change their roles.
+              <strong>Propriétaire</strong> — tout ce que peut faire un admin,
+              plus l’invitation et le retrait de membres et la modification de
+              leurs rôles.
             </li>
           </ul>
         </CardContent>
@@ -89,30 +102,31 @@ function HelpPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Workspaces &amp; client accounts</CardTitle>
+          <CardTitle className="text-lg">Espaces de travail &amp; comptes clients</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            Each client is a separate workspace on its own address (for example{' '}
-            <code>client.lecrm.gbconsult.me</code>). Your data, members, and
-            settings are isolated per workspace.
+            Chaque client est un espace de travail distinct sur sa propre
+            adresse (par exemple <code>client.lecrm.gbconsult.me</code>). Vos
+            données, membres et réglages sont isolés par espace.
           </p>
           <p>
-            To work in a different client&apos;s data, sign in to that client&apos;s
-            address. Switching between client accounts from inside the app is on
-            the roadmap and not available yet.
+            Pour travailler sur les données d’un autre client, connectez-vous à
+            l’adresse de ce client. Le changement de compte client depuis
+            l’application est prévu mais pas encore disponible.
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Need a hand?</CardTitle>
+          <CardTitle className="text-lg">Besoin d’un coup de main ?</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <p>
-            Contact your leCRM administrator for access changes, new workspaces,
-            or anything that isn&apos;t working as expected.
+            Contactez votre administrateur leCRM pour les changements d’accès,
+            les nouveaux espaces de travail, ou tout ce qui ne fonctionne pas
+            comme prévu.
           </p>
         </CardContent>
       </Card>

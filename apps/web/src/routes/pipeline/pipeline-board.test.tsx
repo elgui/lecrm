@@ -135,8 +135,8 @@ describe('<PipelineBoard />', () => {
         onDismissError={noop}
       />,
     );
-    // All five columns should show "No deals" because the deal list is empty.
-    const matches = markup.match(/No deals/g) ?? [];
+    // All five columns should show "Aucune affaire" because the deal list is empty.
+    const matches = markup.match(/Aucune affaire/g) ?? [];
     expect(matches.length).toBe(STAGES.length);
   });
 
@@ -169,7 +169,7 @@ describe('<PipelineBoard />', () => {
         onDismissError={noop}
       />,
     );
-    expect(markup).toContain('Could not load pipeline stages');
+    expect(markup).toContain('Impossible de charger les étapes du pipeline');
     expect(markup).toContain('boom');
   });
 

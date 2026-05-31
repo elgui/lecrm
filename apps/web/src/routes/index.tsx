@@ -28,21 +28,21 @@ const TILES = [
     to: '/contacts' as const,
     icon: Users,
     title: 'Contacts',
-    description: 'Manage your contacts and relationships',
+    description: 'Gérez vos contacts et vos relations',
     tone: 'bg-blue-50 text-blue-600',
   },
   {
     to: '/companies' as const,
     icon: Building2,
-    title: 'Companies',
-    description: 'Track organizations and accounts',
+    title: 'Entreprises',
+    description: 'Suivez vos organisations et vos comptes',
     tone: 'bg-violet-50 text-violet-600',
   },
   {
     to: '/deals' as const,
     icon: CircleDollarSign,
-    title: 'Deals',
-    description: 'Manage your pipeline and revenue',
+    title: 'Affaires',
+    description: 'Gérez votre pipeline et votre chiffre d’affaires',
     tone: 'bg-emerald-50 text-emerald-600',
   },
 ];
@@ -109,8 +109,8 @@ function Dashboard() {
   return (
     <div className="mx-auto max-w-7xl p-8">
       <PageHeader
-        title="Dashboard"
-        description="A quick overview of your workspace."
+        title="Tableau de bord"
+        description="Un aperçu rapide de votre espace de travail."
       />
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -123,19 +123,19 @@ function Dashboard() {
         <StatCard
           icon={Building2}
           tone="bg-violet-50 text-violet-600"
-          label="Companies"
+          label="Entreprises"
           value={countLabel(companies)}
         />
         <StatCard
           icon={CircleDollarSign}
           tone="bg-emerald-50 text-emerald-600"
-          label="Open deals"
+          label="Affaires en cours"
           value={openDealsLabel}
         />
         <StatCard
           icon={TrendingUp}
           tone="bg-amber-50 text-amber-600"
-          label="Open pipeline"
+          label="Pipeline en cours"
           value={pipelineLabel}
         />
       </div>

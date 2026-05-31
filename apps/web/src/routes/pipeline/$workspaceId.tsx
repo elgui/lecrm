@@ -21,6 +21,7 @@ import { usePipelineStages, type PipelineStage } from '@/hooks/use-pipeline-stag
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { formatDateShort } from '@/lib/format';
 import type { Deal } from '@/lib/types';
 
 export const Route = createRoute({
@@ -45,7 +46,7 @@ function PipelinePage() {
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Drag deals across stages to update their status.
+          Glissez-déposez les affaires entre les étapes pour mettre à jour leur statut.
         </p>
       </div>
 
@@ -60,8 +61,8 @@ function PipelinePage() {
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-destructive">
-              Workspace mismatch — this URL is for a different workspace
-              than you are signed into.
+              Espace de travail incorrect — cette URL concerne un autre espace
+              que celui auquel vous êtes connecté.
             </p>
           </CardContent>
         </Card>
@@ -77,7 +78,9 @@ function PipelinePage() {
               { id, stage_id },
               {
                 onError: (err) =>
-                  setMutationError(err?.message ?? 'Could not save move'),
+                  setMutationError(
+                    err?.message ?? 'Échec de l’enregistrement du déplacement',
+                  ),
               },
             );
           }}
@@ -144,8 +147,8 @@ export function PipelineBoard({
       <Card>
         <CardContent className="py-16 text-center">
           <p className="text-destructive">
-            Could not load pipeline stages
-            {stagesQuery.error ? `: ${stagesQuery.error.message}` : '.'}
+            Impossible de charger les étapes du pipeline
+            {stagesQuery.error ? ` : ${stagesQuery.error.message}` : '.'}
           </p>
         </CardContent>
       </Card>
@@ -180,13 +183,13 @@ export function PipelineBoard({
           role="alert"
           className="flex items-center justify-between rounded-md border border-destructive/50 bg-destructive/5 px-3 py-2 text-sm text-destructive"
         >
-          <span>Could not save move: {mutationError}</span>
+          <span>Échec de l’enregistrement du déplacement : {mutationError}</span>
           <button
             type="button"
             onClick={onDismissError}
             className="ml-4 underline hover:no-underline"
           >
-            dismiss
+            fermer
           </button>
         </div>
       )}
@@ -240,7 +243,7 @@ function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
       <div className="flex flex-col gap-2">
         {deals.length === 0 && (
           <p className="rounded-md border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
-            No deals
+            Aucune affaire
           </p>
         )}
         {deals.map((deal) => (
@@ -259,7 +262,7 @@ interface DealCardProps {
 function formatCurrency(amount: number | null, currency: string | null) {
   if (amount === null || !currency) return null;
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency,
     }).format(amount);
@@ -311,8 +314,8 @@ function DealCard({ deal, onClick }: DealCardProps) {
         <span className="font-medium tabular-nums text-foreground">{amount ?? '—'}</span>
         {deal.expected_close_date && (
           <span className={cn('tabular-nums', overdue && 'font-medium text-destructive')}>
-            {overdue ? 'Overdue · ' : ''}
-            {deal.expected_close_date}
+            {overdue ? 'En retard · ' : ''}
+            {formatDateShort(deal.expected_close_date)}
           </span>
         )}
       </div>

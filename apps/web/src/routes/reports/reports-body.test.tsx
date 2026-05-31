@@ -183,9 +183,9 @@ describe('<ReportsComingSoon />', () => {
     expect(markup).not.toContain('not configured');
     expect(markup).not.toContain('unavailable');
     expect(markup).not.toContain('<iframe');
-    // Honest, on-brand framing.
-    expect(markup).toContain('Coming soon');
-    expect(markup).toContain('Reports');
+    // Honest, on-brand framing (localized to French for the demo).
+    expect(markup).toContain('Bientôt disponible');
+    expect(markup).toContain('Rapports');
   });
 
   it('previews every baseline dashboard so it reads as a roadmap, not a dead end', () => {

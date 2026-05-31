@@ -95,14 +95,14 @@ function RootLayout() {
           <SectionLabel>CRM</SectionLabel>
           <div className="space-y-0.5">
             <NavLink to="/contacts" label="Contacts" icon={Users} />
-            <NavLink to="/companies" label="Companies" icon={Building2} />
-            <NavLink to="/deals" label="Deals" icon={CircleDollarSign} />
-            <NavLink to="/tasks" label="Tasks" icon={CheckSquare} />
+            <NavLink to="/companies" label="Entreprises" icon={Building2} />
+            <NavLink to="/deals" label="Affaires" icon={CircleDollarSign} />
+            <NavLink to="/tasks" label="Tâches" icon={CheckSquare} />
           </div>
 
           {user?.workspace_id && (
             <>
-              <SectionLabel>Workspace</SectionLabel>
+              <SectionLabel>Espace de travail</SectionLabel>
               <div className="space-y-0.5">
                 <NavLink
                   to="/pipeline/$workspaceId"
@@ -113,27 +113,27 @@ function RootLayout() {
                 <NavLink
                   to="/reports/$workspaceId"
                   params={{ workspaceId: user.workspace_id }}
-                  label="Reports"
+                  label="Rapports"
                   icon={BarChart3}
                 />
               </div>
             </>
           )}
 
-          <SectionLabel>Configure</SectionLabel>
+          <SectionLabel>Configuration</SectionLabel>
           <div className="space-y-0.5">
-            <NavLink to="/settings" label="Settings" icon={Settings} />
+            <NavLink to="/settings" label="Réglages" icon={Settings} />
             {permissions.can_write && (
               <NavLink
                 to="/settings/custom-fields"
-                label="Custom Fields"
+                label="Champs personnalisés"
                 icon={SlidersHorizontal}
               />
             )}
             {isOwner && (
               <NavLink
                 to="/settings/members"
-                label="Members"
+                label="Membres"
                 icon={UserCog}
               />
             )}
@@ -159,9 +159,9 @@ function RootLayout() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              title="Help"
+              title="Aide"
             >
-              <Link to="/help" aria-label="Help">
+              <Link to="/help" aria-label="Aide">
                 <CircleHelp className="h-4 w-4" />
               </Link>
             </Button>
@@ -172,7 +172,7 @@ function RootLayout() {
               onClick={() => {
                 window.location.href = '/auth/logout';
               }}
-              title="Sign out"
+              title="Déconnexion"
             >
               <LogOut className="h-4 w-4" />
             </Button>

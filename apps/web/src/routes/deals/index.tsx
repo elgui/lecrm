@@ -9,7 +9,7 @@ import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { usePipelineStages } from '@/hooks/use-pipeline-stages';
 import { useMe } from '@/hooks/use-me';
 import { formatPropertyValue, customFieldLabel } from '@/lib/format-property';
-import { stageBadgeVariant } from '@/lib/format';
+import { stageBadgeVariant, formatDate } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,11 +37,11 @@ export const Route = createRoute({
 
 function formatCurrency(amount: number | null, currency: string | null) {
   if (amount === null || !currency) return '—';
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
 }
 
 const dealSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().min(1, 'Le titre est requis'),
   amount: z.string(),
   currency: z.string(),
   stage_id: z.string(),
@@ -82,26 +82,26 @@ function CreateDealForm({ onDone }: { onDone: () => void }) {
       <CardContent className="pt-6">
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="title">Title</Label>
+            <Label htmlFor="title">Titre</Label>
             <Input id="title" {...register('title')} />
             {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
           </div>
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
-              <Label htmlFor="amount">Amount</Label>
+              <Label htmlFor="amount">Montant</Label>
               <Input id="amount" type="number" step="0.01" {...register('amount')} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
+              <Label htmlFor="currency">Devise</Label>
               <Input id="currency" {...register('currency')} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="expected_close_date">Expected close</Label>
+              <Label htmlFor="expected_close_date">Clôture prévue</Label>
               <Input id="expected_close_date" type="date" {...register('expected_close_date')} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="stage_id">Stage</Label>
+            <Label htmlFor="stage_id">Étape</Label>
             <select
               id="stage_id"
               {...register('stage_id')}
@@ -117,10 +117,10 @@ function CreateDealForm({ onDone }: { onDone: () => void }) {
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create deal'}
+              {create.isPending ? 'Création…' : 'Créer l’affaire'}
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
-              Cancel
+              Annuler
             </Button>
           </div>
           {create.isError && (
@@ -156,15 +156,15 @@ function DealList() {
   return (
     <div className="mx-auto max-w-7xl p-8">
       <PageHeader
-        title="Deals"
-        description="Manage your pipeline and revenue"
+        title="Affaires"
+        description="Gérez votre pipeline et votre chiffre d’affaires"
         actions={
           <>
             <ExportButton resource="deals" />
             {permissions.can_write && !creating && (
               <Button onClick={() => setCreating(true)}>
                 <Plus />
-                New deal
+                Nouvelle affaire
               </Button>
             )}
           </>
@@ -173,19 +173,19 @@ function DealList() {
 
       {creating && <CreateDealForm onDone={() => setCreating(false)} />}
 
-      {error && <p className="text-destructive">Failed to load deals: {error.message}</p>}
+      {error && <p className="text-destructive">Échec du chargement des affaires : {error.message}</p>}
 
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Title</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Titre</TableHead>
+              <TableHead>Étape</TableHead>
+              <TableHead className="text-right">Montant</TableHead>
               {customCols.map((def) => (
                 <TableHead key={def.id}>{customFieldLabel(def)}</TableHead>
               ))}
-              <TableHead>Created</TableHead>
+              <TableHead>Créé le</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -217,13 +217,13 @@ function DealList() {
                   <TableCell colSpan={colSpan} className="p-0">
                     <EmptyState
                       icon={CircleDollarSign}
-                      title="No deals yet"
-                      description="Create your first deal to start tracking revenue."
+                      title="Aucune affaire"
+                      description="Créez votre première affaire pour commencer à suivre votre chiffre d’affaires."
                       action={
                         permissions.can_write && (
                           <Button onClick={() => setCreating(true)}>
                             <Plus />
-                            New deal
+                            Nouvelle affaire
                           </Button>
                         )
                       }
@@ -267,7 +267,7 @@ function DealList() {
                       );
                     })}
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {new Date(deal.created_at).toLocaleDateString()}
+                      {formatDate(deal.created_at)}
                     </TableCell>
                   </TableRow>
                 );
@@ -278,7 +278,7 @@ function DealList() {
         {!isLoading && data && data.data.length > 0 && (
           <div className="flex items-center justify-between border-t border-border px-4 py-2.5 text-xs text-muted-foreground">
             <span>
-              {data.data.length} {data.data.length === 1 ? 'deal' : 'deals'}
+              {data.data.length} {data.data.length === 1 ? 'affaire' : 'affaires'}
             </span>
           </div>
         )}

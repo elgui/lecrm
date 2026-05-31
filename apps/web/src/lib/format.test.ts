@@ -42,8 +42,15 @@ describe('formatAmount', () => {
     expect(formatAmount('')).toBe('—');
   });
 
-  it('formats numeric and string amounts', () => {
-    expect(formatAmount(8500, 'EUR')).toContain('8,500');
-    expect(formatAmount('14000', 'EUR')).toContain('14,000');
+  it('formats numeric and string amounts in the fr-FR locale (EUR, space grouping)', () => {
+    // fr-FR groups thousands with a (narrow) no-break space, not a comma, and
+    // places the € symbol after the amount. Assert on the digits and currency
+    // rather than the exact separator codepoint, which is ICU-version sensitive.
+    const a = formatAmount(8500, 'EUR');
+    expect(a.replace(/\D/g, '')).toBe('8500');
+    expect(a).toContain('€');
+    const b = formatAmount('14000', 'EUR');
+    expect(b.replace(/\D/g, '')).toBe('14000');
+    expect(b).toContain('€');
   });
 });

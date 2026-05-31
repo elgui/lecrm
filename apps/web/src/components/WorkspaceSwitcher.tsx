@@ -5,6 +5,17 @@ import { useWorkspaces } from '@/hooks/use-workspaces';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+// French display label for a workspace membership role token.
+function wsRoleLabel(role: string): string {
+  const map: Record<string, string> = {
+    integrator: 'intégrateur',
+    owner: 'propriétaire',
+    admin: 'admin',
+    member: 'membre',
+  };
+  return map[role] ?? role;
+}
+
 export function WorkspaceSwitcher() {
   const { user } = useAuth();
   const { workspaces } = useWorkspaces();
@@ -23,10 +34,10 @@ export function WorkspaceSwitcher() {
     workspaces.some((ws) => ws.slug === currentSlug && ws.role === 'integrator');
 
   const triggerLabel = isIntegrator
-    ? `GB Consult · administrating ${currentSlug}`
+    ? `GB Consult · administre ${currentSlug}`
     : currentSlug;
 
-  const dropdownLabel = isIntegrator ? 'Client accounts' : 'Your workspaces';
+  const dropdownLabel = isIntegrator ? 'Comptes clients' : 'Vos espaces de travail';
 
   return (
     <WorkspaceSwitcherInner
@@ -122,7 +133,7 @@ function WorkspaceSwitcherInner({
                 <Check className="h-3 w-3 shrink-0" />
                 <span className="flex-1 truncate">{ws.slug}</span>
                 <span className="ml-1 text-xs text-muted-foreground">
-                  {ws.role}
+                  {wsRoleLabel(ws.role)}
                 </span>
               </div>
             ) : (
@@ -142,7 +153,7 @@ function WorkspaceSwitcherInner({
                 <span className="h-3 w-3 shrink-0" aria-hidden />
                 <span className="flex-1 truncate">{ws.slug}</span>
                 <span className="ml-1 text-xs text-muted-foreground">
-                  {ws.role}
+                  {wsRoleLabel(ws.role)}
                 </span>
               </a>
             );

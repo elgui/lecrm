@@ -19,18 +19,18 @@ function def(type: PropertyType, allowed?: string[]): PropertyDefinition {
 }
 
 describe('formatPropertyValue', () => {
-  it('renders booleans as Yes/No (accepting string "true")', () => {
-    expect(formatPropertyValue(def('boolean'), true)).toBe('Yes');
-    expect(formatPropertyValue(def('boolean'), false)).toBe('No');
-    expect(formatPropertyValue(def('boolean'), 'true')).toBe('Yes');
+  it('renders booleans as Oui/Non (accepting string "true")', () => {
+    expect(formatPropertyValue(def('boolean'), true)).toBe('Oui');
+    expect(formatPropertyValue(def('boolean'), false)).toBe('Non');
+    expect(formatPropertyValue(def('boolean'), 'true')).toBe('Oui');
   });
 
-  it('formats numbers, coercing strings', () => {
+  it('formats numbers in the fr-FR locale, coercing strings', () => {
     expect(formatPropertyValue(def('number'), 42)).toBe(
-      new Intl.NumberFormat().format(42),
+      new Intl.NumberFormat('fr-FR').format(42),
     );
     expect(formatPropertyValue(def('number'), '1234.5')).toBe(
-      new Intl.NumberFormat().format(1234.5),
+      new Intl.NumberFormat('fr-FR').format(1234.5),
     );
   });
 

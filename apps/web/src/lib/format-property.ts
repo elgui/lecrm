@@ -1,4 +1,5 @@
 import type { PropertyDefinition } from '@/lib/types';
+import { formatDate } from '@/lib/format';
 
 // prettifyPropertyKey turns a snake_case property_key into a human-readable
 // label using sentence case (capitalise the first letter only). This reads
@@ -31,15 +32,13 @@ export function formatPropertyValue(
 
   switch (def.property_type) {
     case 'boolean':
-      return value === true || value === 'true' ? 'Yes' : 'No';
+      return value === true || value === 'true' ? 'Oui' : 'Non';
     case 'number': {
       const n = typeof value === 'number' ? value : Number(value);
-      return Number.isNaN(n) ? String(value) : new Intl.NumberFormat().format(n);
+      return Number.isNaN(n) ? String(value) : new Intl.NumberFormat('fr-FR').format(n);
     }
-    case 'date': {
-      const d = new Date(String(value));
-      return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
-    }
+    case 'date':
+      return formatDate(String(value));
     case 'json':
       return typeof value === 'string' ? value : JSON.stringify(value);
     case 'enum':

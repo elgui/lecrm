@@ -96,7 +96,7 @@ function ContactDetail() {
   };
 
   const onDelete = () => {
-    if (!window.confirm('Delete this contact? This cannot be undone.')) return;
+    if (!window.confirm('Supprimer ce contact ? Cette action est irréversible.')) return;
     deleteMutation.mutate(contactId, {
       onSuccess: () => navigate({ to: '/contacts' }),
     });
@@ -114,7 +114,7 @@ function ContactDetail() {
   if (!contact) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Contact not found</p>
+        <p className="text-destructive">Contact introuvable</p>
       </div>
     );
   }
@@ -128,7 +128,7 @@ function ContactDetail() {
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to contacts
+        Retour aux contacts
       </Link>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -145,7 +145,7 @@ function ContactDetail() {
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            Supprimer
           </Button>
         )}
       </div>
@@ -153,7 +153,7 @@ function ContactDetail() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Details</CardTitle>
+            <CardTitle className="text-lg">Détails</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -165,7 +165,7 @@ function ContactDetail() {
             >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">First name</Label>
+                  <Label htmlFor="first_name">Prénom</Label>
                   <Input
                     id="first_name"
                     readOnly={!canWrite}
@@ -173,7 +173,7 @@ function ContactDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Last name</Label>
+                  <Label htmlFor="last_name">Nom</Label>
                   <Input
                     id="last_name"
                     readOnly={!canWrite}
@@ -182,15 +182,15 @@ function ContactDetail() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input id="email" type="email" readOnly={!canWrite} {...form.register('email')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Téléphone</Label>
                 <Input id="phone" readOnly={!canWrite} {...form.register('phone')} />
               </div>
               <div className="space-y-2">
-                <Label>Company</Label>
+                <Label>Entreprise</Label>
                 {contact.company_id && company ? (
                   <p className="text-sm">
                     <Link

@@ -52,9 +52,9 @@ function ReportsPage() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Rapports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Dashboards for your pipeline and activity.
+          Tableaux de bord de votre pipeline et de votre activité.
         </p>
       </div>
       <ReportsLive />
@@ -132,22 +132,22 @@ export function ReportsComingSoon() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">Reports</CardTitle>
+                <CardTitle className="text-lg">Rapports</CardTitle>
                 <Badge variant="secondary" className="gap-1">
                   <Sparkles className="h-3 w-3" />
-                  Coming soon
+                  Bientôt disponible
                 </Badge>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">
-                Live dashboards over your pipeline and activity are on
-                the way.
+                Les tableaux de bord en temps réel de votre pipeline et de
+                votre activité arrivent bientôt.
               </p>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <p className="mb-3 text-sm font-medium text-foreground">
-            What you'll be able to track:
+            Ce que vous pourrez suivre :
           </p>
           <ul className="space-y-2.5">
             {BASELINE_DASHBOARDS.map((d) => (

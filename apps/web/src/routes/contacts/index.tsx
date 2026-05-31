@@ -9,6 +9,7 @@ import { useCompanyMap } from '@/hooks/use-companies';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { useMe } from '@/hooks/use-me';
 import { formatPropertyValue, customFieldLabel } from '@/lib/format-property';
+import { formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,9 +36,9 @@ export const Route = createRoute({
 });
 
 const contactSchema = z.object({
-  first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email').or(z.literal('')),
+  first_name: z.string().min(1, 'Le prénom est requis'),
+  last_name: z.string().min(1, 'Le nom est requis'),
+  email: z.string().email('E-mail invalide').or(z.literal('')),
   phone: z.string(),
 });
 type ContactForm = z.infer<typeof contactSchema>;
@@ -72,14 +73,14 @@ function CreateContactForm({ onDone }: { onDone: () => void }) {
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="first_name">First name</Label>
+              <Label htmlFor="first_name">Prénom</Label>
               <Input id="first_name" {...register('first_name')} />
               {errors.first_name && (
                 <p className="text-sm text-destructive">{errors.first_name.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="last_name">Last name</Label>
+              <Label htmlFor="last_name">Nom</Label>
               <Input id="last_name" {...register('last_name')} />
               {errors.last_name && (
                 <p className="text-sm text-destructive">{errors.last_name.message}</p>
@@ -88,23 +89,23 @@ function CreateContactForm({ onDone }: { onDone: () => void }) {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input id="email" type="email" {...register('email')} />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">Téléphone</Label>
               <Input id="phone" {...register('phone')} />
             </div>
           </div>
           <div className="flex gap-2">
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create contact'}
+              {create.isPending ? 'Création…' : 'Créer le contact'}
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
-              Cancel
+              Annuler
             </Button>
           </div>
           {create.isError && (
@@ -136,14 +137,14 @@ function ContactList() {
     <div className="mx-auto max-w-7xl p-8">
       <PageHeader
         title="Contacts"
-        description="Manage your contacts and relationships"
+        description="Gérez vos contacts et vos relations"
         actions={
           <>
             <ExportButton resource="contacts" />
             {permissions.can_write && !creating && (
               <Button onClick={() => setCreating(true)}>
                 <Plus />
-                New contact
+                Nouveau contact
               </Button>
             )}
           </>
@@ -153,20 +154,20 @@ function ContactList() {
       {creating && <CreateContactForm onDone={() => setCreating(false)} />}
 
       {error && (
-        <p className="text-destructive">Failed to load contacts: {error.message}</p>
+        <p className="text-destructive">Échec du chargement des contacts : {error.message}</p>
       )}
 
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Company</TableHead>
+              <TableHead>Nom</TableHead>
+              <TableHead>E-mail</TableHead>
+              <TableHead>Entreprise</TableHead>
               {customCols.map((def) => (
                 <TableHead key={def.id}>{customFieldLabel(def)}</TableHead>
               ))}
-              <TableHead>Created</TableHead>
+              <TableHead>Créé le</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -201,13 +202,13 @@ function ContactList() {
                   <TableCell colSpan={colSpan} className="p-0">
                     <EmptyState
                       icon={Users}
-                      title="No contacts yet"
-                      description="Add your first contact to start building relationships."
+                      title="Aucun contact"
+                      description="Ajoutez votre premier contact pour commencer à construire vos relations."
                       action={
                         permissions.can_write && (
                           <Button onClick={() => setCreating(true)}>
                             <Plus />
-                            New contact
+                            Nouveau contact
                           </Button>
                         )
                       }
@@ -220,7 +221,7 @@ function ContactList() {
                 const name =
                   `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() ||
                   contact.email ||
-                  'Unknown';
+                  'Inconnu';
                 return (
                   <TableRow key={contact.id} className="group">
                     <TableCell>
@@ -269,7 +270,7 @@ function ContactList() {
                       );
                     })}
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {new Date(contact.created_at).toLocaleDateString()}
+                      {formatDate(contact.created_at)}
                     </TableCell>
                   </TableRow>
                 );
@@ -285,7 +286,7 @@ function ContactList() {
             </span>
             {data.has_more && (
               <Button variant="ghost" size="sm" disabled>
-                Load more
+                Charger plus
               </Button>
             )}
           </div>

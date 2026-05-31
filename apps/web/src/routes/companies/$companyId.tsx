@@ -65,7 +65,7 @@ function CompanyDetail() {
     : null;
 
   const onDelete = () => {
-    if (!window.confirm('Delete this company? This cannot be undone.')) return;
+    if (!window.confirm('Supprimer cette entreprise ? Cette action est irréversible.')) return;
     deleteMutation.mutate(companyId, {
       onSuccess: () => navigate({ to: '/companies' }),
     });
@@ -83,7 +83,7 @@ function CompanyDetail() {
   if (!company) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Company not found</p>
+        <p className="text-destructive">Entreprise introuvable</p>
       </div>
     );
   }
@@ -95,7 +95,7 @@ function CompanyDetail() {
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to companies
+        Retour aux entreprises
       </Link>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -117,7 +117,7 @@ function CompanyDetail() {
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            Supprimer
           </Button>
         )}
       </div>
@@ -125,25 +125,25 @@ function CompanyDetail() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Details</CardTitle>
+            <CardTitle className="text-lg">Détails</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Nom</Label>
                 <Input id="name" readOnly={!canWrite} {...form.register('name', { required: true })} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="domain">Domain</Label>
+                <Label htmlFor="domain">Domaine</Label>
                 <Input id="domain" readOnly={!canWrite} {...form.register('domain')} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="industry">Industry</Label>
+                  <Label htmlFor="industry">Secteur</Label>
                   <Input id="industry" readOnly={!canWrite} {...form.register('industry')} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="size">Size</Label>
+                  <Label htmlFor="size">Taille</Label>
                   <Input id="size" readOnly={!canWrite} {...form.register('size')} />
                 </div>
               </div>

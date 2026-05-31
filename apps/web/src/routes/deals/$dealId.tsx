@@ -103,7 +103,7 @@ function DealDetail() {
   };
 
   const onDelete = () => {
-    if (!window.confirm('Delete this deal? This cannot be undone.')) return;
+    if (!window.confirm('Supprimer cette affaire ? Cette action est irréversible.')) return;
     deleteMutation.mutate(dealId, { onSuccess: () => navigate({ to: '/deals' }) });
   };
 
@@ -119,7 +119,7 @@ function DealDetail() {
   if (!deal) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Deal not found</p>
+        <p className="text-destructive">Affaire introuvable</p>
       </div>
     );
   }
@@ -128,7 +128,7 @@ function DealDetail() {
     stages?.find((s) => s.id === deal.stage_id)?.name ?? null;
   const amountLabel =
     deal.amount !== null && deal.currency
-      ? new Intl.NumberFormat(undefined, {
+      ? new Intl.NumberFormat('fr-FR', {
           style: 'currency',
           currency: deal.currency,
         }).format(deal.amount)
@@ -141,7 +141,7 @@ function DealDetail() {
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to deals
+        Retour aux affaires
       </Link>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="space-y-2">
@@ -162,7 +162,7 @@ function DealDetail() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               {company && (
                 <span>
-                  Company:{' '}
+                  Entreprise :{' '}
                   <Link
                     to="/companies/$companyId"
                     params={{ companyId: company.id }}
@@ -174,7 +174,7 @@ function DealDetail() {
               )}
               {primaryContact && (
                 <span>
-                  Contact:{' '}
+                  Contact :{' '}
                   <Link
                     to="/contacts/$contactId"
                     params={{ contactId: primaryContact.id }}
@@ -182,7 +182,7 @@ function DealDetail() {
                   >
                     {`${primaryContact.first_name ?? ''} ${primaryContact.last_name ?? ''}`.trim() ||
                       primaryContact.email ||
-                      'Unknown'}
+                      'Inconnu'}
                   </Link>
                 </span>
               )}
@@ -192,7 +192,7 @@ function DealDetail() {
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            Supprimer
           </Button>
         )}
       </div>
@@ -200,7 +200,7 @@ function DealDetail() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Deal Details</CardTitle>
+            <CardTitle className="text-lg">Détails de l’affaire</CardTitle>
           </CardHeader>
           <CardContent>
             <form
@@ -211,21 +211,21 @@ function DealDetail() {
               className="space-y-4"
             >
               <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">Titre</Label>
                 <Input id="title" readOnly={!canWrite} {...form.register('title', { required: true })} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount</Label>
+                  <Label htmlFor="amount">Montant</Label>
                   <Input id="amount" type="number" step="0.01" readOnly={!canWrite} {...form.register('amount')} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
+                  <Label htmlFor="currency">Devise</Label>
                   <Input id="currency" readOnly={!canWrite} {...form.register('currency')} />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stage_id">Stage</Label>
+                <Label htmlFor="stage_id">Étape</Label>
                 <select
                   id="stage_id"
                   disabled={!canWrite}
@@ -241,7 +241,7 @@ function DealDetail() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="expected_close_date">Expected close date</Label>
+                <Label htmlFor="expected_close_date">Date de clôture prévue</Label>
                 <Input
                   id="expected_close_date"
                   type="date"

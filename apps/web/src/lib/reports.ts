@@ -34,8 +34,8 @@ export interface DashboardSpec {
 export const BASELINE_DASHBOARDS: DashboardSpec[] = [
   {
     id: 'deals-by-stage',
-    title: 'Deals by stage',
-    description: 'Open deals grouped by pipeline stage.',
+    title: 'Affaires par étape',
+    description: 'Affaires en cours regroupées par étape du pipeline.',
     chartType: 'bar',
     query: {
       measures: ['Deals.count'],
@@ -45,8 +45,8 @@ export const BASELINE_DASHBOARDS: DashboardSpec[] = [
   },
   {
     id: 'deals-by-owner',
-    title: 'Deals by owner',
-    description: 'Top 10 owners by deal count and total value.',
+    title: 'Affaires par responsable',
+    description: 'Top 10 des responsables par nombre d’affaires et valeur totale.',
     chartType: 'table',
     query: {
       measures: ['Deals.count', 'Deals.totalAmount'],
@@ -57,8 +57,8 @@ export const BASELINE_DASHBOARDS: DashboardSpec[] = [
   },
   {
     id: 'recent-activities',
-    title: 'Recent activities',
-    description: 'Activities created in the last 30 days, by type.',
+    title: 'Activités récentes',
+    description: 'Activités créées sur les 30 derniers jours, par type.',
     chartType: 'line',
     query: {
       measures: ['Activities.count'],
@@ -74,8 +74,8 @@ export const BASELINE_DASHBOARDS: DashboardSpec[] = [
   },
   {
     id: 'conversion-funnel',
-    title: 'Conversion funnel',
-    description: 'Deal counts progressing through pipeline stages.',
+    title: 'Entonnoir de conversion',
+    description: 'Progression du nombre d’affaires à travers les étapes du pipeline.',
     chartType: 'funnel',
     query: {
       measures: ['Deals.count'],
