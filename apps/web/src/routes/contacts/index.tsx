@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Users } from 'lucide-react';
 import { useContacts, useCreateContact, useContactDefinitions } from '@/hooks/use-contacts';
+import { useCompanyMap } from '@/hooks/use-companies';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { useMe } from '@/hooks/use-me';
 import { formatPropertyValue } from '@/lib/format-property';
@@ -118,6 +119,7 @@ function CreateContactForm({ onDone }: { onDone: () => void }) {
 function ContactList() {
   const { data, isLoading, error } = useContacts();
   const { permissions } = useMe();
+  const companyMap = useCompanyMap();
   const [creating, setCreating] = React.useState(false);
 
   // First couple of custom fields shown as columns; values batch-fetched for
@@ -237,7 +239,23 @@ function ContactList() {
                       {contact.email ?? '—'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {contact.company_id ? contact.company_id.slice(0, 8) + '…' : '—'}
+                      {(() => {
+                        const companyName = contact.company_id
+                          ? companyMap.get(contact.company_id)
+                          : undefined;
+                        if (contact.company_id && companyName) {
+                          return (
+                            <Link
+                              to="/companies/$companyId"
+                              params={{ companyId: contact.company_id }}
+                              className="hover:text-foreground hover:underline"
+                            >
+                              {companyName}
+                            </Link>
+                          );
+                        }
+                        return '—';
+                      })()}
                     </TableCell>
                     {customCols.map((def) => {
                       const formatted = formatPropertyValue(

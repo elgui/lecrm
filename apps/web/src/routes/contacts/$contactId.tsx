@@ -8,6 +8,7 @@ import {
   useUpdateContactProperties,
   useContactDefinitions,
 } from '@/hooks/use-contacts';
+import { useCompany } from '@/hooks/use-companies';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +39,7 @@ function ContactDetail() {
   const { contactId } = Route.useParams();
   const navigate = useNavigate();
   const { data: contact, isLoading } = useContact(contactId);
+  const { data: company } = useCompany(contact?.company_id ?? '');
   const { data: properties, isLoading: propsLoading } = useContactProperties(contactId);
   const { data: definitions } = useContactDefinitions();
   const updateMutation = useUpdateContact(contactId);
@@ -153,6 +155,22 @@ function ContactDetail() {
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
                 <Input id="phone" readOnly={!canWrite} {...form.register('phone')} />
+              </div>
+              <div className="space-y-2">
+                <Label>Company</Label>
+                {contact.company_id && company ? (
+                  <p className="text-sm">
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: company.id }}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {company.name}
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
               </div>
               {canWrite ? (
                 <>

@@ -9,6 +9,8 @@ import {
   useDealDefinitions,
 } from '@/hooks/use-deals';
 import { usePipelineStages } from '@/hooks/use-pipeline-stages';
+import { useCompany } from '@/hooks/use-companies';
+import { useContact } from '@/hooks/use-contacts';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +45,8 @@ function DealDetail() {
   const { data: deal, isLoading } = useDeal(dealId);
   const { data: stagesResp } = usePipelineStages();
   const stages = stagesResp?.data;
+  const { data: company } = useCompany(deal?.company_id ?? '');
+  const { data: primaryContact } = useContact(deal?.contact_id ?? '');
   const { data: properties, isLoading: propsLoading } = useDealProperties(dealId);
   const { data: definitions } = useDealDefinitions();
   const updateMutation = useUpdateDeal(dealId);
@@ -129,6 +133,36 @@ function DealDetail() {
               </span>
             )}
           </div>
+          {(company || primaryContact) && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+              {company && (
+                <span>
+                  Company:{' '}
+                  <Link
+                    to="/companies/$companyId"
+                    params={{ companyId: company.id }}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {company.name}
+                  </Link>
+                </span>
+              )}
+              {primaryContact && (
+                <span>
+                  Contact:{' '}
+                  <Link
+                    to="/contacts/$contactId"
+                    params={{ contactId: primaryContact.id }}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {`${primaryContact.first_name ?? ''} ${primaryContact.last_name ?? ''}`.trim() ||
+                      primaryContact.email ||
+                      'Unknown'}
+                  </Link>
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
