@@ -1,0 +1,10 @@
+# Never commit demo credentials or captured browser artifacts
+*.local
+*.local.*
+credentials*
+*.png
+*.jpg
+*.jpeg
+# Scratch probe dumps written during a run (kept local, never committed)
+runs/*.json
+# Keep run reports (runs/*.md) — they must not contain passwords/secrets.
