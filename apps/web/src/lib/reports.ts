@@ -89,6 +89,25 @@ export function findDashboard(id: string): DashboardSpec | undefined {
   return BASELINE_DASHBOARDS.find((d) => d.id === id);
 }
 
+// Whether embedded reporting (Cube.dev) is wired up in this deployment.
+// Reporting needs a running Cube container, the per-workspace RO roles,
+// the `/cube/embed` chart frontend, and LECRM_CUBE_JWT_SECRET on the
+// API — none of which are provisioned on the public demo. Until that
+// stack exists, the Reports route renders an honest "coming soon"
+// placeholder instead of letting the embed-token call 503 into a red
+// "not configured" error during the demo. Flip VITE_REPORTS_ENABLED to
+// "true" once Cube is actually deployed to light up the live path.
+// The `flag` param defaults to the build-time env value; tests pass an
+// explicit value (Vite statically inlines import.meta.env, so it can't
+// be stubbed at runtime — same reason cubeEmbedBaseUrl takes an arg).
+export function reportsEnabled(
+  flag: string | undefined = (
+    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
+  ).env?.VITE_REPORTS_ENABLED,
+): boolean {
+  return flag === 'true';
+}
+
 // Resolves the base URL of the embedded Cube dashboard frontend.
 // In production this is fronted by Caddy at /cube/embed; in dev it
 // can be overridden via VITE_CUBE_EMBED_URL pointed at a local Cube

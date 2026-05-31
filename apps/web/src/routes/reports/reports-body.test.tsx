@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server.node';
 
-import { ReportsBody } from './$workspaceId';
+import { ReportsBody, ReportsComingSoon } from './$workspaceId';
 import { BASELINE_DASHBOARDS } from '@/lib/reports';
 import { ApiError } from '@/lib/api';
 import type { EmbedToken } from '@/hooks/use-embed-token';
@@ -172,5 +172,27 @@ describe('<ReportsBody />', () => {
     expect(markup).toMatch(
       new RegExp(`aria-selected="true"[^>]*>${BASELINE_DASHBOARDS[2]!.title}`),
     );
+  });
+});
+
+describe('<ReportsComingSoon />', () => {
+  it('shows an honest branded placeholder — never the "not configured" error or an iframe', () => {
+    const markup = renderToStaticMarkup(<ReportsComingSoon />);
+    // The whole point of this task: the demo must never show the red
+    // "Reports unavailable / not configured" error or a broken iframe.
+    expect(markup).not.toContain('not configured');
+    expect(markup).not.toContain('unavailable');
+    expect(markup).not.toContain('<iframe');
+    // Honest, on-brand framing.
+    expect(markup).toContain('Coming soon');
+    expect(markup).toContain('Reports');
+  });
+
+  it('previews every baseline dashboard so it reads as a roadmap, not a dead end', () => {
+    const markup = renderToStaticMarkup(<ReportsComingSoon />);
+    for (const d of BASELINE_DASHBOARDS) {
+      expect(markup).toContain(d.title);
+      expect(markup).toContain(d.description);
+    }
   });
 });
