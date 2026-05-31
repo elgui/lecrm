@@ -188,6 +188,14 @@ docker cp scripts/authentik-provision-oidc-client.py lecrm-authentik-worker:/tmp
 docker exec -e LECRM_OIDC_REDIRECT_URI_REGEX='^https://[a-z0-9-]+\.lecrm\.gbconsult\.me/auth/callback$' \
   lecrm-authentik-worker ak shell -c "exec(open('/tmp/p.py').read())"
 # → put CLIENT_SECRET in .env.staging (LECRM_OIDC_CLIENT_SECRET) + re-encrypt .enc.
+# 3b. Brand the login screen (leCRM logo/title/favicon/background; drops the
+#     stock "authentik" wordmark + "Welcome to authentik!"). Idempotent,
+#     self-contained (SVG data URIs — no media file copy), re-run on any
+#     fresh Authentik:
+docker cp scripts/authentik-brand-lecrm.py lecrm-authentik-worker:/tmp/brand.py
+docker exec lecrm-authentik-worker ak shell -c "exec(open('/tmp/brand.py').read())"
+# Verify: curl https://auth.lecrm.gbconsult.me/api/v3/core/brands/current/
+#   → "branding_title":"leCRM" and a data: branding_logo.
 # 4. API (builds embedded-SPA image; depends on postgres health).
 docker compose --env-file deploy/.env.staging -f deploy/compose/postgres.yml -f deploy/compose/api.yml up -d --build api
 # 5. Provision the demo workspace (superuser calls the wrapper; template seeds the 5 pipeline stages):
@@ -396,6 +404,12 @@ splitting TLS ownership.
   (dev e2e fixture), and **`leo`** (leo@vernayo.com — GB Consult partner,
   demo viewer). Add users via `ak shell` on `lecrm-authentik-worker`
   (pattern: `scripts/authentik-provision-test-user.py`).
+- **Login branding: LIVE (2026-05-31)** — `auth.lecrm.gbconsult.me` shows
+  the leCRM wordmark/title/favicon and a branded blue background instead of
+  the stock "authentik" logo + "Welcome to authentik!" flow title. Applied
+  by `scripts/authentik-brand-lecrm.py` (idempotent, self-contained SVG
+  data URIs — re-run verbatim on the Hetzner box). See step 3b in the
+  order:3 runbook above.
 - **e2e test caveat:** `apps/api/internal/auth/e2e_test.go`
   (`TestE2EOIDCFlow`) is **dev-only** — it hard-skips on any non-`.test`
   TLD and its redirect regex is pinned to `:8080`/`lecrm.test`, so it does
