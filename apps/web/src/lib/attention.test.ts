@@ -10,8 +10,9 @@ import type { Deal, Task } from '@/lib/types';
 const NOW = new Date('2026-05-31T10:00:00Z');
 
 function task(overrides: Partial<Task>): Task {
+  const { id, ...rest } = overrides;
   return {
-    id: 'task-' + (overrides.id ?? Math.random().toString(36).slice(2)),
+    id: 'task-' + (id ?? Math.random().toString(36).slice(2)),
     title: 'Task',
     description: null,
     entity_type: null,
@@ -21,13 +22,14 @@ function task(overrides: Partial<Task>): Task {
     completed_at: null,
     created_at: '2026-05-01T00:00:00Z',
     updated_at: '2026-05-01T00:00:00Z',
-    ...overrides,
+    ...rest,
   };
 }
 
 function deal(overrides: Partial<Deal>): Deal {
+  const { id, ...rest } = overrides;
   return {
-    id: 'deal-' + (overrides.id ?? Math.random().toString(36).slice(2)),
+    id: 'deal-' + (id ?? Math.random().toString(36).slice(2)),
     title: 'Deal',
     amount: 1000,
     currency: 'EUR',
@@ -39,7 +41,7 @@ function deal(overrides: Partial<Deal>): Deal {
     closed_at: null,
     created_at: '2026-05-01T00:00:00Z',
     updated_at: '2026-05-01T00:00:00Z',
-    ...overrides,
+    ...rest,
   };
 }
 
