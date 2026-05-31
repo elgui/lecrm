@@ -46,7 +46,7 @@ func (f *fakeReader) ListDeals(_ context.Context, ws uuid.UUID, _ store.Page) (c
 }
 func (f *fakeReader) ListPipelineStages(_ context.Context, ws uuid.UUID) ([]capability.MCPStage, error) {
 	f.lastWS = ws
-	return []capability.MCPStage{{Name: "Discovery", OrderIndex: 1, DealCount: 3}}, nil
+	return []capability.MCPStage{{Name: "Découverte", OrderIndex: 1, DealCount: 3}}, nil
 }
 func (f *fakeReader) SearchContacts(_ context.Context, ws uuid.UUID, _ string) ([]capability.MCPContact, error) {
 	f.lastWS = ws

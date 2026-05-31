@@ -46,7 +46,7 @@
   "pipeline_stages": [
     {
       "key": "discovery",
-      "label": "Discovery",
+      "label": "Découverte",
       "order_index": 1,
       "entry_conditions": [],
       "exit_conditions": ["contact_info_complete", "budget_range_identified"],
@@ -60,7 +60,7 @@
     },
     {
       "key": "qualified",
-      "label": "Qualified",
+      "label": "Qualifié",
       "order_index": 2,
       "entry_conditions": ["contact_info_complete", "budget_range_identified"],
       "exit_conditions": ["decision_maker_identified", "timeline_confirmed", "needs_documented"],
@@ -74,7 +74,7 @@
     },
     {
       "key": "proposal-sent",
-      "label": "Proposal Sent",
+      "label": "Proposition envoyée",
       "order_index": 3,
       "entry_conditions": ["decision_maker_identified", "needs_documented"],
       "exit_conditions": ["proposal_reviewed", "feedback_received"],
@@ -87,7 +87,7 @@
     },
     {
       "key": "negotiation",
-      "label": "Negotiation",
+      "label": "Négociation",
       "order_index": 4,
       "entry_conditions": ["proposal_reviewed"],
       "exit_conditions": ["terms_agreed", "contract_ready"],
@@ -100,7 +100,7 @@
     },
     {
       "key": "closed-won-lost",
-      "label": "Closed-Won/Lost",
+      "label": "Gagné / Perdu",
       "order_index": 5,
       "entry_conditions": ["terms_agreed"],
       "exit_conditions": [],

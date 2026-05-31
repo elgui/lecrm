@@ -8,8 +8,9 @@
 -- SCHEMA-AGNOSTIC: the target workspace schema is passed as the psql var
 -- `schema`; this file pins search_path to it. The workspace must already be
 -- provisioned with the `gbconsult-default` template (so pipeline_stages
--- exists and is seeded with Discovery/Qualified/Proposal Sent/Negotiation/
--- Closed-Won/Lost) and lecrm_api must hold DML on it (migration 0017).
+-- exists and is seeded with the French labels Découverte/Qualifié/Proposition
+-- envoyée/Négociation/Gagné / Perdu — see migration 0021) and lecrm_api must
+-- hold DML on it (migration 0017).
 --
 -- Run:
 --   psql "$SUPERUSER_DSN" \
@@ -56,30 +57,30 @@ ON CONFLICT (id) DO NOTHING;
 -- name from the seeded pipeline_stages table.
 INSERT INTO deals (id, title, amount, currency, stage_id, contact_id, company_id, owner_id, expected_close_date, closed_at) VALUES
   ('dea10000-0000-4000-8000-000000000001', 'Site vitrine + click & collect',  8500.00,  'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Discovery'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Découverte'),
      '11110000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 45, NULL),
   ('dea10000-0000-4000-8000-000000000002', 'Refonte identité de marque',      14000.00, 'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Qualified'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Qualifié'),
      '11110000-0000-4000-8000-000000000003', 'c0000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 30, NULL),
   ('dea10000-0000-4000-8000-000000000003', 'Optimisation tournées (TMS)',     52000.00, 'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Proposal Sent'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Proposition envoyée'),
      '11110000-0000-4000-8000-000000000005', 'c0000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 20, NULL),
   ('dea10000-0000-4000-8000-000000000004', 'Portail patients & prise de RDV', 38000.00, 'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Negotiation'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Négociation'),
      '11110000-0000-4000-8000-000000000007', 'c0000000-0000-4000-8000-0000000000a4', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 10, NULL),
   ('dea10000-0000-4000-8000-000000000005', 'Maintenance annuelle (renouvelé)', 6000.00, 'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Closed-Won/Lost'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
      '11110000-0000-4000-8000-000000000003', 'c0000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 5, now() - INTERVAL '5 days'),
   ('dea10000-0000-4000-8000-000000000006', 'Audit logistique (perdu)',        21000.00, 'EUR',
-     (SELECT id FROM pipeline_stages WHERE name = 'Closed-Won/Lost'),
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
      '11110000-0000-4000-8000-000000000006', 'c0000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 12, now() - INTERVAL '12 days')
 ON CONFLICT (id) DO NOTHING;
 
 -- --------------------------------------------------------------- activities
 -- Append-only timeline entries. actor_type='human_api' (REST writes).
 INSERT INTO activities (id, entity_type, entity_id, actor_type, actor_id, event_type, payload) VALUES
-  ('ac710000-0000-4000-8000-000000000001', 'deal', 'dea10000-0000-4000-8000-000000000003', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'deal.stage_changed', '{"from":"Qualified","to":"Proposal Sent"}'::jsonb),
-  ('ac710000-0000-4000-8000-000000000002', 'deal', 'dea10000-0000-4000-8000-000000000004', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'deal.stage_changed', '{"from":"Proposal Sent","to":"Negotiation"}'::jsonb),
+  ('ac710000-0000-4000-8000-000000000001', 'deal', 'dea10000-0000-4000-8000-000000000003', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'deal.stage_changed', '{"from":"Qualifié","to":"Proposition envoyée"}'::jsonb),
+  ('ac710000-0000-4000-8000-000000000002', 'deal', 'dea10000-0000-4000-8000-000000000004', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'deal.stage_changed', '{"from":"Proposition envoyée","to":"Négociation"}'::jsonb),
   ('ac710000-0000-4000-8000-000000000003', 'contact', '11110000-0000-4000-8000-000000000001', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'contact.created', '{}'::jsonb),
   ('ac710000-0000-4000-8000-000000000004', 'deal', 'dea10000-0000-4000-8000-000000000005', 'human_api', '00000000-0000-4000-8000-0000000000a1', 'deal.won', '{"amount":6000}'::jsonb)
 ON CONFLICT (id) DO NOTHING;

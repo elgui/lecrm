@@ -195,10 +195,10 @@ func readP(ws uuid.UUID) Principal  { return MCPWritePrincipal(ws, []string{Scop
 func TestIntent_AdvanceDeal_FuzzyStageAndActivity(t *testing.T) {
 	e := setupIntentEnv(t)
 	ctx := context.Background()
-	deal := e.seedDeal(t, e.wsA, "Acme renewal", "Discovery")
+	deal := e.seedDeal(t, e.wsA, "Acme renewal", "Découverte")
 
 	res, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA),
-		AdvanceDealInput{Deal: deal.String(), ToStage: "negotiation"}, // lowercase fuzzy
+		AdvanceDealInput{Deal: deal.String(), ToStage: "négociation"}, // lowercase fuzzy
 		WriteOptions{}, nil, nil)
 	if err != nil {
 		t.Fatalf("advance_deal: %v", err)
@@ -206,8 +206,8 @@ func TestIntent_AdvanceDeal_FuzzyStageAndActivity(t *testing.T) {
 	if res.Preview != nil {
 		t.Fatal("non-dry-run must not return a preview")
 	}
-	if got := e.dealStageName(t, e.wsA, deal); got != "Negotiation" {
-		t.Fatalf("stage = %q, want Negotiation (fuzzy match)", got)
+	if got := e.dealStageName(t, e.wsA, deal); got != "Négociation" {
+		t.Fatalf("stage = %q, want Négociation (fuzzy match)", got)
 	}
 	sc := e.schema(e.wsA)
 	if n := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.activities WHERE entity_type='deal' AND entity_id=$1 AND event_type='deal.stage_changed'`, deal); n != 1 {
@@ -222,12 +222,12 @@ func TestIntent_AdvanceDeal_FuzzyStageAndActivity(t *testing.T) {
 func TestIntent_AdvanceDeal_DryRunMutatesNothing(t *testing.T) {
 	e := setupIntentEnv(t)
 	ctx := context.Background()
-	deal := e.seedDeal(t, e.wsA, "Globex pilot", "Discovery")
+	deal := e.seedDeal(t, e.wsA, "Globex pilot", "Découverte")
 	sc := e.schema(e.wsA)
 	before := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.activities`)
 
 	res, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA),
-		AdvanceDealInput{Deal: deal.String(), ToStage: "Negotiation"},
+		AdvanceDealInput{Deal: deal.String(), ToStage: "Négociation"},
 		WriteOptions{DryRun: true}, nil, nil)
 	if err != nil {
 		t.Fatalf("dry-run advance_deal: %v", err)
@@ -235,7 +235,7 @@ func TestIntent_AdvanceDeal_DryRunMutatesNothing(t *testing.T) {
 	if res.Preview == nil || !res.Preview.DryRun {
 		t.Fatal("dry-run must return a Preview")
 	}
-	if got := e.dealStageName(t, e.wsA, deal); got != "Discovery" {
+	if got := e.dealStageName(t, e.wsA, deal); got != "Découverte" {
 		t.Fatalf("dry-run must not move the deal; stage = %q", got)
 	}
 	if after := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.activities`); after != before {
@@ -246,14 +246,14 @@ func TestIntent_AdvanceDeal_DryRunMutatesNothing(t *testing.T) {
 func TestIntent_AdvanceDeal_MarkClosedRequiresConfirmation(t *testing.T) {
 	e := setupIntentEnv(t)
 	ctx := context.Background()
-	deal := e.seedDeal(t, e.wsA, "Initech deal", "Discovery")
+	deal := e.seedDeal(t, e.wsA, "Initech deal", "Découverte")
 	conf, err := NewConfirmer([]byte("test-secret"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := func() time.Time { return time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC) }
 	closing := "today"
-	in := AdvanceDealInput{Deal: deal.String(), ToStage: "Closed-Won/Lost", MarkClosedAt: &closing}
+	in := AdvanceDealInput{Deal: deal.String(), ToStage: "Gagné / Perdu", MarkClosedAt: &closing}
 
 	// Real call with no token → confirmation required, no mutation.
 	if _, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA), in, WriteOptions{}, conf, now); !errors.Is(err, ErrConfirmationRequired) {
@@ -322,15 +322,15 @@ func TestIntent_CaptureLead_DedupByEmail_DealInFirstStage(t *testing.T) {
 	if n := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.contacts WHERE email='ada@analytical.io'`); n != 1 {
 		t.Fatalf("dedup by email failed: %d contacts", n)
 	}
-	// The deal opens in the first pipeline stage (lowest order_index = Discovery).
+	// The deal opens in the first pipeline stage (lowest order_index = Découverte).
 	var firstStage string
 	if err := e.pool.QueryRow(ctx, `SELECT name FROM `+pgIdent(sc)+`.pipeline_stages ORDER BY order_index LIMIT 1`).Scan(&firstStage); err != nil {
 		t.Fatal(err)
 	}
-	if firstStage != "Discovery" {
-		t.Fatalf("first stage = %q, want Discovery", firstStage)
+	if firstStage != "Découverte" {
+		t.Fatalf("first stage = %q, want Découverte", firstStage)
 	}
-	if n := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.deals d JOIN `+pgIdent(sc)+`.pipeline_stages s ON s.id=d.stage_id WHERE s.name='Discovery'`); n < 2 {
+	if n := e.count(t, `SELECT count(*) FROM `+pgIdent(sc)+`.deals d JOIN `+pgIdent(sc)+`.pipeline_stages s ON s.id=d.stage_id WHERE s.name='Découverte'`); n < 2 {
 		t.Fatalf("each capture must open a deal in the first stage, got %d", n)
 	}
 	_ = r1
@@ -382,14 +382,14 @@ func TestIntent_CaptureLead_IdempotentReplay(t *testing.T) {
 func TestIntent_ReadOnlyTokenDenied(t *testing.T) {
 	e := setupIntentEnv(t)
 	ctx := context.Background()
-	deal := e.seedDeal(t, e.wsA, "RO test", "Discovery")
+	deal := e.seedDeal(t, e.wsA, "RO test", "Découverte")
 
 	_, err := e.svc.AdvanceDeal(ctx, readP(e.wsA),
-		AdvanceDealInput{Deal: deal.String(), ToStage: "Negotiation"}, WriteOptions{}, nil, nil)
+		AdvanceDealInput{Deal: deal.String(), ToStage: "Négociation"}, WriteOptions{}, nil, nil)
 	if !errors.Is(err, ErrReadOnlyScope) {
 		t.Fatalf("read-only token must be denied with ErrReadOnlyScope, got %v", err)
 	}
-	if got := e.dealStageName(t, e.wsA, deal); got != "Discovery" {
+	if got := e.dealStageName(t, e.wsA, deal); got != "Découverte" {
 		t.Fatalf("denied write must not mutate; stage = %q", got)
 	}
 }
@@ -398,16 +398,16 @@ func TestIntent_CrossTenantWriteBlocked(t *testing.T) {
 	e := setupIntentEnv(t)
 	ctx := context.Background()
 	// A deal that lives in workspace B.
-	dealB := e.seedDeal(t, e.wsB, "B-only deal", "Discovery")
+	dealB := e.seedDeal(t, e.wsB, "B-only deal", "Découverte")
 
 	// A write principal for workspace A pins search_path to A's schema, so B's
 	// deal id is invisible → not found, and B is untouched.
 	_, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA),
-		AdvanceDealInput{Deal: dealB.String(), ToStage: "Negotiation"}, WriteOptions{}, nil, nil)
+		AdvanceDealInput{Deal: dealB.String(), ToStage: "Négociation"}, WriteOptions{}, nil, nil)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant write must be ErrNotFound, got %v", err)
 	}
-	if got := e.dealStageName(t, e.wsB, dealB); got != "Discovery" {
+	if got := e.dealStageName(t, e.wsB, dealB); got != "Découverte" {
 		t.Fatalf("workspace B deal must be untouched; stage = %q", got)
 	}
 }

@@ -14,6 +14,7 @@ WORKDIR /src
 COPY go.work go.work.sum* ./
 COPY apps/admin/go.mod apps/admin/go.sum* apps/admin/
 COPY apps/api/go.mod apps/api/go.sum* apps/api/
+COPY apps/mcp/go.mod apps/mcp/go.sum* apps/mcp/
 COPY apps/migrate/go.mod apps/migrate/go.sum* apps/migrate/
 
 # Pre-fetch admin module deps. The other modules' deps are not needed

@@ -102,7 +102,7 @@ func writeToolDefs() []toolDef {
 		{
 			Name: toolAdvanceDeal,
 			Description: "Move a deal to a new pipeline stage and record the change on its timeline — the conversational way to operate the pipeline (e.g. \"mark the Acme deal won, they signed today\"). " +
-				"`deal` is a deal UUID or a fuzzy title match; `to_stage` is a stage UUID or a fuzzy stage name (e.g. \"won\" matches \"Closed-Won/Lost\"). " +
+				"`deal` is a deal UUID or a fuzzy title match; `to_stage` is a stage UUID or a fuzzy stage name (e.g. \"gagné\" matches \"Gagné / Perdu\"). " +
 				"Set `mark_closed_at` to close the deal (\"today\"/\"now\" or YYYY-MM-DD) — this is destructive and requires the dry_run→confirmation_token handshake. Add an optional `note` for context.",
 			InputSchema: map[string]any{
 				"type": "object",
