@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { Company, PaginatedResponse } from '@/lib/types';
@@ -7,6 +8,13 @@ export interface CompanyInput {
   domain: string | null;
   industry: string | null;
   size: string | null;
+}
+
+/** Build an id → name lookup from a page of companies. Pure; unit-tested. */
+export function companyNameMap(companies: Company[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const c of companies) m.set(c.id, c.name);
+  return m;
 }
 
 export function useCompanies(cursor?: string) {
@@ -19,6 +27,16 @@ export function useCompanies(cursor?: string) {
     queryKey: ['companies', { cursor }],
     queryFn: () => api.get<PaginatedResponse<Company>>(path),
   });
+}
+
+/**
+ * Resolve company ids to names for list views (Contacts shows the company
+ * name, not the raw UUID). Fetches the first page (≤50 companies); demo
+ * workspaces hold far fewer than one page, so a single request covers them.
+ */
+export function useCompanyMap() {
+  const { data } = useCompanies();
+  return useMemo(() => companyNameMap(data?.data ?? []), [data]);
 }
 
 export function useCompany(id: string) {

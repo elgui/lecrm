@@ -8,6 +8,7 @@ import {
   useUpdateContactProperties,
   useContactDefinitions,
 } from '@/hooks/use-contacts';
+import { useCompany } from '@/hooks/use-companies';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,10 @@ import { Avatar } from '@/components/ui/avatar';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { NotesPanel } from '@/components/notes-panel';
 import { TasksPanel } from '@/components/tasks-panel';
-import { CustomPropertiesEditor } from '@/components/custom-properties-editor';
+import { CustomPropertiesFields } from '@/components/custom-properties-editor';
+import { RecordSaveBar } from '@/components/record-save-bar';
+import { useCustomPropertyForm } from '@/hooks/use-custom-property-form';
+import { AssistantIaRail } from '@/components/assistant-ia-rail';
 import { Route as rootRoute } from '../__root';
 
 export const Route = createRoute({
@@ -38,6 +42,7 @@ function ContactDetail() {
   const { contactId } = Route.useParams();
   const navigate = useNavigate();
   const { data: contact, isLoading } = useContact(contactId);
+  const { data: company } = useCompany(contact?.company_id ?? '');
   const { data: properties, isLoading: propsLoading } = useContactProperties(contactId);
   const { data: definitions } = useContactDefinitions();
   const updateMutation = useUpdateContact(contactId);
@@ -57,17 +62,42 @@ function ContactDetail() {
       : undefined,
   });
 
-  const onSubmit = form.handleSubmit((data) => {
-    updateMutation.mutate({
-      first_name: data.first_name,
-      last_name: data.last_name,
-      email: data.email || null,
-      phone: data.phone || null,
-    });
-  });
+  const customProps = useCustomPropertyForm(definitions, properties);
+
+  // Single save: persist core fields and custom properties together. Core
+  // validation runs first; custom properties only save if the core form is
+  // valid (or untouched), so an invalid required field never lets a partial
+  // write through. Each mutation only fires when its section is dirty.
+  const coreDirty = form.formState.isDirty;
+  const anyDirty = coreDirty || customProps.isDirty;
+  const isSaving = updateMutation.isPending || updateProps.isPending;
+  const saveError = updateProps.isError
+    ? (updateProps.error as Error).message
+    : updateMutation.isError
+      ? (updateMutation.error as Error).message
+      : null;
+
+  const onSaveAll = async () => {
+    let coreOk = true;
+    if (coreDirty) {
+      coreOk = false;
+      await form.handleSubmit((data) => {
+        coreOk = true;
+        updateMutation.mutate({
+          first_name: data.first_name,
+          last_name: data.last_name,
+          email: data.email || null,
+          phone: data.phone || null,
+        });
+      })();
+    }
+    if (coreOk && customProps.isDirty) {
+      updateProps.mutate(customProps.buildPayload());
+    }
+  };
 
   const onDelete = () => {
-    if (!window.confirm('Delete this contact? This cannot be undone.')) return;
+    if (!window.confirm('Supprimer ce contact ? Cette action est irréversible.')) return;
     deleteMutation.mutate(contactId, {
       onSuccess: () => navigate({ to: '/contacts' }),
     });
@@ -85,7 +115,7 @@ function ContactDetail() {
   if (!contact) {
     return (
       <div className="p-8">
-        <p className="text-destructive">Contact not found</p>
+        <p className="text-destructive">Contact introuvable</p>
       </div>
     );
   }
@@ -94,12 +124,13 @@ function ContactDetail() {
 
   return (
     <div className="mx-auto max-w-5xl p-8">
+      <AssistantIaRail recordKind="contact" recordName={fullName || undefined} />
       <Link
         to="/contacts"
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to contacts
+        Retour aux contacts
       </Link>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -116,7 +147,7 @@ function ContactDetail() {
         {canWrite && (
           <Button variant="outline" size="sm" onClick={onDelete} disabled={deleteMutation.isPending}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            Supprimer
           </Button>
         )}
       </div>
@@ -124,13 +155,19 @@ function ContactDetail() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Details</CardTitle>
+            <CardTitle className="text-lg">Détails</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={onSubmit} className="space-y-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void onSaveAll();
+              }}
+              className="space-y-4"
+            >
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">First name</Label>
+                  <Label htmlFor="first_name">Prénom</Label>
                   <Input
                     id="first_name"
                     readOnly={!canWrite}
@@ -138,7 +175,7 @@ function ContactDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Last name</Label>
+                  <Label htmlFor="last_name">Nom</Label>
                   <Input
                     id="last_name"
                     readOnly={!canWrite}
@@ -147,40 +184,52 @@ function ContactDetail() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input id="email" type="email" readOnly={!canWrite} {...form.register('email')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Téléphone</Label>
                 <Input id="phone" readOnly={!canWrite} {...form.register('phone')} />
               </div>
-              {canWrite ? (
-                <>
-                  <Button
-                    type="submit"
-                    disabled={updateMutation.isPending || !form.formState.isDirty}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-                  </Button>
-                  {updateMutation.isSuccess && <p className="text-sm font-medium text-emerald-600">Saved</p>}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  You have read-only access. Ask an admin to make changes.
-                </p>
-              )}
+              <div className="space-y-2">
+                <Label>Entreprise</Label>
+                {contact.company_id && company ? (
+                  <p className="text-sm">
+                    <Link
+                      to="/companies/$companyId"
+                      params={{ companyId: company.id }}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {company.name}
+                    </Link>
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">—</p>
+                )}
+              </div>
+              {/* Submit on Enter; the page-level RecordSaveBar is the
+                  primary, single save action for core + custom fields. */}
+              <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
             </form>
           </CardContent>
         </Card>
 
-        <CustomPropertiesEditor
+        <CustomPropertiesFields
           definitions={definitions}
-          values={properties}
+          form={customProps.form}
+          onChange={customProps.set}
           isLoading={propsLoading}
           canWrite={canWrite}
-          isSaving={updateProps.isPending}
-          saveError={updateProps.isError ? (updateProps.error as Error).message : null}
-          onSave={(data) => updateProps.mutate(data)}
+        />
+
+        <RecordSaveBar
+          className="lg:col-span-2"
+          canWrite={canWrite}
+          isDirty={anyDirty}
+          isSaving={isSaving}
+          isSuccess={updateMutation.isSuccess || updateProps.isSuccess}
+          error={saveError}
+          onSave={() => void onSaveAll()}
         />
 
         <NotesPanel entityType="contact" entityId={contactId} />

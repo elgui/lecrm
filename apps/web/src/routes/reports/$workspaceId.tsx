@@ -1,16 +1,21 @@
 import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, LineChart, Sparkles } from 'lucide-react';
 
 import { Route as rootRoute } from '../__root';
 import { useAuth } from '@/hooks/use-auth';
 import { useEmbedToken } from '@/hooks/use-embed-token';
 import { useDeals } from '@/hooks/use-deals';
 import { ApiError } from '@/lib/api';
-import { BASELINE_DASHBOARDS, type DashboardSpec } from '@/lib/reports';
+import {
+  BASELINE_DASHBOARDS,
+  reportsEnabled,
+  type DashboardSpec,
+} from '@/lib/reports';
 import { CubeFrame } from '@/components/reports/cube-frame';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/empty-state';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +36,36 @@ function describeEmbedError(error: Error): string {
 }
 
 function ReportsPage() {
+  // Embedded reporting (Cube.dev) is not provisioned on every
+  // deployment — notably not on the public demo. Rather than let the
+  // embed-token call 503 into a red "not configured" error mid-demo,
+  // render an honest branded placeholder until the stack is wired up.
+  // See reportsEnabled() in @/lib/reports for what "wired up" means.
+  if (!reportsEnabled()) {
+    return (
+      <div className="p-8">
+        <ReportsComingSoon />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold tracking-tight">Rapports</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Tableaux de bord de votre pipeline et de votre activité.
+        </p>
+      </div>
+      <ReportsLive />
+    </div>
+  );
+}
+
+// Live reporting path — gated behind reportsEnabled(). Holds the data
+// hooks so they (and their network calls / audit writes) never fire
+// when reporting is disabled.
+function ReportsLive() {
   const { workspaceId } = Route.useParams();
   const auth = useAuth();
   const tokenQuery = useEmbedToken();
@@ -49,41 +84,88 @@ function ReportsPage() {
   const workspaceMismatch =
     !!auth.user && !!workspaceId && auth.user.workspace_id !== workspaceId;
 
-  return (
-    <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Dashboards for your pipeline and activity.
-        </p>
+  if (auth.isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96 w-full" />
       </div>
+    );
+  }
 
-      {auth.isLoading && (
-        <div className="space-y-3">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-96 w-full" />
-        </div>
-      )}
+  if (workspaceMismatch) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <p className="text-destructive">
+            Workspace mismatch — this URL is for a different workspace
+            than you are signed into.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-      {workspaceMismatch && (
-        <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-destructive">
-              Workspace mismatch — this URL is for a different workspace
-              than you are signed into.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+  return (
+    <ReportsBody
+      tokenQuery={tokenQuery}
+      dealsQuery={dealsQuery}
+      active={active}
+      setActiveId={setActiveId}
+    />
+  );
+}
 
-      {!auth.isLoading && !workspaceMismatch && (
-        <ReportsBody
-          tokenQuery={tokenQuery}
-          dealsQuery={dealsQuery}
-          active={active}
-          setActiveId={setActiveId}
-        />
-      )}
+// Honest, branded placeholder shown when embedded reporting is not yet
+// provisioned. Same spirit as the AI-seat placeholder: no fake charts,
+// no error styling — just a clear "what's coming" preview built from
+// the real baseline dashboard catalogue so it reads as a roadmap, not
+// a dead end.
+export function ReportsComingSoon() {
+  return (
+    <div className="mx-auto max-w-2xl">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <BarChart3 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">Rapports</CardTitle>
+                <Badge variant="secondary" className="gap-1">
+                  <Sparkles className="h-3 w-3" />
+                  Bientôt disponible
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Les tableaux de bord en temps réel de votre pipeline et de
+                votre activité arrivent bientôt.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-3 text-sm font-medium text-foreground">
+            Ce que vous pourrez suivre :
+          </p>
+          <ul className="space-y-2.5">
+            {BASELINE_DASHBOARDS.map((d) => (
+              <li key={d.id} className="flex items-start gap-3">
+                <LineChart className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {d.title}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {d.description}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }
