@@ -4,7 +4,7 @@ title: "Demo dashboard: replace bare nav-cards with live stats (counts + pipelin
 status: later
 priority: p2
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-05-31
 tags: [demo, frontend, first-impression, polish]
 category: engineering
 group: lecrm-demo-polish
@@ -15,7 +15,9 @@ plan: true
 
 ## Context
 
-The demo (`https://demo.lecrm.gbconsult.me`) landing screen at `/` renders only three navigation cards (Contacts / Companies / Deals) under a "Dashboard" heading - no data. Verified live 2026-05-30. First screen Leo and future clients see after login.
+The demo (`https://demo.lecrm.gbconsult.me`) landing screen at `/` shows three navigation cards (Contacts / Companies / Deals) under a "Dashboard" heading. First screen Leo and future clients see after login.
+
+**Scope reduced 2026-05-31 (post UI-polish ship, commit 30d88b54, live on demo).** The card LAYOUT/STYLING is now DONE — `apps/web/src/routes/index.tsx` renders polished design-system cards (tinted icon chips, hover lift, arrow affordance). Remaining work is **data-wiring ONLY** — no visual design needed: drop live numbers into (or alongside) the existing cards. Effort M → S.
 
 ## Why
 
@@ -23,9 +25,9 @@ A bare dashboard undersells a CRM that is actually populated (4 companies, 10 co
 
 ## Approach
 
-1. Add summary tiles with REAL numbers: total contacts, companies, open deals (count), open pipeline value (sum of amounts where stage != Closed-Won/Lost); optional deals-by-stage breakdown.
+1. Add REAL numbers: total contacts, companies, open deals (count), open pipeline value (sum of amounts where stage != Closed-Won/Lost); optional deals-by-stage breakdown / weighted forecast / recent activity.
 2. Source from existing list endpoints or add a lightweight `GET /v1/dashboard/summary` aggregate. Workspace-scoped (any member can read).
-3. Keep/fold the nav cards; match existing shadcn/ui styling in `apps/web`.
+3. Styling is already in place — extend the existing `index.tsx` cards (or add a stat row above them) using the shipped design system; do NOT redesign.
 
 ## Done When
 

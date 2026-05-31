@@ -4,7 +4,7 @@ title: "Demo: French pipeline stage names in gbconsult-default template (+ data-
 status: later
 priority: p2
 created: 2026-05-30
-updated: 2026-05-30
+updated: 2026-05-31
 tags: [demo, pipeline, i18n, first-impression, polish]
 category: engineering
 group: lecrm-demo-polish
@@ -28,10 +28,22 @@ A FR/EN mix reads as unfinished to a French CRM integrator and the French-SMB IC
 3. Data-fix the EXISTING demo: renaming the template does NOT retro-update the live demo. UPDATE the demo schema `pipeline_stages` labels. KEEP stage IDs + sort order stable so deals keep `stage_id` (no FK break).
 4. Re-verify kanban + Deals table show French stages, all 6 seeded deals stay in correct columns.
 
+## Frontend cross-ref (added 2026-05-31 demo-polish audit)
+
+`stageBadgeVariant()` in `apps/web/src/lib/format.ts` colour-codes deal
+stage badges (Deals table + deal detail) by pattern-matching **English**
+stage names (won/lost/proposal/qualified/negotiat/…). Once stages are
+renamed to French they will fall through to the neutral grey pill until
+that mapping is extended. **This tasket must also add French patterns**
+(e.g. Gagné, Perdu, Proposition, Qualifié, Négociation, Découverte) to
+`format.ts` so badges stay colour-coded after the rename — otherwise the
+rename visually regresses the polish shipped in 30d88b54.
+
 ## Done When
 
 - [ ] `gbconsult-default` seeds French stage names for new workspaces
 - [ ] Live demo shows French stages; all 6 deals retain correct stage
+- [ ] `stageBadgeVariant()` in `apps/web/src/lib/format.ts` matches the French stage names (badges stay colour-coded)
 - [ ] Won/Lost split decision recorded
 
 ## References
