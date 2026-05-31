@@ -1,3 +1,6 @@
+// Package domain contains the tenant-provisioning logic and core domain
+// types shared across the API (workspace/role/schema bootstrap and the
+// CRM domain models they operate on).
 package domain
 
 import (

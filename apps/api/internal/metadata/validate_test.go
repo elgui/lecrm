@@ -1,6 +1,7 @@
 package metadata
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -282,7 +283,8 @@ func TestValidateValue(t *testing.T) {
 			}
 			// When an error is returned it must be a *ValidationError.
 			if err != nil {
-				if _, ok := err.(*ValidationError); !ok {
+				var ve *ValidationError
+				if !errors.As(err, &ve) {
 					t.Errorf("validateValue returned %T, want *ValidationError", err)
 				}
 			}
@@ -313,8 +315,8 @@ func TestValidateValue_ErrorMessages(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected error for propType=%q val=%T", tc.propType, tc.val)
 			}
-			ve, ok := err.(*ValidationError)
-			if !ok {
+			var ve *ValidationError
+			if !errors.As(err, &ve) {
 				t.Fatalf("error is %T, want *ValidationError", err)
 			}
 			if ve.Msg == "" {

@@ -127,7 +127,7 @@ func TestROBeforeAndAfterProvision(t *testing.T) {
 	ctx := context.Background()
 
 	conn := connectWithRetry(ctx, t, connStr, 15*time.Second)
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	// lecrm_cube_reader must already exist (created at migration time).
 	var exists bool
@@ -200,7 +200,7 @@ func TestROCanSelectCannotWrite(t *testing.T) {
 	ctx := context.Background()
 
 	admin := connectWithRetry(ctx, t, connStr, 15*time.Second)
-	defer admin.Close(ctx)
+	defer func() { _ = admin.Close(ctx) }()
 
 	cubePw := setupCubeReaderPassword(ctx, t, admin)
 
@@ -220,7 +220,7 @@ func TestROCanSelectCannotWrite(t *testing.T) {
 	}
 
 	cube := connectAsCubeReader(ctx, t, connStr, cubePw)
-	defer cube.Close(ctx)
+	defer func() { _ = cube.Close(ctx) }()
 
 	tx, err := cube.Begin(ctx)
 	if err != nil {
@@ -292,7 +292,7 @@ func TestROCannotReadOtherWorkspace(t *testing.T) {
 	ctx := context.Background()
 
 	admin := connectWithRetry(ctx, t, connStr, 15*time.Second)
-	defer admin.Close(ctx)
+	defer func() { _ = admin.Close(ctx) }()
 
 	cubePw := setupCubeReaderPassword(ctx, t, admin)
 
@@ -315,7 +315,7 @@ func TestROCannotReadOtherWorkspace(t *testing.T) {
 	roA := roRoleNameOf(wsA)
 
 	cube := connectAsCubeReader(ctx, t, connStr, cubePw)
-	defer cube.Close(ctx)
+	defer func() { _ = cube.Close(ctx) }()
 
 	tx, err := cube.Begin(ctx)
 	if err != nil {

@@ -221,7 +221,7 @@ func (e *pipelineTestEnv) doJSON(t *testing.T, ws workspaceFixture, method, path
 	if err != nil {
 		t.Fatalf("%s %s: %v", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	respBody, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, respBody
 }

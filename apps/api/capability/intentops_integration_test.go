@@ -15,6 +15,7 @@ package capability
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -255,7 +256,7 @@ func TestIntent_AdvanceDeal_MarkClosedRequiresConfirmation(t *testing.T) {
 	in := AdvanceDealInput{Deal: deal.String(), ToStage: "Closed-Won/Lost", MarkClosedAt: &closing}
 
 	// Real call with no token → confirmation required, no mutation.
-	if _, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA), in, WriteOptions{}, conf, now); err != ErrConfirmationRequired {
+	if _, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA), in, WriteOptions{}, conf, now); !errors.Is(err, ErrConfirmationRequired) {
 		t.Fatalf("want ErrConfirmationRequired, got %v", err)
 	}
 	// Dry-run → preview carries a confirmation token.
@@ -385,7 +386,7 @@ func TestIntent_ReadOnlyTokenDenied(t *testing.T) {
 
 	_, err := e.svc.AdvanceDeal(ctx, readP(e.wsA),
 		AdvanceDealInput{Deal: deal.String(), ToStage: "Negotiation"}, WriteOptions{}, nil, nil)
-	if err != ErrReadOnlyScope {
+	if !errors.Is(err, ErrReadOnlyScope) {
 		t.Fatalf("read-only token must be denied with ErrReadOnlyScope, got %v", err)
 	}
 	if got := e.dealStageName(t, e.wsA, deal); got != "Discovery" {
@@ -403,7 +404,7 @@ func TestIntent_CrossTenantWriteBlocked(t *testing.T) {
 	// deal id is invisible → not found, and B is untouched.
 	_, err := e.svc.AdvanceDeal(ctx, writeP(e.wsA),
 		AdvanceDealInput{Deal: dealB.String(), ToStage: "Negotiation"}, WriteOptions{}, nil, nil)
-	if err != ErrNotFound {
+	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("cross-tenant write must be ErrNotFound, got %v", err)
 	}
 	if got := e.dealStageName(t, e.wsB, dealB); got != "Discovery" {

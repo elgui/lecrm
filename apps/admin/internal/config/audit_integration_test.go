@@ -5,6 +5,7 @@ package config_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"testing"
 
@@ -112,7 +113,7 @@ func TestAuditQueryUnknownSlug(t *testing.T) {
 	conn := newConn(t)
 	ctx := context.Background()
 	_, err := audit.Query(ctx, conn, audit.Filter{Slug: "no-such-tenant-xyz"})
-	if err != audit.ErrUnknownSlug {
+	if !errors.Is(err, audit.ErrUnknownSlug) {
 		t.Fatalf("want ErrUnknownSlug, got %v", err)
 	}
 }

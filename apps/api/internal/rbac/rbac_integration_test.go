@@ -230,7 +230,7 @@ func (e *rbacEnv) req(t *testing.T, userID *uuid.UUID, method, path, body string
 	if err != nil {
 		t.Fatalf("do request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	b, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, b
 }

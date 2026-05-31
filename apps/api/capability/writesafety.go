@@ -223,8 +223,9 @@ func NewConfirmer(secret []byte) (*Confirmer, error) {
 // sign computes the HMAC over the canonical token payload.
 func (c *Confirmer) sign(ws uuid.UUID, operation, digest string, expUnix int64) []byte {
 	mac := hmac.New(sha256.New, c.secret)
-	// NUL-delimited so no field boundary is ambiguous.
-	fmt.Fprintf(mac, "%s\x00%s\x00%s\x00%s\x00%d",
+	// NUL-delimited so no field boundary is ambiguous. Writes to an
+	// hmac.Hash never error, so the return is intentionally discarded.
+	_, _ = fmt.Fprintf(mac, "%s\x00%s\x00%s\x00%s\x00%d",
 		confirmTokenVersion, ws.String(), operation, digest, expUnix)
 	return mac.Sum(nil)
 }

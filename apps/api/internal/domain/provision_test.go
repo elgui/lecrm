@@ -93,7 +93,7 @@ func TestProvision_CRMEntitiesExist(t *testing.T) {
 	}
 
 	conn := connectWithRetry(ctx, t, connStr, 15*time.Second)
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	wsID := uuid.New()
 	var roleName string
@@ -205,7 +205,7 @@ func TestProvision_CRMEntities_Idempotent(t *testing.T) {
 	}
 
 	conn := connectWithRetry(ctx, t, connStr, 15*time.Second)
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	wsID := uuid.New()
 

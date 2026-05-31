@@ -1,3 +1,6 @@
+// Package logging provides the structured-logging helpers and the
+// context plumbing used to carry a request-scoped slog.Logger through
+// the API.
 package logging
 
 import (

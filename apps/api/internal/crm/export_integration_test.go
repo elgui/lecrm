@@ -37,7 +37,7 @@ func (e *pipelineTestEnv) doRaw(t *testing.T, ws workspaceFixture, path string) 
 	if err != nil {
 		t.Fatalf("GET %s: %v", path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, resp.Header, string(body)
 }

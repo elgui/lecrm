@@ -1,3 +1,6 @@
+// Package config implements the lecrm-admin tenant configuration commands
+// (apply/diff and their audit trail), translating declarative tenant config
+// into the provisioning calls and core.audit_log rows that back them.
 package config
 
 import (

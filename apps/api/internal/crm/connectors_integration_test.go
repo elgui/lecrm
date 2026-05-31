@@ -172,7 +172,7 @@ func (e *connectorTestEnv) post(t *testing.T, slug, token, source string, envelo
 	if err != nil {
 		t.Fatalf("do: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, resp.Header.Get("Idempotency-Replayed"), body
 }

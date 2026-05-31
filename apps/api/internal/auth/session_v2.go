@@ -64,13 +64,7 @@ func EncodeSessionV2(s Session, workspaceSlug string, secret []byte) (string, er
 		s.JTI = uuid.New()
 	}
 
-	inner := innerPayload{
-		UserID:      s.UserID,
-		WorkspaceID: s.WorkspaceID,
-		JTI:         s.JTI,
-		IssuedAt:    s.IssuedAt,
-		ExpiresAt:   s.ExpiresAt,
-	}
+	inner := innerPayload(s)
 	innerJSON, err := json.Marshal(inner)
 	if err != nil {
 		return "", fmt.Errorf("marshal inner: %w", err)
@@ -190,13 +184,7 @@ func DecodeSessionV2(token string, workspaceSlug string, secret []byte) (Session
 		return zero, fmt.Errorf("inner not JSON: %w", err)
 	}
 
-	return Session{
-		UserID:      inner.UserID,
-		WorkspaceID: inner.WorkspaceID,
-		JTI:         inner.JTI,
-		IssuedAt:    inner.IssuedAt,
-		ExpiresAt:   inner.ExpiresAt,
-	}, nil
+	return Session(inner), nil
 }
 
 // deriveKey uses HKDF-SHA256 to produce a 32-byte AES key from the

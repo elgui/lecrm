@@ -234,7 +234,7 @@ func (tp *TenantPool) evictLRU() {
 		return
 	}
 
-	roleName := back.Value.(string)
+	roleName, _ := back.Value.(string)
 	if p, ok := tp.pools[roleName]; ok {
 		p.Close()
 		delete(tp.pools, roleName)

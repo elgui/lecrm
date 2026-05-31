@@ -1,3 +1,6 @@
+// Package crm holds the thin HTTP handlers for the core CRM objects
+// (contacts, companies, deals, notes, tasks, activities) and their
+// mapping to the shared capability layer.
 package crm
 
 import (

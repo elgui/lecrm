@@ -340,38 +340,6 @@ func capErr(w http.ResponseWriter, err error, entityLabel string) bool {
 	return false
 }
 
-// fromCapContactResult maps a capability.ContactResult to the local contactResp
-// used by export.go.
-func contactFromCapResult(c capability.ContactResult) contactResp {
-	return contactResp{
-		ID: c.ID, FirstName: c.FirstName, LastName: c.LastName,
-		Email: c.Email, Phone: c.Phone,
-		CompanyID: c.CompanyID, OwnerID: c.OwnerID,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
-	}
-}
-
-func companyFromCapResult(c capability.CompanyResult) companyResp {
-	return companyResp{
-		ID: c.ID, Name: c.Name,
-		Domain: c.Domain, Industry: c.Industry, Size: c.Size,
-		OwnerID:   c.OwnerID,
-		CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt,
-	}
-}
-
-func dealFromCapResult(d capability.DealResult) dealResp {
-	return dealResp{
-		ID: d.ID, Title: d.Title,
-		Amount: d.Amount, Currency: d.Currency,
-		StageID: d.StageID, ContactID: d.ContactID,
-		CompanyID: d.CompanyID, OwnerID: d.OwnerID,
-		ExpectedCloseDate: d.ExpectedCloseDate,
-		ClosedAt:          d.ClosedAt,
-		CreatedAt:         d.CreatedAt, UpdatedAt: d.UpdatedAt,
-	}
-}
-
 // contactFromRow is kept for export.go which iterates sqlcgen rows directly.
 func contactFromRow(c sqlcgen.Contact) contactResp {
 	return contactResp{

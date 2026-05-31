@@ -96,12 +96,7 @@ func (h *ServiceTokenHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := h.Store.Create(r.Context(), ws.ID, ws.Slug, CreateServiceTokenInput{
-		Name:      req.Name,
-		ActorType: req.ActorType,
-		Scopes:    req.Scopes,
-		ExpiresAt: req.ExpiresAt,
-	})
+	created, err := h.Store.Create(r.Context(), ws.ID, ws.Slug, CreateServiceTokenInput(req))
 	if err != nil {
 		h.Logger.ErrorContext(r.Context(), "create service token failed", "err", err)
 		writeTokenJSONError(w, http.StatusInternalServerError, "create failed")

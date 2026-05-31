@@ -61,9 +61,13 @@ func Tombstone(ctx context.Context, conn *pgx.Conn, opts TombstoneOptions, stdou
 	}
 
 	// Audit log entry for the tombstone event.
+	// $1::text is required: jsonb_build_object's argument is VARIADIC "any",
+	// which leaves the parameter type unresolvable (SQLSTATE 42P08) unless we
+	// pin it with an explicit cast. The cast types the parameter for the
+	// WHERE slug = $1 use too.
 	_, err = conn.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, actor_type, payload)
-		 SELECT 'workspace.tombstoned', id, 'system', jsonb_build_object('slug', $1)
+		 SELECT 'workspace.tombstoned', id, 'system', jsonb_build_object('slug', $1::text)
 		 FROM core.workspaces WHERE slug = $1`,
 		opts.Slug)
 	if err != nil {
@@ -71,5 +75,5 @@ func Tombstone(ctx context.Context, conn *pgx.Conn, opts TombstoneOptions, stdou
 	}
 
 	_, _ = fmt.Fprintf(stdout, "%s %q tombstoned. Slug is permanently unavailable.\n", OperatorNoun, opts.Slug)
-	return TombstoneResult{Slug: opts.Slug}, nil
+	return TombstoneResult(opts), nil
 }
