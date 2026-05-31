@@ -25,6 +25,7 @@ import { TasksPanel } from '@/components/tasks-panel';
 import { CustomPropertiesFields } from '@/components/custom-properties-editor';
 import { RecordSaveBar } from '@/components/record-save-bar';
 import { useCustomPropertyForm } from '@/hooks/use-custom-property-form';
+import { AssistantIaRail } from '@/components/assistant-ia-rail';
 import { Route as rootRoute } from '../__root';
 
 export const Route = createRoute({
@@ -136,6 +137,7 @@ function DealDetail() {
 
   return (
     <div className="mx-auto max-w-5xl p-8">
+      <AssistantIaRail recordKind="deal" recordName={deal.title} />
       <Link
         to="/deals"
         className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
