@@ -8,7 +8,7 @@ import { useDeals, useCreateDeal, useDealDefinitions } from '@/hooks/use-deals';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { usePipelineStages } from '@/hooks/use-pipeline-stages';
 import { useMe } from '@/hooks/use-me';
-import { formatPropertyValue } from '@/lib/format-property';
+import { formatPropertyValue, customFieldLabel } from '@/lib/format-property';
 import { stageBadgeVariant } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -183,7 +183,7 @@ function DealList() {
               <TableHead>Stage</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               {customCols.map((def) => (
-                <TableHead key={def.id}>{def.property_key}</TableHead>
+                <TableHead key={def.id}>{customFieldLabel(def)}</TableHead>
               ))}
               <TableHead>Created</TableHead>
             </TableRow>

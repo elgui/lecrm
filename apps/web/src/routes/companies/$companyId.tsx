@@ -15,6 +15,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { NotesPanel } from '@/components/notes-panel';
 import { TasksPanel } from '@/components/tasks-panel';
+import { RecordSaveBar } from '@/components/record-save-bar';
 import { Route as rootRoute } from '../__root';
 
 export const Route = createRoute({
@@ -58,6 +59,10 @@ function CompanyDetail() {
       size: data.size || null,
     });
   });
+
+  const saveError = updateMutation.isError
+    ? (updateMutation.error as Error).message
+    : null;
 
   const onDelete = () => {
     if (!window.confirm('Delete this company? This cannot be undone.')) return;
@@ -142,24 +147,22 @@ function CompanyDetail() {
                   <Input id="size" readOnly={!canWrite} {...form.register('size')} />
                 </div>
               </div>
-              {canWrite ? (
-                <>
-                  <Button
-                    type="submit"
-                    disabled={updateMutation.isPending || !form.formState.isDirty}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-                  </Button>
-                  {updateMutation.isSuccess && <p className="text-sm font-medium text-emerald-600">Saved</p>}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  You have read-only access. Ask an admin to make changes.
-                </p>
-              )}
+              {/* Submit on Enter; the RecordSaveBar below is the single,
+                  consistent save action across every record-detail page. */}
+              <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
             </form>
           </CardContent>
         </Card>
+
+        <RecordSaveBar
+          className="lg:col-span-2"
+          canWrite={canWrite}
+          isDirty={form.formState.isDirty}
+          isSaving={updateMutation.isPending}
+          isSuccess={updateMutation.isSuccess}
+          error={saveError}
+          onSave={() => void onSubmit()}
+        />
 
         <NotesPanel entityType="company" entityId={companyId} />
         <TasksPanel scope={{ entity_type: 'company', entity_id: companyId }} />

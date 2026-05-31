@@ -28,6 +28,7 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import type { PropertyType } from '@/lib/types';
+import { customFieldLabel } from '@/lib/format-property';
 import { Route as rootRoute } from '../__root';
 
 export const Route = createRoute({
@@ -306,6 +307,7 @@ function DefinitionsTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Label</TableHead>
                 <TableHead>Key</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Required</TableHead>
@@ -316,7 +318,10 @@ function DefinitionsTable({
             <TableBody>
               {definitions.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell className="font-mono text-sm font-medium">
+                  <TableCell className="text-sm font-medium">
+                    {customFieldLabel(d)}
+                  </TableCell>
+                  <TableCell className="font-mono text-sm text-muted-foreground">
                     {d.property_key}
                   </TableCell>
                   <TableCell>

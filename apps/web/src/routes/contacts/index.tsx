@@ -8,7 +8,7 @@ import { useContacts, useCreateContact, useContactDefinitions } from '@/hooks/us
 import { useCompanyMap } from '@/hooks/use-companies';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
 import { useMe } from '@/hooks/use-me';
-import { formatPropertyValue } from '@/lib/format-property';
+import { formatPropertyValue, customFieldLabel } from '@/lib/format-property';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -164,7 +164,7 @@ function ContactList() {
               <TableHead>Email</TableHead>
               <TableHead>Company</TableHead>
               {customCols.map((def) => (
-                <TableHead key={def.id}>{def.property_key}</TableHead>
+                <TableHead key={def.id}>{customFieldLabel(def)}</TableHead>
               ))}
               <TableHead>Created</TableHead>
             </TableRow>
