@@ -18,6 +18,7 @@ import { Route as rootRoute } from '../__root';
 import { useAuth } from '@/hooks/use-auth';
 import { useDeals, useTransitionDealStage } from '@/hooks/use-deals';
 import { usePipelineStages, type PipelineStage } from '@/hooks/use-pipeline-stages';
+import { useCompanyMap } from '@/hooks/use-companies';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,7 @@ function PipelinePage() {
   const stagesQuery = usePipelineStages();
   const dealsQuery = useDeals();
   const transition = useTransitionDealStage();
+  const companyById = useCompanyMap();
   const [mutationError, setMutationError] = React.useState<string | null>(null);
 
   const workspaceMismatch =
@@ -72,6 +74,7 @@ function PipelinePage() {
         <PipelineBoardWithRouter
           stagesQuery={stagesQuery}
           dealsQuery={dealsQuery}
+          companyById={companyById}
           onTransition={(id, stage_id) => {
             setMutationError(null);
             transition.mutate(
@@ -95,6 +98,7 @@ function PipelinePage() {
 interface PipelineBoardWithRouterProps {
   stagesQuery: ReturnType<typeof usePipelineStages>;
   dealsQuery: ReturnType<typeof useDeals>;
+  companyById: Map<string, string>;
   onTransition: (id: string, stage_id: string) => void;
   mutationError: string | null;
   onDismissError: () => void;
@@ -115,6 +119,8 @@ function PipelineBoardWithRouter(props: PipelineBoardWithRouterProps) {
 export interface PipelineBoardProps {
   stagesQuery: ReturnType<typeof usePipelineStages>;
   dealsQuery: ReturnType<typeof useDeals>;
+  /** id → name lookup so cards can show the company, not the raw UUID. */
+  companyById?: Map<string, string>;
   onTransition: (id: string, stage_id: string) => void;
   onCardClick: (dealId: string) => void;
   mutationError: string | null;
@@ -124,6 +130,7 @@ export interface PipelineBoardProps {
 export function PipelineBoard({
   stagesQuery,
   dealsQuery,
+  companyById,
   onTransition,
   onCardClick,
   mutationError,
@@ -133,6 +140,27 @@ export function PipelineBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+
+  // Horizontal-scroll affordance: fade the board's left/right edges when more
+  // columns sit off-screen, so the rightmost stage stays discoverable on a
+  // desktop that can't fit every stage at once.
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [scrollEdges, setScrollEdges] = React.useState({ left: false, right: false });
+  const updateScrollEdges = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setScrollEdges({
+      left: scrollLeft > 4,
+      right: scrollLeft + clientWidth < scrollWidth - 4,
+    });
+  }, []);
+  React.useEffect(() => {
+    updateScrollEdges();
+    window.addEventListener('resize', updateScrollEdges);
+    return () => window.removeEventListener('resize', updateScrollEdges);
+    // Re-measure once the board mounts with real data (deps change on load).
+  }, [updateScrollEdges, stagesQuery.data, dealsQuery.data]);
 
   if (stagesQuery.isLoading || dealsQuery.isLoading) {
     return (
@@ -198,15 +226,37 @@ export function PipelineBoard({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4" data-testid="pipeline-board">
-          {stages.map((stage) => (
-            <StageColumn
-              key={stage.id}
-              stage={stage}
-              deals={dealsByStage.get(stage.id) ?? []}
-              onCardClick={onCardClick}
-            />
-          ))}
+        <div className="relative">
+          <div
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-background to-transparent transition-opacity duration-200',
+              scrollEdges.left ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+          <div
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-background to-transparent transition-opacity duration-200',
+              scrollEdges.right ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+          <div
+            ref={scrollRef}
+            onScroll={updateScrollEdges}
+            className="flex gap-4 overflow-x-auto pb-4"
+            data-testid="pipeline-board"
+          >
+            {stages.map((stage) => (
+              <StageColumn
+                key={stage.id}
+                stage={stage}
+                deals={dealsByStage.get(stage.id) ?? []}
+                companyById={companyById}
+                onCardClick={onCardClick}
+              />
+            ))}
+          </div>
         </div>
       </DndContext>
     </div>
@@ -216,11 +266,18 @@ export function PipelineBoard({
 interface StageColumnProps {
   stage: PipelineStage;
   deals: Deal[];
+  companyById?: Map<string, string>;
   onCardClick: (dealId: string) => void;
 }
 
-function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
+function StageColumn({ stage, deals, companyById, onCardClick }: StageColumnProps) {
   const { isOver, setNodeRef } = useDroppable({ id: stage.id });
+
+  // Summed value of the deals in this stage, formatted in the stage's own
+  // currency (falling back to EUR for the French-market demo).
+  const total = deals.reduce((sum, d) => sum + (d.amount ?? 0), 0);
+  const currency = deals.find((d) => d.currency)?.currency ?? 'EUR';
+  const totalLabel = total > 0 ? formatCurrency(total, currency) : null;
 
   return (
     <div
@@ -232,13 +289,20 @@ function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
         isOver && 'border-primary/50 bg-primary/5 ring-2 ring-primary/20',
       )}
     >
-      <div className="mb-3 flex items-center justify-between px-1">
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {stage.name}
-        </h2>
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1.5 text-xs font-medium text-muted-foreground">
-          {deals.length}
-        </span>
+      <div className="mb-3 px-1">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {stage.name}
+          </h2>
+          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1.5 text-xs font-medium text-muted-foreground">
+            {deals.length}
+          </span>
+        </div>
+        {totalLabel && (
+          <p className="mt-1 text-xs font-semibold tabular-nums text-foreground">
+            {totalLabel}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-2">
         {deals.length === 0 && (
@@ -247,7 +311,14 @@ function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
           </p>
         )}
         {deals.map((deal) => (
-          <DealCard key={deal.id} deal={deal} onClick={() => onCardClick(deal.id)} />
+          <DealCard
+            key={deal.id}
+            deal={deal}
+            companyName={
+              deal.company_id ? (companyById?.get(deal.company_id) ?? null) : null
+            }
+            onClick={() => onCardClick(deal.id)}
+          />
         ))}
       </div>
     </div>
@@ -256,6 +327,7 @@ function StageColumn({ stage, deals, onCardClick }: StageColumnProps) {
 
 interface DealCardProps {
   deal: Deal;
+  companyName?: string | null;
   onClick: () => void;
 }
 
@@ -279,7 +351,18 @@ function isOverdue(deal: Deal): boolean {
   return due.getTime() < today.getTime();
 }
 
-function DealCard({ deal, onClick }: DealCardProps) {
+// True when an open deal is due within the next 14 days (but not yet overdue) —
+// drives the amber "closing soon" cue on the card.
+function isClosingSoon(deal: Deal): boolean {
+  if (!deal.expected_close_date || deal.closed_at) return false;
+  const due = new Date(deal.expected_close_date + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((due.getTime() - today.getTime()) / 86_400_000);
+  return diffDays >= 0 && diffDays <= 14;
+}
+
+function DealCard({ deal, companyName, onClick }: DealCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: deal.id,
   });
@@ -288,6 +371,7 @@ function DealCard({ deal, onClick }: DealCardProps) {
     opacity: isDragging ? 0.4 : 1,
   };
   const overdue = isOverdue(deal);
+  const closingSoon = !overdue && isClosingSoon(deal);
   const amount = formatCurrency(deal.amount, deal.currency);
 
   return (
@@ -310,10 +394,28 @@ function DealCard({ deal, onClick }: DealCardProps) {
       )}
     >
       <p className="line-clamp-2 text-sm font-medium text-foreground">{deal.title}</p>
+      {companyName && (
+        <p className="mt-0.5 truncate text-sm text-muted-foreground">{companyName}</p>
+      )}
       <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
         <span className="font-medium tabular-nums text-foreground">{amount ?? '—'}</span>
         {deal.expected_close_date && (
-          <span className={cn('tabular-nums', overdue && 'font-medium text-destructive')}>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 tabular-nums',
+              overdue && 'font-medium text-destructive',
+              closingSoon && 'font-medium text-amber-600',
+            )}
+          >
+            {(overdue || closingSoon) && (
+              <span
+                aria-hidden
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  overdue ? 'bg-destructive' : 'bg-amber-500',
+                )}
+              />
+            )}
             {overdue ? 'En retard · ' : ''}
             {formatDateShort(deal.expected_close_date)}
           </span>
