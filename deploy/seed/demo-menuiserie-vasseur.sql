@@ -35,6 +35,18 @@ INSERT INTO contacts (id, first_name, last_name, email, phone, company_id, owner
   ('11110000-0000-4000-8000-000000000010', 'Aurélie',    'Delmas',     'aurelie.delmas@outlook.fr',  '+33 6 31 00 55 02', NULL,                                   '00000000-0000-4000-8000-0000000000a1')
 ON CONFLICT (id) DO NOTHING;
 
+-- Demo-path ordering. The contacts list reads `ORDER BY created_at DESC, id
+-- DESC`; the rows above share the bulk-insert created_at, so the id tie-break
+-- floated the two company-less "Particulier" individuals (#009, #010) to the
+-- TOP — the first rows Léo sees and the first record he clicks would show no
+-- company, undercutting the relationship surfacing this demo leads with. Pin
+-- the individuals to a fixed earlier created_at so the 8 company-linked
+-- contacts lead the list while the realistic individuals stay further down.
+-- Fixed timestamp => idempotent on re-apply.
+UPDATE contacts SET created_at = TIMESTAMPTZ '2026-05-22 09:00:00+00'
+WHERE id IN ('11110000-0000-4000-8000-000000000009',
+             '11110000-0000-4000-8000-000000000010');
+
 -- ============================================================
 -- DEALS (6 chantiers / devis sur les 5 étapes)
 -- ============================================================

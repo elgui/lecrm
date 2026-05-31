@@ -108,13 +108,90 @@ for pair in demo:demo bistrot-halles:demo-bistrot-halles \
 done
 ```
 
-## Remaining manual confirmation (recommended, not blocking)
+## End-to-end live API sweep (every happy-path request, all 3 workspaces)
 
-The data layer for every happy-path tab is now populated and verified live; the
-app code on this path is unchanged by this step (display bugs were fixed in
-steps 1–2, Reports stubbed in step 3). A final human pass with browser devtools
-open — log in as Léo, click each tab in `demo`, `bistrot-halles`,
-`menuiserie-vasseur`, watch the Console + Network panes — is the last mile to
-sign off "zero console errors / zero failed requests" end-to-end. The infra
-checks above (API healthz 200, `/v1/tasks` → 400 not 500) make a 500 on the
-tasks path unlikely.
+Rather than stop at the data layer, every request the SPA fires on Léo's path
+was exercised against the **live API** (`https://<slug>.lecrm.gbconsult.me`),
+authenticated with a short-lived, `*`-scoped service token minted per workspace
+(via the repo's own `auth.GenerateServiceToken`, inserted into
+`core.service_tokens` with a 1-hour expiry, then **revoked** immediately after —
+zero residual credentials). Endpoint list extracted from `apps/web/src` (the
+`api.get` call sites + hooks). Result — **0 server errors (5xx) anywhere** and
+every list non-empty where Léo expects rows:
+
+| Surface / request                              | demo | bistrot-halles | menuiserie-vasseur |
+|------------------------------------------------|------|----------------|--------------------|
+| `GET /v1/workspace/me`                         | 200  | 200            | 200                |
+| `GET /v1/contacts`                             | 200 · 10 | 200 · 10   | 200 · 10           |
+| `GET /v1/contacts/{id}` · `/notes` · `/properties` | 200 | 200       | 200                |
+| `GET /v1/companies`                            | 200 · 4 | 200 · 4    | 200 · 4            |
+| `GET /v1/companies/{id}` · `/notes`            | 200  | 200            | 200                |
+| `GET /v1/deals`                                | 200 · 6 | 200 · 6    | 200 · 6            |
+| `GET /v1/deals/{id}` · `/properties` · `/notes`| 200  | 200            | 200                |
+| `GET /v1/pipeline/stages`                      | 200 · 5 | 200 · 5    | 200 · 5            |
+| `GET /v1/tasks`                                | 200 · 6 | 200 · 6    | 200 · 6            |
+| `GET /v1/tasks?entity_type=deal&entity_id=…`   | 200  | 200            | 200                |
+| `GET /v1/metadata/definitions?parent_type=contact` | 200 | 200       | 200                |
+| `GET /v1/metadata/definitions?parent_type=deal`| 200  | 200            | 200                |
+
+**Two non-200s — both verified as NOT on Léo's rendered path, not bugs:**
+
+- `GET /v1/workspace/members` → **403**. The members list is owner-only
+  (`rbac.RequireRole(RoleOwner)` in `apps/api/internal/http/server.go`). The
+  Settings → Members page (`apps/web/src/routes/settings/members.tsx:54`) renders
+  the members table **only when `isOwner`**; a non-owner sees a static "Only
+  workspace owners can manage members." card and `useMembers()` never fires. The
+  403 is an artifact of the *verification token's* scope (`can_manage_members:
+  false`), not a request the browser makes for that viewer. A real owner session
+  returns 200.
+- `GET /v1/reports/embed-token` → **405**. Endpoint is POST-only; a GET probe is
+  405 (not 500). On the demo the Reports route short-circuits to the honest
+  "coming soon" placeholder via `reportsEnabled()`
+  (`apps/web/src/routes/reports/$workspaceId.tsx:44`) and **never calls
+  embed-token at all** — so no failed request appears in Léo's Network pane.
+
+## Thin spot found and fixed during the sweep — contacts list lead rows
+
+The contacts list reads `ORDER BY created_at DESC, id DESC`
+(`packages/db/queries/contacts.sql`). Each workspace seeds 8 company-linked
+contacts plus 2 deliberately company-less individual leads (`#009`, `#010` —
+`fonction: "Particulier"` in the restaurant/carpentry workspaces). Because every
+row shared the bulk-insert `created_at`, the `id DESC` tie-break floated the two
+**company-less** contacts to the **top** — so the first rows Léo sees, and the
+first contact he clicks, showed *no company*, directly undercutting the
+company-name / relationship surfacing fixed in step 1 (the headline of this demo).
+
+Fix (idempotent, realism-preserving): pin the two individuals to a fixed earlier
+`created_at` (`2026-05-22`) in all three seeds so the 8 company-linked contacts
+lead the list while the realistic individual customers remain further down.
+Verified live afterwards — the demo contacts list now opens with
+`Thomas Mercier`, `Inès Dubois`, … (all company-linked); the two individuals
+sort last. Companies were **not** forced onto them: a private "Particulier"
+customer is exactly right for a restaurant/carpenter, and the only defect was
+ordering.
+
+## Data depth confirmed (per workspace, live)
+
+`contacts=10` (8 with a company), `companies=4`, `deals=6` (across all 5 FR
+stages), `tasks=6` (on 4 distinct deals + 1 contact + 1 workspace-global),
+`notes=3` (1 contact + 2 deals), `pipeline stages=5`, custom-property
+definitions present for both `contact` and `deal`. Notes/tasks are present on
+*some* records (not all) — an empty Notes/Tasks panel on a record without them
+is the app's normal, calm empty state (called out as already-good in the UX
+review), not an error.
+
+## Reproduce the API sweep
+
+```bash
+# from vps-25b8e3b3 (staging host). Mint a 1-hour, *-scoped token per workspace,
+# hit every happy-path endpoint, assert no 5xx, then revoke the tokens.
+# Token plaintext+hash generated via apps/api auth.GenerateServiceToken; hash
+# inserted into core.service_tokens scoped to the workspace; embedded slug must
+# match the subdomain. DELETE the rows (name tag) when done.
+```
+
+The infra checks above (API healthz 200, `/v1/tasks` unauth → 400 not 500) plus
+this authenticated sweep cover the "zero failed/500 requests" half of the
+acceptance at the network layer. The "zero console errors" half rides on the
+SPA build, gated green in steps 1–3 (`tsc --noEmit`, `eslint src`, `vitest run`)
+and unchanged by this step; this step touched seed SQL only.
