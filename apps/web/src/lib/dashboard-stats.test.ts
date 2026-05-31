@@ -50,13 +50,17 @@ describe('computeDealStats', () => {
     expect(stats.openValue).toBe(1000);
   });
 
-  it('picks the most frequent currency among open deals', () => {
+  it('picks the dominant currency and sums only that currency (never mixes)', () => {
     const stats = computeDealStats([
       deal({ amount: 100, currency: 'USD' }),
       deal({ amount: 200, currency: 'EUR' }),
       deal({ amount: 300, currency: 'EUR' }),
     ]);
     expect(stats.currency).toBe('EUR');
+    // EUR is dominant (2 deals) → value is 200+300, NOT 600 (would include USD).
+    expect(stats.openValue).toBe(500);
+    // count is currency-agnostic: all three deals are open.
+    expect(stats.openCount).toBe(3);
   });
 
   it('matches the seeded demo pipeline (4 open deals, 112_500 EUR)', () => {

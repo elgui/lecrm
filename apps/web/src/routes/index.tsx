@@ -100,7 +100,11 @@ function Dashboard() {
   const pipelineLabel =
     dealStats === null
       ? null
-      : formatAmount(dealStats.openValue, dealStats.currency);
+      : // computeDealStats only sees the loaded page, so when more pages exist
+        // the sum is a lower bound — suffix "+" to match the open-deals count.
+        `${formatAmount(dealStats.openValue, dealStats.currency)}${
+          deals?.has_more ? '+' : ''
+        }`;
 
   return (
     <div className="mx-auto max-w-7xl p-8">

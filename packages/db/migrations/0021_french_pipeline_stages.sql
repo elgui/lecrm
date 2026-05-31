@@ -199,9 +199,15 @@ REVOKE ALL ON FUNCTION core.lecrm_provision_workspace_with_registry(UUID, TEXT, 
   FROM PUBLIC;
 
 -- Back-fill: rename the English gbconsult-default labels to French in every
--- already-provisioned workspace schema. Matches on the old English name so
--- customized pipelines are left alone; idempotent on already-French data.
--- IDs + order_index are preserved, so deals keep their stage_id (no FK break).
+-- already-provisioned gbconsult-default workspace schema. Scoped two ways so
+-- it never touches a pipeline it didn't seed:
+--   1. Only workspaces whose provisioning_features_applied includes
+--      "gbconsult-default-v1" (the feature this template stamps) are visited —
+--      bootstrap/other-template tenants are skipped entirely.
+--   2. The UPDATE matches on the exact old English label, so a gbconsult-default
+--      tenant that later customised a stage name is still left alone.
+-- Idempotent on already-French data. IDs + order_index are preserved, so deals
+-- keep their stage_id (no FK break).
 DO $$
 DECLARE
   ws RECORD;
@@ -217,7 +223,10 @@ DECLARE
     WHERE name IN ('Discovery','Qualified','Proposal Sent','Negotiation','Closed-Won/Lost')
   $f$;
 BEGIN
-  FOR ws IN SELECT role_name FROM core.workspaces LOOP
+  FOR ws IN
+    SELECT role_name FROM core.workspaces
+    WHERE provisioning_features_applied @> '["gbconsult-default-v1"]'::jsonb
+  LOOP
     IF EXISTS (
       SELECT 1 FROM information_schema.tables
       WHERE table_schema = ws.role_name AND table_name = 'pipeline_stages'

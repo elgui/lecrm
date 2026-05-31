@@ -209,6 +209,17 @@ SCHEMA=$(docker exec lecrm-postgres psql -U postgres -d lecrm -tAc "SELECT role_
 docker exec -i lecrm-postgres psql -U postgres -d lecrm -v schema="$SCHEMA" -f /dev/stdin < deploy/seed/demo.sql
 ```
 
+> **⚠️ Migration must lead the API image (French stage names).** The API binary
+> bakes the French pipeline-stage constants (`apps/api/internal/crm/connectors.go`
+> — `"Découverte"`, `"Proposition envoyée"`). `resolveStage` has an exact-name
+> match plus a *Closed-prefix* fallback only — there is **no** English fallback
+> for Discovery/Proposal. So on an **incremental** deploy, apply migration
+> `0021_french_pipeline_stages.sql` (which renames existing stages + reseeds the
+> template) **before** rebuilding the API from this image; otherwise the
+> connector's deal-advancement to those stages returns `pipeline stage not
+> found` until the rename lands. (Fresh DBs are unaffected — the baked-in
+> migrations seed French at initdb, before the API starts.)
+
 **Migrations apply via initdb, not the migrate-runner, on a fresh DB.**
 0010 (`ALTER EXTENSION`) and 0013 require superuser, so the migrate-runner
 (which connects as `lecrm_provisioner`) cannot apply them from scratch. The
