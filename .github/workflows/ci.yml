@@ -108,7 +108,14 @@ jobs:
         working-directory: apps/admin
         # Integration tests are guarded by //go:build integration and run
         # only when LECRM_PROVISIONER_DSN is set (above).
-        run: go test -race -count=1 -timeout 5m -tags=integration ./...
+        #
+        # -p 1 serializes package execution: internal/tenant and
+        # internal/config both run provisioning DDL (CREATE ROLE, schema
+        # creation via core.lecrm_provision_workspace_with_registry)
+        # against the SINGLE shared postgres service container. Without
+        # serialization their parallel provisions race on shared
+        # role/catalog tuples → "tuple concurrently updated" (XX000).
+        run: go test -race -count=1 -p 1 -timeout 5m -tags=integration ./...
 
       - name: golangci-lint (apps/admin)
         uses: golangci/golangci-lint-action@v8
