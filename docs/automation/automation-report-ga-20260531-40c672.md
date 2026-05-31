@@ -53,11 +53,11 @@ All four tasks below have a real commit **and** survive a build/test check.
 - **Commit:** `e411e415` — *feat(demo): French pipeline stage names (gbconsult-default + live data-fix)*
 - **Changed:** 13 files — Go template/config (`apps/admin/...`, `apps/api/internal/crm/...`,
   `apps/mcp/...`), web badge formatting (`apps/web/src/lib/format.ts` + `format.test.ts`, +49 cases),
-  `deploy/seed/demo.sql`, and migration `packages/db/migrations/0020_french_pipeline_stages.sql` (new, 160 lines).
+  `deploy/seed/demo.sql`, and migration `packages/db/migrations/0021_french_pipeline_stages.sql` (new, 160 lines).
 - **Evidence:**
   - `go build ./apps/api/... ./apps/admin/... ./apps/mcp/...` → **exit 0**
   - `bun test src/lib/format.test.ts` → part of **11 pass / 0 fail**
-  - Migration file confirmed at `packages/db/migrations/0020_french_pipeline_stages.sql`.
+  - Migration file confirmed at `packages/db/migrations/0021_french_pipeline_stages.sql`.
 - **Verdict:** Genuinely done.
 
 ### ✅ #37fc — Brand Authentik login screen (reproducible script)
@@ -175,7 +175,7 @@ regression introduced by this run.
    on the live host (`51.77.146.49`), applied by `scripts/authentik-brand-lecrm.py`. It is
    idempotent — re-run the script if an Authentik update resets branding. This is host state,
    not tracked by the repo, so it won't show up in CI.
-4. **Apply migration `0020_french_pipeline_stages.sql` to staging** if not already applied as
+4. **Apply migration `0021_french_pipeline_stages.sql` to staging** if not already applied as
    part of the live data-fix. The commit includes both the migration and a direct data-fix;
    verify the staging DB schema matches the migration to avoid drift.
 5. **(Infra, low priority)** The recurring vitest/vite WASM OOM slows verification. Consider

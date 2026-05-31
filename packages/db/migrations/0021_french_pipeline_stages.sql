@@ -1,4 +1,4 @@
--- 0020_french_pipeline_stages.sql — French labels for the gbconsult-default
+-- 0021_french_pipeline_stages.sql — French labels for the gbconsult-default
 -- pipeline (tasket 0077, lecrm-demo-polish).
 --
 -- WHY THIS EXISTS
@@ -12,6 +12,30 @@
 --   2. Back-fills EXISTING workspace schemas (renaming the template alone
 --      does not retro-update already-provisioned tenants such as the demo).
 --
+-- ORDERING / NUMBERING (was 0020 — collided with
+-- 0020_restore_registry_input_validation.sql)
+-- ---------------------------------------------------------------------------
+-- This is numbered 0021 so it applies AFTER 0020_restore_registry_input_
+-- validation.sql. The migrator (apps/migrate) applies *.sql in alphanumeric
+-- filename order and tracks applied files by name, so two files numbered 0020
+-- would be an ambiguous/duplicate version. Because BOTH that migration and
+-- this one CREATE OR REPLACE the same function, the LAST one applied wins —
+-- so this one must (a) run last and (b) carry the validation guards itself,
+-- or it would silently re-drop them.
+--
+-- CANONICAL FUNCTION BODY — KEEP IN SYNC
+-- ---------------------------------------------------------------------------
+-- This file now holds the AUTHORITATIVE definition of
+-- core.lecrm_provision_workspace_with_registry. Its body is
+-- 0020_restore_registry_input_validation.sql's body (= the 0006 input-
+-- validation guards on top of the 0017 grant/search_path body) with ONLY the
+-- pipeline seed labels changed to French. Any future change to provisioning
+-- logic (grants, audit row, atomicity, validation) MUST be mirrored here, or
+-- the next CREATE OR REPLACE will lose it. The up-front validation block is
+-- asserted by apps/admin/internal/tenant/definer_hardening_test.go
+-- (TestRegistryRejectsInvalidSlug / TestRegistryRejectsInvalidEmail /
+-- TestRegistryRejectsNullSlug) — dropping it here turns those tests red.
+--
 -- DESIGN NOTES
 -- ------------
 -- * Stage IDs and order_index are NOT touched — deals reference stage_id
@@ -23,6 +47,12 @@
 -- * The back-fill renames ONLY stages whose current name matches a known
 --   English label, so tenants that customized their pipeline are untouched.
 --   Re-running on already-French data is a no-op (idempotent).
+--
+-- References:
+--   packages/db/migrations/0006_security_definer_hardening.sql — original guards
+--   packages/db/migrations/0017_app_role.sql — added grant, dropped guards
+--   packages/db/migrations/0020_restore_registry_input_validation.sql — restored guards
+--   apps/admin/internal/tenant/definer_hardening_test.go — the assertions
 
 BEGIN;
 
@@ -39,13 +69,53 @@ CREATE OR REPLACE FUNCTION core.lecrm_provision_workspace_with_registry(
   SET search_path = pg_catalog, public
 AS $func$
 DECLARE
-  v_role_name TEXT := 'workspace_' || lower(replace(p_workspace_id::text, '-', ''));
-  v_features  JSONB := CASE
-                         WHEN p_template = '' OR p_template IS NULL THEN '[]'::jsonb
-                         ELSE jsonb_build_array(p_template || '-v1')
-                       END;
+  v_role_name TEXT;
+  v_features  JSONB;
   v_inserted  INT := 0;
 BEGIN
+  -- ---- Input validation (before any DDL or DML) ----
+
+  IF p_workspace_id IS NULL THEN
+    RAISE EXCEPTION 'p_workspace_id must not be NULL'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  IF p_workspace_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
+    RAISE EXCEPTION 'p_workspace_id must not be the zero UUID'
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF p_slug IS NULL OR p_slug !~ '^[a-z][a-z0-9-]{2,31}$' THEN
+    RAISE EXCEPTION 'p_slug must match ^[a-z][a-z0-9-]{2,31}$, got: %', coalesce(p_slug, '<NULL>')
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  IF p_admin_email IS NOT NULL AND p_admin_email <> '' THEN
+    IF position('@' IN p_admin_email) = 0 THEN
+      RAISE EXCEPTION 'p_admin_email must contain @, got: %', p_admin_email
+        USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+  END IF;
+
+  IF p_creator_email IS NOT NULL AND p_creator_email <> '' THEN
+    IF position('@' IN p_creator_email) = 0 THEN
+      RAISE EXCEPTION 'p_creator_email must contain @, got: %', p_creator_email
+        USING ERRCODE = 'invalid_parameter_value';
+    END IF;
+  END IF;
+
+  IF p_template IS NOT NULL AND p_template <> '' AND p_template <> 'gbconsult-default' THEN
+    RAISE EXCEPTION 'unknown template: %. Known templates for v0: gbconsult-default. Pass empty string or NULL for the bootstrap path.', p_template
+      USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+
+  -- ---- Derived values (after validation) ----
+
+  v_role_name := 'workspace_' || lower(replace(p_workspace_id::text, '-', ''));
+  v_features  := CASE
+                   WHEN p_template = '' OR p_template IS NULL THEN '[]'::jsonb
+                   ELSE jsonb_build_array(p_template || '-v1')
+                 END;
+
   -- Step 1. Call the existing provisioning function. Creates role +
   -- workspace_<uuid> schema + river_<uuid> schema + all entity tables.
   -- Silent-idempotent on re-invocation.
@@ -92,7 +162,7 @@ BEGIN
     );
 
     -- Step 4. Pipeline-stages table + seed for the named template.
-    -- French labels (0020) — see file header.
+    -- French labels (0021) — see file header.
     IF p_template = 'gbconsult-default' THEN
       EXECUTE format($f$
         CREATE TABLE IF NOT EXISTS %I.pipeline_stages (

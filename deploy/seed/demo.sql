@@ -9,7 +9,7 @@
 -- `schema`; this file pins search_path to it. The workspace must already be
 -- provisioned with the `gbconsult-default` template (so pipeline_stages
 -- exists and is seeded with the French labels Découverte/Qualifié/Proposition
--- envoyée/Négociation/Gagné / Perdu — see migration 0020) and lecrm_api must
+-- envoyée/Négociation/Gagné / Perdu — see migration 0021) and lecrm_api must
 -- hold DML on it (migration 0017).
 --
 -- Run:
