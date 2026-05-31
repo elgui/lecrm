@@ -4,6 +4,7 @@ import {
   DndContext,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   closestCenter,
   useDraggable,
   useDroppable,
@@ -22,7 +23,7 @@ import { useCompanyMap } from '@/hooks/use-companies';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { formatDateShort } from '@/lib/format';
+import { formatDateRelative } from '@/lib/format';
 import type { Deal } from '@/lib/types';
 
 export const Route = createRoute({
@@ -44,7 +45,7 @@ function PipelinePage() {
     !!auth.user && !!workspaceId && auth.user.workspace_id !== workspaceId;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">Pipeline</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -137,7 +138,14 @@ export function PipelineBoard({
   onDismissError,
 }: PipelineBoardProps) {
   const sensors = useSensors(
+    // Mouse/trackpad: a tiny 4px move starts the drag — snappy on desktop.
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    // Touch: require a long-press (250ms) before a drag begins, with a small
+    // tolerance, so a finger swipe scrolls the board horizontally instead of
+    // ripping a card out. This is the part that doesn't go responsive for free.
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -244,7 +252,7 @@ export function PipelineBoard({
           <div
             ref={scrollRef}
             onScroll={updateScrollEdges}
-            className="flex gap-4 overflow-x-auto pb-4"
+            className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 md:snap-none"
             data-testid="pipeline-board"
           >
             {stages.map((stage) => (
@@ -285,7 +293,9 @@ function StageColumn({ stage, deals, companyById, onCardClick }: StageColumnProp
       data-testid={`pipeline-column-${stage.id}`}
       data-stage-name={stage.name}
       className={cn(
-        'flex w-72 shrink-0 flex-col rounded-lg border border-border bg-muted/50 p-3 transition-colors',
+        // Mobile: each column snaps and is ~85vw so the next peeks in, cueing
+        // the swipe. Desktop keeps the fixed 18rem column width.
+        'flex w-[85vw] max-w-xs shrink-0 snap-start flex-col rounded-lg border border-border bg-muted/50 p-3 transition-colors sm:w-72 sm:max-w-none md:snap-align-none',
         isOver && 'border-primary/50 bg-primary/5 ring-2 ring-primary/20',
       )}
     >
@@ -417,7 +427,7 @@ function DealCard({ deal, companyName, onClick }: DealCardProps) {
               />
             )}
             {overdue ? 'En retard · ' : ''}
-            {formatDateShort(deal.expected_close_date)}
+            {formatDateRelative(deal.expected_close_date)}
           </span>
         )}
       </div>

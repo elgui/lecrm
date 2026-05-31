@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Wordmark } from '@/components/wordmark';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
+import { MobileTabBar } from '@/components/mobile-tab-bar';
 
 const navLinkClass =
   'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-accent hover:text-foreground ' +
@@ -83,7 +84,10 @@ function RootLayout() {
 
   return (
     <div className="flex h-screen bg-background">
-      <aside className="flex w-64 flex-col border-r border-border bg-sidebar">
+      {/* Desktop sidebar — the integrator console is desktop-only, so the full
+          nav (incl. config + workspace switcher) lives here and is hidden on
+          phones, where the client gets a focused bottom tab bar instead. */}
+      <aside className="hidden w-64 flex-col border-r border-border bg-sidebar md:flex">
         <div className="flex h-14 items-center border-b border-border px-4">
           <Link to="/" aria-label="leCRM — accueil">
             <Wordmark />
@@ -180,6 +184,16 @@ function RootLayout() {
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        {/* Mobile top header — branding + identity, since the sidebar that
+            normally carries them is hidden on phones. */}
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 md:hidden">
+          <Link to="/" aria-label="leCRM — accueil">
+            <Wordmark />
+          </Link>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+            {(user?.name || user?.email)?.charAt(0)?.toUpperCase() ?? '?'}
+          </div>
+        </div>
         {integrator.isIntegrator && (
           <div
             role="status"
@@ -192,10 +206,14 @@ function RootLayout() {
             </span>
           </div>
         )}
-        <div className="flex-1 overflow-auto">
+        {/* Bottom padding on mobile keeps the last rows clear of the fixed
+            tab bar (h-14 + safe-area). */}
+        <div className="flex-1 overflow-auto pb-20 md:pb-0">
           <Outlet />
         </div>
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }

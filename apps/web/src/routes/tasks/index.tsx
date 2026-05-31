@@ -12,7 +12,7 @@ export const Route = createRoute({
 // contact/company/deal detail pages; this is the unscoped view.
 function TasksPage() {
   return (
-    <div className="mx-auto max-w-4xl p-8">
+    <div className="mx-auto max-w-4xl p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">Tâches</h1>
         <p className="mt-1 text-sm text-muted-foreground">

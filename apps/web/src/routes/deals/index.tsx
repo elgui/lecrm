@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { createRoute, Link } from '@tanstack/react-router';
+import { createRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -32,6 +32,10 @@ import { Route as rootRoute } from '../__root';
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: '/deals',
+  // `?new=true` (e.g. from the mobile create FAB) auto-opens the create form.
+  validateSearch: (search: Record<string, unknown>): { new?: boolean } => ({
+    new: search.new === true || search.new === 'true' ? true : undefined,
+  }),
   component: DealList,
 });
 
@@ -137,7 +141,18 @@ function DealList() {
   const { data: stagesResp } = usePipelineStages();
   const stages = stagesResp?.data;
   const { permissions } = useMe();
+  const { new: openCreate } = Route.useSearch();
+  const navigate = useNavigate();
   const [creating, setCreating] = React.useState(false);
+
+  // Honour `?new=true` (mobile create FAB) once, then strip the param so a
+  // refresh or back-nav doesn't keep re-opening the form.
+  React.useEffect(() => {
+    if (openCreate) {
+      setCreating(true);
+      navigate({ to: '/deals', search: {}, replace: true });
+    }
+  }, [openCreate, navigate]);
 
   // Surface the workspace's first couple of custom fields as table columns so
   // tailorization is visible at a glance, not only on the detail page. Values
@@ -154,7 +169,7 @@ function DealList() {
   const colSpan = 4 + customCols.length;
 
   return (
-    <div className="mx-auto max-w-7xl p-8">
+    <div className="mx-auto max-w-7xl p-4 md:p-8">
       <PageHeader
         title="Affaires"
         description="Gérez votre pipeline et votre chiffre d’affaires"

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatAmount, stageBadgeVariant } from './format';
+import { formatAmount, formatDateRelative, stageBadgeVariant } from './format';
 
 describe('stageBadgeVariant', () => {
   it('maps the English gbconsult-default stages', () => {
@@ -52,5 +52,43 @@ describe('formatAmount', () => {
     const b = formatAmount('14000', 'EUR');
     expect(b.replace(/\D/g, '')).toBe('14000');
     expect(b).toContain('€');
+  });
+});
+
+describe('formatDateRelative', () => {
+  // Fixed reference "now" (local midday so day-rounding is unambiguous).
+  const now = new Date(2026, 4, 31, 12, 0, 0); // 31 May 2026
+
+  it('returns an empty string for empty values', () => {
+    expect(formatDateRelative(null, now)).toBe('');
+    expect(formatDateRelative(undefined, now)).toBe('');
+    expect(formatDateRelative('', now)).toBe('');
+  });
+
+  it('names today, tomorrow and yesterday in French', () => {
+    expect(formatDateRelative('2026-05-31', now)).toBe("aujourd'hui");
+    expect(formatDateRelative('2026-06-01', now)).toBe('demain');
+    expect(formatDateRelative('2026-05-30', now)).toBe('hier');
+  });
+
+  it('counts forward and backward within the ±13 day window', () => {
+    expect(formatDateRelative('2026-06-03', now)).toBe('dans 3 jours');
+    expect(formatDateRelative('2026-06-13', now)).toBe('dans 13 jours');
+    expect(formatDateRelative('2026-05-28', now)).toBe('il y a 3 jours');
+    expect(formatDateRelative('2026-05-18', now)).toBe('il y a 13 jours');
+  });
+
+  it('falls back to a compact absolute date beyond the relative window', () => {
+    // 14+ days out is no longer phrased relatively — assert it is NOT a
+    // "dans … jours" string and carries the month abbreviation instead.
+    const far = formatDateRelative('2026-07-13', now);
+    expect(far).not.toMatch(/jours/);
+    expect(far).toMatch(/juil/);
+  });
+
+  it('pins date-only values to local midnight (no off-by-one)', () => {
+    // A late-evening "now" must still read the same calendar day as today.
+    const lateNow = new Date(2026, 4, 31, 23, 30, 0);
+    expect(formatDateRelative('2026-05-31', lateNow)).toBe("aujourd'hui");
   });
 });

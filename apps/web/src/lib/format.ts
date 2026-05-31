@@ -89,6 +89,35 @@ export function formatDateTime(
 }
 
 /**
+ * Relative French date for human-friendly, touch-first surfaces (mobile cards,
+ * deal due-dates): `aujourd'hui`, `demain`, `hier`, `dans 14 jours`,
+ * `il y a 3 jours`. Beyond ±13 days it falls back to the compact absolute date
+ * (`13 juil.`) so distant dates stay legible. The reference "now" is injectable
+ * for deterministic tests. Returns an empty string for empty values.
+ */
+export function formatDateRelative(
+  value: string | number | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (value === null || value === undefined || value === '') return '';
+  const d = toDate(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+
+  // Diff in whole calendar days, both pinned to local midnight so a date-only
+  // value never lands a few hours off and reads as "demain" when it's today.
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(d) - startOfDay(now)) / 86_400_000);
+
+  if (diffDays === 0) return "aujourd'hui";
+  if (diffDays === 1) return 'demain';
+  if (diffDays === -1) return 'hier';
+  if (diffDays > 1 && diffDays <= 13) return `dans ${diffDays} jours`;
+  if (diffDays < -1 && diffDays >= -13) return `il y a ${-diffDays} jours`;
+  return formatDateShort(d);
+}
+
+/**
  * Compact French date for dense surfaces like pipeline cards (`13 juil.`).
  * Returns an empty string for empty values so callers can omit the element.
  */
