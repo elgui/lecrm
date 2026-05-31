@@ -92,6 +92,21 @@ INSERT INTO notes (id, entity_type, entity_id, body, author_id) VALUES
   ('0e700000-0000-4000-8000-000000000003', 'contact', '11110000-0000-4000-8000-000000000003', 'Préfère être contactée par email. Très réactive.', '00000000-0000-4000-8000-0000000000a1')
 ON CONFLICT (id) DO NOTHING;
 
+-- -------------------------------------------------------------------- tasks
+-- Actionable follow-ups. Some are overdue (due_date < today), some upcoming,
+-- one is completed. entity_type NULL => a workspace-wide task with no record
+-- link (still shown in the global /tasks list). The list endpoint filters
+-- only by entity scope (no assignee/completed filter), so every row below is
+-- visible — entity-scoped ones also populate the record detail task panels.
+INSERT INTO tasks (id, title, description, entity_type, entity_id, assignee_id, due_date, completed_at) VALUES
+  ('7a5c0000-0000-4000-8000-000000000001', 'Relancer Sophie Garnier pour le devis TMS',     'Devis envoyé il y a 5 jours, sans retour.', 'deal',    'dea10000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 2,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000002', 'Préparer la démo du module prise de RDV',       'Clinique du Parc — sponsor Dr. Dubois.',    'deal',    'dea10000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 5,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000003', 'Envoyer la maquette click & collect',           NULL,                                        'deal',    'dea10000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000004', 'Appeler Camille pour valider le planning',      'Préfère le téléphone.',                     'contact', '11110000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000005', 'Mettre à jour le pipeline hebdomadaire',        NULL,                                        NULL,      NULL,                                   '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 3,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000006', 'Signer le bon de commande — Refonte de marque', 'Studio Marceau Design.',                    'deal',    'dea10000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 3,  now() - INTERVAL '2 days')
+ON CONFLICT (id) DO NOTHING;
+
 -- ------------------------------------------------ custom-property definitions
 -- ADR-010 "tailorization" — realistic French custom fields so every record
 -- lights up the existing custom-properties editor instead of the empty state.
@@ -149,15 +164,16 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------------ summary
 DO $$
-DECLARE n_co INT; n_ct INT; n_de INT; n_ac INT; n_no INT; n_cd INT; n_cv INT;
+DECLARE n_co INT; n_ct INT; n_de INT; n_ac INT; n_no INT; n_ta INT; n_cd INT; n_cv INT;
 BEGIN
   SELECT count(*) INTO n_co FROM companies;
   SELECT count(*) INTO n_ct FROM contacts;
   SELECT count(*) INTO n_de FROM deals;
   SELECT count(*) INTO n_ac FROM activities;
   SELECT count(*) INTO n_no FROM notes;
+  SELECT count(*) INTO n_ta FROM tasks;
   SELECT count(*) INTO n_cd FROM custom_property_definitions;
   SELECT count(*) INTO n_cv FROM objects WHERE object_type = 'custom_properties';
-  RAISE NOTICE 'demo seed: % companies, % contacts, % deals, % activities, % notes, % custom-prop defs, % custom-prop values',
-    n_co, n_ct, n_de, n_ac, n_no, n_cd, n_cv;
+  RAISE NOTICE 'demo seed: % companies, % contacts, % deals, % activities, % notes, % tasks, % custom-prop defs, % custom-prop values',
+    n_co, n_ct, n_de, n_ac, n_no, n_ta, n_cd, n_cv;
 END$$;

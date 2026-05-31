@@ -67,6 +67,21 @@ INSERT INTO notes (id, entity_type, entity_id, body, author_id) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
+-- TASKS (suivis à faire ; certains en retard, un terminé)
+-- entity_type NULL => tâche globale, visible dans l'onglet Tasks.
+-- Les tâches liées à un enregistrement remplissent aussi le panneau
+-- "Tasks" des fiches contact / deal correspondantes.
+-- ============================================================
+INSERT INTO tasks (id, title, description, entity_type, entity_id, assignee_id, due_date, completed_at) VALUES
+  ('7a5c0000-0000-4000-8000-000000000001', 'Relancer la famille Garnier pour l''acompte',   'Acompte 30% à la signature.',          'deal',    'dea10000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000002', 'Envoyer le menu dégustation à Nicolas Reynaud', 'Soirée de gala Pharma Rhône.',         'deal',    'dea10000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 4,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000003', 'Confirmer le nombre de couverts',               'Cocktail de rentrée — 50 pers.',       'deal',    'dea10000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000004', 'Rappeler Marc pour le séminaire annuel',        'Studio Lumière — 60 couverts.',        'contact', '11110000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 2,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000005', 'Préparer la commande traiteur de la semaine',   NULL,                                   NULL,      NULL,                                   '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 3,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000006', 'Encaisser le solde — repas conseil municipal',  'Mairie de Saint-Genis.',               'deal',    'dea10000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 2,  now() - INTERVAL '1 day')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
 -- CUSTOM PROPERTY DEFINITIONS (thème événementiel)
 -- Deduped on UNIQUE (parent_type, property_key). Value types match
 -- metadata.validateValue: enum/string -> JSON string, number -> JSON number.
@@ -99,4 +114,5 @@ ON CONFLICT (id) DO NOTHING;
 SELECT
     (SELECT count(*) FROM companies)  AS companies,
     (SELECT count(*) FROM contacts)   AS contacts,
-    (SELECT count(*) FROM deals)      AS deals;
+    (SELECT count(*) FROM deals)      AS deals,
+    (SELECT count(*) FROM tasks)      AS tasks;
