@@ -14,6 +14,17 @@
 > never actually ran**. That re-run surfaced a critical, still-open defect in
 > the CSV-import feature (see step 2).
 
+> **UPDATE 2026-06-01 (post-report) — CSV import defect FIXED in `bad1f5dd`.**
+> The step-2 breakage described below (static import routes vs. the
+> `chi.URLParam("entity")` handler → universal `404`) has been resolved:
+> routes are now registered as `/v1/import/{entity}/{analyze,preview,commit}`,
+> the OpenAPI spec + contract test were realigned, and the shared
+> `setupPipelineEnv` harness gained the RBAC-principal injection (rec §6.2) and
+> ANT-route registration. **Import integration tests now pass 7/7** and the crm
+> integration suite went from **28 → 4 failures** (the 4 remaining are the
+> pre-existing connector / French-stage cases, out of scope here). Sections
+> below are preserved as the point-in-time finding.
+
 ---
 
 ## 1. Executive Summary
