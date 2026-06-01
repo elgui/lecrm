@@ -483,6 +483,119 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  # ---------- Dedup / merge (tasket 20260601-110828-76e8) ----------
+  /v1/dedup/contacts:
+    get:
+      tags: [contacts, dedup]
+      summary: List contact duplicate candidates (exact email + fuzzy name)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DedupContactsResp'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/contacts/merge:
+    post:
+      tags: [contacts, dedup]
+      summary: Merge two contacts — re-points all linked records to the survivor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeContactReq'
+      responses:
+        '200':
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/dedup/contacts/distinct:
+    post:
+      tags: [contacts, dedup]
+      summary: Mark two contacts as distinct — suppress from future duplicate suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DistinctReq'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distinct: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/companies:
+    get:
+      tags: [companies, dedup]
+      summary: List company duplicate candidates (exact domain + fuzzy name)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DedupCompaniesResp'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/companies/merge:
+    post:
+      tags: [companies, dedup]
+      summary: Merge two companies — re-points contacts, deals, notes, activities, tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeCompanyReq'
+      responses:
+        '200':
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/dedup/companies/distinct:
+    post:
+      tags: [companies, dedup]
+      summary: Mark two companies as distinct — suppress from future duplicate suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DistinctReq'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distinct: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ---------- Pipeline ----------
   /v1/pipeline/stages:
     get:
@@ -1151,6 +1264,101 @@ components:
         action: { type: string, enum: [create, update, skip, error] }
         reason: { type: string }
         label:  { type: string }
+
+    DedupContactRecord:
+      type: object
+      required: [id, first_name, last_name, created_at]
+      properties:
+        id:         { type: string, format: uuid }
+        first_name: { type: string }
+        last_name:  { type: string }
+        email:      { type: string, nullable: true }
+        phone:      { type: string, nullable: true }
+        company_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DedupCompanyRecord:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:         { type: string, format: uuid }
+        name:       { type: string }
+        domain:     { type: string, nullable: true }
+        industry:   { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DedupContactPair:
+      type: object
+      required: [a, b, reason, score]
+      properties:
+        a:      { $ref: '#/components/schemas/DedupContactRecord' }
+        b:      { $ref: '#/components/schemas/DedupContactRecord' }
+        reason: { type: string, enum: [exact_email, similar_name] }
+        score:  { type: number, format: float }
+
+    DedupCompanyPair:
+      type: object
+      required: [a, b, reason, score]
+      properties:
+        a:      { $ref: '#/components/schemas/DedupCompanyRecord' }
+        b:      { $ref: '#/components/schemas/DedupCompanyRecord' }
+        reason: { type: string, enum: [exact_domain, similar_name] }
+        score:  { type: number, format: float }
+
+    DedupContactsResp:
+      type: object
+      required: [pairs]
+      properties:
+        pairs:
+          type: array
+          items: { $ref: '#/components/schemas/DedupContactPair' }
+
+    DedupCompaniesResp:
+      type: object
+      required: [pairs]
+      properties:
+        pairs:
+          type: array
+          items: { $ref: '#/components/schemas/DedupCompanyPair' }
+
+    MergeContactReq:
+      type: object
+      required: [survivor_id, loser_id]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [survivor, loser]
+
+    MergeCompanyReq:
+      type: object
+      required: [survivor_id, loser_id]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [survivor, loser]
+
+    MergeResult:
+      type: object
+      required: [survivor_id, loser_id, merged]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        merged:      { type: boolean }
+
+    DistinctReq:
+      type: object
+      required: [id_a, id_b]
+      properties:
+        id_a: { type: string, format: uuid }
+        id_b: { type: string, format: uuid }
 
 security:
   - sessionCookie: []

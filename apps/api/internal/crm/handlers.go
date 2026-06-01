@@ -119,6 +119,14 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Patch("/v1/deals/{id}/stage", h.TransitionDealStage)
 
 	r.Get("/v1/pipeline/stages", h.ListPipelineStages)
+
+	// Dedup / merge (tasket 20260601-110828-76e8).
+	r.Get("/v1/dedup/contacts", h.ListContactDuplicates)
+	r.Get("/v1/dedup/companies", h.ListCompanyDuplicates)
+	r.Post("/v1/dedup/contacts/merge", h.MergeContacts)
+	r.Post("/v1/dedup/companies/merge", h.MergeCompanies)
+	r.Post("/v1/dedup/contacts/distinct", h.MarkContactsDistinct)
+	r.Post("/v1/dedup/companies/distinct", h.MarkCompaniesDistinct)
 }
 
 // --- transaction helpers (kept for export.go and other local users) ---

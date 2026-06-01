@@ -3,7 +3,7 @@ import { createRoute, Link } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Building2 } from 'lucide-react';
+import { Plus, Building2, GitMerge } from 'lucide-react';
 import { useCompanies, useCreateCompany } from '@/hooks/use-companies';
 import { useMe } from '@/hooks/use-me';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
 import { CsvImportWizard } from '@/components/csv-import-wizard';
+import { DedupWizard } from '@/components/dedup-wizard';
 import { formatDate } from '@/lib/format';
 import {
   Table,
@@ -111,6 +112,7 @@ function CompanyList() {
   const { permissions } = useMe();
   const [creating, setCreating] = React.useState(false);
   const [importing, setImporting] = React.useState(false);
+  const [deduping, setDeduping] = React.useState(false);
 
   return (
     <div className="mx-auto max-w-7xl p-8">
@@ -126,6 +128,12 @@ function CompanyList() {
                 Importer CSV
               </Button>
             )}
+            {permissions.can_write && (
+              <Button variant="outline" size="sm" onClick={() => setDeduping(true)}>
+                <GitMerge className="mr-1 h-4 w-4" />
+                Doublons
+              </Button>
+            )}
             {permissions.can_write && !creating && (
               <Button onClick={() => setCreating(true)}>
                 <Plus />
@@ -138,6 +146,10 @@ function CompanyList() {
 
       {importing && (
         <CsvImportWizard entity="companies" onClose={() => setImporting(false)} />
+      )}
+
+      {deduping && (
+        <DedupWizard entity="companies" onClose={() => setDeduping(false)} />
       )}
 
       {creating && <CreateCompanyForm onDone={() => setCreating(false)} />}
