@@ -148,4 +148,121 @@ func TestPeriodWindows_Labels(t *testing.T) {
 	if curQ != "T2 2026" || priorQ != "T2 2025" {
 		t.Errorf("quarter labels: cur=%q prior=%q", curQ, priorQ)
 	}
+	curY, _, curYL, _ := periodWindows(PeriodYear, now)
+	if curYL != "2026" {
+		t.Errorf("year label: got %q want 2026", curYL)
+	}
+	if curY.start.Year() != 2026 || curY.start.Month() != 1 || curY.start.Day() != 1 {
+		t.Errorf("year window should start 2026-01-01, got %v", curY.start)
+	}
+	// PeriodAll has no prior window and an all-history label.
+	_, priorAll, curAllL, _ := periodWindows(PeriodAll, now)
+	if priorAll != nil {
+		t.Errorf("PeriodAll must have no prior window, got %+v", priorAll)
+	}
+	if curAllL != "Tout l'historique" {
+		t.Errorf("all-history label: got %q", curAllL)
+	}
+}
+
+// TestBuildRunQuery_PeriodWithoutYoY exercises the bounded-but-not-comparing
+// branch: a single current window WHERE clause, two timestamptz args, no prior
+// column. (The YoY test covers the prior branch; PeriodAll covers the no-window
+// branch — this fills the third.)
+func TestBuildRunQuery_PeriodWithoutYoY(t *testing.T) {
+	now := fixedNow()
+	sql, args, plan, err := BuildRunQuery(
+		Definition{Metric: MetricDealCount, Dimension: DimNone, Period: PeriodMonth}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.HasPrior {
+		t.Error("non-YoY period must not produce a prior column")
+	}
+	if strings.Contains(sql, "AS prior") {
+		t.Errorf("unexpected prior column: %s", sql)
+	}
+	if !strings.Contains(sql, "WHERE d.created_at >=") {
+		t.Errorf("bounded period must emit a WHERE window: %s", sql)
+	}
+	// cur.start, cur.end — two timestamptz bounds, no prior pair.
+	if len(args) != 2 {
+		t.Fatalf("expected 2 time args, got %d: %v", len(args), args)
+	}
+	curStart, ok := args[0].(time.Time)
+	if !ok {
+		t.Fatalf("arg[0] not a time.Time: %T", args[0])
+	}
+	if curStart.Year() != 2026 || curStart.Month() != 6 {
+		t.Errorf("month window should start 2026-06, got %v", curStart)
+	}
+}
+
+// TestBuildRunQuery_WinRateWindowed exercises the windowed win-rate branch of
+// metricExpr (closed FILTER + total FILTER both time-bounded) — distinct from
+// the existing PeriodAll win-rate test (unfiltered). The closed-count must be
+// constrained by closed_at AND the time window; the denominator by the window.
+func TestBuildRunQuery_WinRateWindowed(t *testing.T) {
+	now := fixedNow()
+	sql, _, _, err := BuildRunQuery(
+		Definition{Metric: MetricWinRate, Dimension: DimNone, Period: PeriodQuarter}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sql, "closed_at IS NOT NULL AND d.created_at >=") {
+		t.Errorf("windowed win-rate numerator must combine closed_at with the time window: %s", sql)
+	}
+	if !strings.Contains(sql, "NULLIF(COUNT(*)") {
+		t.Errorf("win-rate must guard against divide-by-zero with NULLIF: %s", sql)
+	}
+}
+
+// TestCustomKeyAllowList pins the boundaries of customKeyRe — the only
+// free-form input in the engine. Even though the key is always bound as a
+// parameter (never interpolated), the validator is defence-in-depth and must
+// reject anything outside [A-Za-z0-9_]{1,64}.
+func TestCustomKeyAllowList(t *testing.T) {
+	reject := []string{
+		"custom:",                           // empty key
+		"custom:a-b",                        // hyphen
+		"custom:a.b",                        // dot
+		"custom:a b",                        // space
+		"custom:a;DROP",                     // statement separator
+		"custom:" + strings.Repeat("a", 65), // over length cap
+		"custom:é",                          // non-ASCII
+	}
+	for _, dim := range reject {
+		d := Definition{Dimension: dim}
+		if err := d.normalizeAndValidate(); err == nil {
+			t.Errorf("expected rejection for dimension %q", dim)
+		}
+	}
+	accept := []string{"custom:source", "custom:a", "custom:Lead_Source_2026", "custom:" + strings.Repeat("k", 64)}
+	for _, dim := range accept {
+		d := Definition{Dimension: dim}
+		if err := d.normalizeAndValidate(); err != nil {
+			t.Errorf("expected %q to validate, got %v", dim, err)
+		}
+	}
+}
+
+func TestMetricLabel(t *testing.T) {
+	cases := map[string]string{
+		MetricDealAmountSum: "Montant total (€)",
+		MetricWinRate:       "Taux de réussite",
+		MetricDealCount:     "Nombre d'affaires",
+		"unknown-defaults":  "Nombre d'affaires",
+	}
+	for metric, want := range cases {
+		if got := metricLabel(metric); got != want {
+			t.Errorf("metricLabel(%q): got %q want %q", metric, got, want)
+		}
+	}
+}
+
+func TestValidationErrorMessage(t *testing.T) {
+	err := &ValidationError{Msg: "unknown metric: evil"}
+	if err.Error() != "unknown metric: evil" {
+		t.Errorf("Error(): got %q", err.Error())
+	}
 }
