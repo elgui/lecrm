@@ -76,6 +76,18 @@ func setupConnectorEnv(t *testing.T) *connectorTestEnv {
 			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
 			pipelineMigrationPath(t, "0015_activities_notes_tasks.sql"),
 			pipelineMigrationPath(t, "0016_service_tokens.sql"),
+			// 0017–0023 (no 0020 — renumbered into 0021) bring the harness up to
+			// the production migration set so provisioning seeds the French
+			// pipeline stages the connector hardcodes (0021) and core.audit_log
+			// admits the 'connector' actor_type the connector audit path writes
+			// (0023). Without these the connector tests fail at resolveStage
+			// ("Découverte") and then at the fail-closed audit insert (23514).
+			pipelineMigrationPath(t, "0017_app_role.sql"),
+			pipelineMigrationPath(t, "0018_integrator_role_and_grants.sql"),
+			pipelineMigrationPath(t, "0019_integrator_audit_actor.sql"),
+			pipelineMigrationPath(t, "0021_french_pipeline_stages.sql"),
+			pipelineMigrationPath(t, "0022_dedup_no_merge_rules.sql"),
+			pipelineMigrationPath(t, "0023_connector_audit_actor.sql"),
 		),
 	)
 	if err != nil {

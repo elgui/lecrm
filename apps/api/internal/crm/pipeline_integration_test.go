@@ -129,6 +129,21 @@ func setupPipelineEnv(t *testing.T) *pipelineTestEnv {
 			pipelineMigrationPath(t, "0013_workspace_ro_role.sql"),
 			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
 			pipelineMigrationPath(t, "0015_activities_notes_tasks.sql"),
+			// 0016–0023 (no 0020 — renumbered into 0021) bring the harness up to
+			// the production migration set. 0021 re-seeds the gbconsult-default
+			// pipeline with French stage labels (Découverte, Qualifié, …), which
+			// TestPipeline_ListStages asserts and the connector path depends on;
+			// 0023 admits the 'connector' actor_type in core.audit_log. 0021's
+			// _with_registry delegates to the base provision fn (redefined by
+			// 0022, which seeds no stages) then seeds the French stages itself,
+			// so ordering 0022 after 0021 does not duplicate or revert them.
+			pipelineMigrationPath(t, "0016_service_tokens.sql"),
+			pipelineMigrationPath(t, "0017_app_role.sql"),
+			pipelineMigrationPath(t, "0018_integrator_role_and_grants.sql"),
+			pipelineMigrationPath(t, "0019_integrator_audit_actor.sql"),
+			pipelineMigrationPath(t, "0021_french_pipeline_stages.sql"),
+			pipelineMigrationPath(t, "0022_dedup_no_merge_rules.sql"),
+			pipelineMigrationPath(t, "0023_connector_audit_actor.sql"),
 		),
 	)
 	if err != nil {

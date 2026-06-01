@@ -247,13 +247,20 @@ func EmitAudit(ctx context.Context, tx pgx.Tx, event string, workspaceID uuid.UU
 	return nil
 }
 
-// Actor types — must match the CHECK constraint in migration 0015.
+// Actor types — must match the core.audit_log actor_type CHECK constraint
+// (defined in 0001_init.sql, extended by 0019 for 'integrator' and 0023 for
+// 'connector') and the per-workspace activities CHECK (0015 / 0022).
 const (
 	ActorTypeHumanAPI        = "human_api"
 	ActorTypeMCPAgent        = "mcp_agent"
 	ActorTypeInternalService = "internal_service"
 	ActorTypeSystem          = "system"
-	ActorTypeConnector       = "connector"
+	// ActorTypeConnector tags writes performed by the connector ingestion path
+	// (POST /v1/connectors/{source}/events). It is admitted by the per-workspace
+	// activities CHECK (0015 / 0022) and — as of migration 0023 — by the
+	// core.audit_log actor_type CHECK; before 0023 every connector EmitAudit
+	// call rolled back fail-closed (SQLSTATE 23514).
+	ActorTypeConnector = "connector"
 	// ActorTypeIntegrator tags writes performed by GB Consult's integrator
 	// principal in the canonical audit trail (core.audit_log). Migration 0019
 	// extends the core.audit_log actor_type CHECK to admit it. The
