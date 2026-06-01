@@ -15,6 +15,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
+import { CsvImportWizard } from '@/components/csv-import-wizard';
 import { formatDate } from '@/lib/format';
 import {
   Table,
@@ -109,6 +110,7 @@ function CompanyList() {
   const { data, isLoading, error } = useCompanies();
   const { permissions } = useMe();
   const [creating, setCreating] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
 
   return (
     <div className="mx-auto max-w-7xl p-8">
@@ -118,6 +120,12 @@ function CompanyList() {
         actions={
           <>
             <ExportButton resource="companies" />
+            {permissions.can_write && (
+              <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                Importer CSV
+              </Button>
+            )}
             {permissions.can_write && !creating && (
               <Button onClick={() => setCreating(true)}>
                 <Plus />
@@ -127,6 +135,10 @@ function CompanyList() {
           </>
         }
       />
+
+      {importing && (
+        <CsvImportWizard entity="companies" onClose={() => setImporting(false)} />
+      )}
 
       {creating && <CreateCompanyForm onDone={() => setCreating(false)} />}
 
