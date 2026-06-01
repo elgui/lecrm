@@ -1,0 +1,284 @@
+[
+  {
+    "slug": "demo",
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses_4xx_5xx_unexpected": [],
+    "consoleErrors_total": 11,
+    "consoleErrors_fontCSP": 11,
+    "consoleErrors_other": [],
+    "surfaces": [
+      {
+        "name": "dashboard",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contacts",
+        "nav": "ok",
+        "rows": 10,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contact-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "companies",
+        "nav": "ok",
+        "rows": 4,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "company-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "deals",
+        "nav": "ok",
+        "rows": 6,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "deal-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "pipeline",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 12,
+        "markersHit": []
+      },
+      {
+        "name": "tasks",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "settings",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "custom-fields",
+        "nav": "ok",
+        "rows": 2,
+        "cards": 0,
+        "markersHit": []
+      }
+    ]
+  },
+  {
+    "slug": "bistrot-halles",
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses_4xx_5xx_unexpected": [],
+    "consoleErrors_total": 11,
+    "consoleErrors_fontCSP": 11,
+    "consoleErrors_other": [],
+    "surfaces": [
+      {
+        "name": "dashboard",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contacts",
+        "nav": "ok",
+        "rows": 10,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contact-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "companies",
+        "nav": "ok",
+        "rows": 4,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "company-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "deals",
+        "nav": "ok",
+        "rows": 6,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "deal-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "pipeline",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 12,
+        "markersHit": []
+      },
+      {
+        "name": "tasks",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "settings",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "custom-fields",
+        "nav": "ok",
+        "rows": 2,
+        "cards": 0,
+        "markersHit": []
+      }
+    ]
+  },
+  {
+    "slug": "menuiserie-vasseur",
+    "pageErrors": [],
+    "failedRequests": [],
+    "badResponses_4xx_5xx_unexpected": [],
+    "consoleErrors_total": 11,
+    "consoleErrors_fontCSP": 11,
+    "consoleErrors_other": [],
+    "surfaces": [
+      {
+        "name": "dashboard",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contacts",
+        "nav": "ok",
+        "rows": 10,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "contact-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "companies",
+        "nav": "ok",
+        "rows": 4,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "company-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "deals",
+        "nav": "ok",
+        "rows": 6,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "deal-detail",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": [
+          "No tasks yet"
+        ]
+      },
+      {
+        "name": "pipeline",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 12,
+        "markersHit": []
+      },
+      {
+        "name": "tasks",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "settings",
+        "nav": "ok",
+        "rows": 0,
+        "cards": 0,
+        "markersHit": []
+      },
+      {
+        "name": "custom-fields",
+        "nav": "ok",
+        "rows": 2,
+        "cards": 0,
+        "markersHit": []
+      }
+    ]
+  }
+]

@@ -5,6 +5,7 @@ import {
   buildCubeFrameUrl,
   cubeEmbedBaseUrl,
   findDashboard,
+  reportsEnabled,
 } from './reports';
 
 describe('BASELINE_DASHBOARDS', () => {
@@ -51,6 +52,26 @@ describe('BASELINE_DASHBOARDS', () => {
     const d = findDashboard('conversion-funnel')!;
     expect(d.chartType).toBe('funnel');
     expect(d.query.dimensions).toContain('Deals.dealStage');
+  });
+});
+
+describe('reportsEnabled', () => {
+  it('is disabled when the flag is unset so the demo never hits the embed-token 503', () => {
+    expect(reportsEnabled(undefined)).toBe(false);
+  });
+
+  it('is disabled with the real build-time env (unset on the demo)', () => {
+    expect(reportsEnabled()).toBe(false);
+  });
+
+  it('only enables on the exact string "true"', () => {
+    expect(reportsEnabled('true')).toBe(true);
+  });
+
+  it('treats any other truthy-looking value as disabled', () => {
+    for (const v of ['1', 'yes', 'TRUE', '']) {
+      expect(reportsEnabled(v)).toBe(false);
+    }
   });
 });
 

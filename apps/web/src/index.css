@@ -1,4 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/*
+ * Inter is NOT loaded via a cross-origin @import: the strict CSP
+ * (ADR-009 §5.2 — `style-src 'self'`, no external CDN) blocks
+ * fonts.googleapis.com, so the old `@import url('…fonts.googleapis…')`
+ * never applied the font and instead spammed every page on the demo
+ * happy-path with CSP-violation console errors (11 per session). The
+ * `font-sans` stack in tailwind.config.js already falls back cleanly to
+ * ui-sans-serif/system-ui. To actually ship Inter, self-host it
+ * (e.g. @fontsource/inter + a local @font-face served same-origin so it
+ * passes `font-src 'self'`) — tracked under the L2 typography pass.
+ */
 
 @tailwind base;
 @tailwind components;

@@ -87,6 +87,10 @@ export interface PropertyDefinition {
   property_type: PropertyType;
   allowed_values?: string[];
   required: boolean;
+  // Optional human-readable label set by an admin. When absent, the UI falls
+  // back to a prettified form of property_key (see customFieldLabel). Kept
+  // optional so older API responses without the field still type-check.
+  display_name?: string | null;
 }
 
 export type EntityType = 'contact' | 'company' | 'deal';

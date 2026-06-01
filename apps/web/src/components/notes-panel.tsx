@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatDateTime } from '@/lib/format';
 
 interface NotesPanelProps {
   entityType: EntityType;
@@ -58,11 +59,11 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
             <Textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Add a note…"
-              aria-label="New note"
+              placeholder="Ajouter une note…"
+              aria-label="Nouvelle note"
             />
             <Button type="submit" size="sm" disabled={create.isPending || !draft.trim()}>
-              {create.isPending ? 'Adding…' : 'Add note'}
+              {create.isPending ? 'Ajout…' : 'Ajouter la note'}
             </Button>
             {create.isError && (
               <p className="text-sm text-destructive">
@@ -75,13 +76,13 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
         {isLoading && <Skeleton className="h-20 w-full" />}
         {error && (
           <p className="text-sm text-destructive">
-            Failed to load notes: {(error as Error).message}
+            Échec du chargement des notes : {(error as Error).message}
           </p>
         )}
 
         {notes && notes.length === 0 && (
           <p className="rounded-md border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-            No notes yet.
+            Aucune note pour le moment.
           </p>
         )}
 
@@ -96,7 +97,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                     <Textarea
                       value={editBody}
                       onChange={(e) => setEditBody(e.target.value)}
-                      aria-label="Edit note"
+                      aria-label="Modifier la note"
                     />
                     <div className="flex gap-2">
                       <Button
@@ -104,14 +105,14 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                         onClick={() => onSaveEdit(note.id)}
                         disabled={update.isPending}
                       >
-                        Save
+                        Enregistrer
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => setEditingId(null)}
                       >
-                        Cancel
+                        Annuler
                       </Button>
                     </div>
                   </div>
@@ -120,7 +121,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                     <p className="whitespace-pre-wrap text-sm">{note.body}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(note.updated_at).toLocaleString()}
+                        {formatDateTime(note.updated_at)}
                       </span>
                       {canWrite && isOwn && (
                         <div className="flex gap-1">
@@ -132,7 +133,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                               setEditBody(note.body);
                             }}
                           >
-                            Edit
+                            Modifier
                           </Button>
                           <Button
                             size="sm"
@@ -142,7 +143,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                               remove.mutate({ id: note.id, author_id: authorId })
                             }
                           >
-                            Delete
+                            Supprimer
                           </Button>
                         </div>
                       )}

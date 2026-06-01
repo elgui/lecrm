@@ -35,6 +35,18 @@ INSERT INTO contacts (id, first_name, last_name, email, phone, company_id, owner
   ('11110000-0000-4000-8000-000000000010', 'Romain',   'Faure',     'romain.faure@outlook.fr',    '+33 6 21 00 55 02', NULL,                                   '00000000-0000-4000-8000-0000000000a1')
 ON CONFLICT (id) DO NOTHING;
 
+-- Demo-path ordering. The contacts list reads `ORDER BY created_at DESC, id
+-- DESC`; the rows above share the bulk-insert created_at, so the id tie-break
+-- floated the two company-less "Particulier" individuals (#009, #010) to the
+-- TOP — the first rows Léo sees and the first record he clicks would show no
+-- company, undercutting the relationship surfacing this demo leads with. Pin
+-- the individuals to a fixed earlier created_at so the 8 company-linked
+-- contacts lead the list while the realistic individuals stay further down.
+-- Fixed timestamp => idempotent on re-apply.
+UPDATE contacts SET created_at = TIMESTAMPTZ '2026-05-22 09:00:00+00'
+WHERE id IN ('11110000-0000-4000-8000-000000000009',
+             '11110000-0000-4000-8000-000000000010');
+
 -- ============================================================
 -- DEALS (6 réservations d'événements sur les 5 étapes)
 -- ============================================================
@@ -64,6 +76,21 @@ INSERT INTO notes (id, entity_type, entity_id, body, author_id) VALUES
   ('0e700000-0000-4000-8000-000000000001', 'deal',    'dea10000-0000-4000-8000-000000000004', 'Budget 31k validé côté famille. Acompte 30% à la signature. Relance lundi.', '00000000-0000-4000-8000-0000000000a1'),
   ('0e700000-0000-4000-8000-000000000002', 'deal',    'dea10000-0000-4000-8000-000000000003', 'Concurrent traiteur en lice. On se différencie sur la cave et le service.',  '00000000-0000-4000-8000-0000000000a1'),
   ('0e700000-0000-4000-8000-000000000003', 'contact', '11110000-0000-4000-8000-000000000002', 'Préfère un échange par email. Très réactif sur les devis.',                  '00000000-0000-4000-8000-0000000000a1')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
+-- TASKS (suivis à faire ; certains en retard, un terminé)
+-- entity_type NULL => tâche globale, visible dans l'onglet Tasks.
+-- Les tâches liées à un enregistrement remplissent aussi le panneau
+-- "Tasks" des fiches contact / deal correspondantes.
+-- ============================================================
+INSERT INTO tasks (id, title, description, entity_type, entity_id, assignee_id, due_date, completed_at) VALUES
+  ('7a5c0000-0000-4000-8000-000000000001', 'Relancer la famille Garnier pour l''acompte',   'Acompte 30% à la signature.',          'deal',    'dea10000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000002', 'Envoyer le menu dégustation à Nicolas Reynaud', 'Soirée de gala Pharma Rhône.',         'deal',    'dea10000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 4,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000003', 'Confirmer le nombre de couverts',               'Cocktail de rentrée — 50 pers.',       'deal',    'dea10000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 1,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000004', 'Rappeler Marc pour le séminaire annuel',        'Studio Lumière — 60 couverts.',        'contact', '11110000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 2,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000005', 'Préparer la commande traiteur de la semaine',   NULL,                                   NULL,      NULL,                                   '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE + 3,  NULL),
+  ('7a5c0000-0000-4000-8000-000000000006', 'Encaisser le solde — repas conseil municipal',  'Mairie de Saint-Genis.',               'deal',    'dea10000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 2,  now() - INTERVAL '1 day')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
@@ -99,4 +126,5 @@ ON CONFLICT (id) DO NOTHING;
 SELECT
     (SELECT count(*) FROM companies)  AS companies,
     (SELECT count(*) FROM contacts)   AS contacts,
-    (SELECT count(*) FROM deals)      AS deals;
+    (SELECT count(*) FROM deals)      AS deals,
+    (SELECT count(*) FROM tasks)      AS tasks;

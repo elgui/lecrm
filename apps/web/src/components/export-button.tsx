@@ -13,7 +13,7 @@ interface ExportButtonProps {
 // streamed file as a blob (so the session cookie rides along, unlike a bare
 // anchor with a cross-origin concern) and triggers a client-side save using
 // the server's Content-Disposition filename when present.
-export function ExportButton({ resource, label = 'Export CSV' }: ExportButtonProps) {
+export function ExportButton({ resource, label = 'Exporter CSV' }: ExportButtonProps) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -41,7 +41,7 @@ export function ExportButton({ resource, label = 'Export CSV' }: ExportButtonPro
       a.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Export failed');
+      setError(e instanceof Error ? e.message : 'Échec de l’export');
     } finally {
       setBusy(false);
     }
@@ -51,7 +51,7 @@ export function ExportButton({ resource, label = 'Export CSV' }: ExportButtonPro
     <div className="flex flex-col items-end gap-1">
       <Button variant="outline" size="sm" onClick={onClick} disabled={busy}>
         <Download className="mr-2 h-4 w-4" />
-        {busy ? 'Exporting…' : label}
+        {busy ? 'Exportation…' : label}
       </Button>
       {error && <span className="text-xs text-destructive">{error}</span>}
     </div>

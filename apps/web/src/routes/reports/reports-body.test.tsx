@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server.node';
 
-import { ReportsBody } from './$workspaceId';
+import { ReportsBody, ReportsComingSoon } from './$workspaceId';
 import { BASELINE_DASHBOARDS } from '@/lib/reports';
 import { ApiError } from '@/lib/api';
 import type { EmbedToken } from '@/hooks/use-embed-token';
@@ -80,11 +80,11 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('No data to report yet');
+    expect(markup).toContain('Aucune donnée à afficher');
     expect(markup).not.toContain('<iframe');
   });
 
-  it('renders the error card when the embed-token call fails with 403', () => {
+  it('falls back to the branded placeholder (no English dead-end) when the embed-token call fails', () => {
     const tokenQuery: TokenQuery = {
       data: undefined,
       error: new ApiError(403, 'workspace mismatch'),
@@ -101,12 +101,13 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('Reports unavailable');
-    expect(markup).toContain('do not have permission');
+    // No raw English error card; the user sees the honest "coming soon" seat.
+    expect(markup).toContain('Bientôt disponible');
+    expect(markup).not.toContain('Reports unavailable');
     expect(markup).not.toContain('<iframe');
   });
 
-  it('renders the error card with a helpful message when embed reporting is disabled (503)', () => {
+  it('falls back to the branded placeholder when embed reporting is disabled (503), never a raw error', () => {
     const tokenQuery: TokenQuery = {
       data: undefined,
       error: new ApiError(503, 'embed reporting disabled'),
@@ -123,7 +124,8 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('not configured');
+    expect(markup).not.toContain('not configured');
+    expect(markup).toContain('Bientôt disponible');
   });
 
   it('mounts the iframe with the active dashboard when token and data are present', () => {
@@ -172,5 +174,27 @@ describe('<ReportsBody />', () => {
     expect(markup).toMatch(
       new RegExp(`aria-selected="true"[^>]*>${BASELINE_DASHBOARDS[2]!.title}`),
     );
+  });
+});
+
+describe('<ReportsComingSoon />', () => {
+  it('shows an honest branded placeholder — never the "not configured" error or an iframe', () => {
+    const markup = renderToStaticMarkup(<ReportsComingSoon />);
+    // The whole point of this task: the demo must never show the red
+    // "Reports unavailable / not configured" error or a broken iframe.
+    expect(markup).not.toContain('not configured');
+    expect(markup).not.toContain('unavailable');
+    expect(markup).not.toContain('<iframe');
+    // Honest, on-brand framing (localized to French for the demo).
+    expect(markup).toContain('Bientôt disponible');
+    expect(markup).toContain('Rapports');
+  });
+
+  it('previews every baseline dashboard so it reads as a roadmap, not a dead end', () => {
+    const markup = renderToStaticMarkup(<ReportsComingSoon />);
+    for (const d of BASELINE_DASHBOARDS) {
+      expect(markup).toContain(d.title);
+      expect(markup).toContain(d.description);
+    }
   });
 });

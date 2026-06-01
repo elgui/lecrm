@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { formatDate } from '@/lib/format';
 
 interface TasksPanelProps {
   /** When set, the panel lists & creates tasks scoped to one entity. */
@@ -23,7 +24,7 @@ interface TasksPanelProps {
 // completion, and deletes. Used both standalone (the /tasks route) and
 // embedded on entity detail pages (scope set). Write controls gate on
 // can_write — task mutations sit behind the admin+ RBAC guard.
-export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
+export function TasksPanel({ scope, title = 'Tâches' }: TasksPanelProps) {
   const { permissions } = useMe();
   const canWrite = permissions.can_write;
   const { data: tasks, isLoading, error } = useTasks(scope);
@@ -62,16 +63,16 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
         {canWrite && (
           <form onSubmit={onCreate} className="flex flex-wrap items-end gap-3">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="task-title">Title</Label>
+              <Label htmlFor="task-title">Titre</Label>
               <Input
                 id="task-title"
                 value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)}
-                placeholder="Follow up…"
+                placeholder="Relance…"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="task-due">Due date</Label>
+              <Label htmlFor="task-due">Échéance</Label>
               <Input
                 id="task-due"
                 type="date"
@@ -81,7 +82,7 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
               />
             </div>
             <Button type="submit" disabled={create.isPending || !taskTitle.trim()}>
-              {create.isPending ? 'Adding…' : 'Add task'}
+              {create.isPending ? 'Ajout…' : 'Ajouter une tâche'}
             </Button>
           </form>
         )}
@@ -92,13 +93,13 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
         {isLoading && <Skeleton className="h-24 w-full" />}
         {error && (
           <p className="text-sm text-destructive">
-            Failed to load tasks: {(error as Error).message}
+            Échec du chargement des tâches : {(error as Error).message}
           </p>
         )}
 
         {tasks && tasks.length === 0 && (
           <p className="rounded-md border border-dashed border-border py-6 text-center text-sm text-muted-foreground">
-            No tasks yet.
+            Aucune tâche pour le moment.
           </p>
         )}
 
@@ -115,7 +116,7 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
                   checked={done}
                   disabled={!canWrite || toggle.isPending}
                   onChange={() => toggle.mutate(task.id)}
-                  aria-label={`Mark ${task.title} ${done ? 'incomplete' : 'complete'}`}
+                  aria-label={`Marquer ${task.title} comme ${done ? 'à faire' : 'terminée'}`}
                   className="h-4 w-4 cursor-pointer rounded accent-primary"
                 />
                 <div className="flex-1">
@@ -130,7 +131,7 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
                   </p>
                   {task.due_date && (
                     <p className="text-xs text-muted-foreground">
-                      Due {task.due_date}
+                      Échéance {formatDate(task.due_date)}
                     </p>
                   )}
                 </div>
@@ -142,7 +143,7 @@ export function TasksPanel({ scope, title = 'Tasks' }: TasksPanelProps) {
                     onClick={() => remove.mutate(task.id)}
                     className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
                   >
-                    Delete
+                    Supprimer
                   </Button>
                 )}
               </li>

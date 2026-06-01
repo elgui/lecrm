@@ -14,6 +14,7 @@ authentication flow:
   * branding_favicon               -> leCRM square mark (SVG data URI)
   * branding_title                 -> "leCRM"
   * branding_default_flow_background-> branded blue gradient (SVG data URI)
+  * branding_custom_css            -> hides the "Powered by authentik" footer
   * default-authentication-flow.title -> "Bienvenue sur leCRM"
 
 The assets are inline SVGs base64-encoded into `data:` URIs at runtime, so
@@ -45,6 +46,14 @@ DEEP = "#1E3A8A"  # blue-900, gradient foot
 BRANDING_TITLE = "leCRM"
 FLOW_TITLE = "Bienvenue sur leCRM"
 AUTH_FLOW_SLUG = "default-authentication-flow"
+
+# Hide the stock "Powered by authentik" footer band on the flow page — the last
+# visible third-party mark on an otherwise leCRM-branded login. We inject no
+# custom footer links, so blanking the band removes only that notice.
+CUSTOM_CSS = (
+    ".pf-c-login__main-footer-band,"
+    ".pf-c-login__main-footer-band-item{display:none !important;}"
+)
 
 FONT = "Inter,Segoe UI,Helvetica,Arial,sans-serif"
 
@@ -100,6 +109,7 @@ BRAND_FIELDS = {
     "branding_logo": LOGO_URI,
     "branding_favicon": FAVICON_URI,
     "branding_default_flow_background": BACKGROUND_URI,
+    "branding_custom_css": CUSTOM_CSS,
 }
 
 # 1. Rebrand every Brand. A fresh Authentik ships one default brand

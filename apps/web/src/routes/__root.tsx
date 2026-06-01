@@ -12,13 +12,17 @@ import {
   SlidersHorizontal,
   LogOut,
   CircleHelp,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useMe } from '@/hooks/use-me';
+import { useIntegratorContext } from '@/hooks/use-integrator-context';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Wordmark } from '@/components/wordmark';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
+import { MobileTabBar } from '@/components/mobile-tab-bar';
 
 const navLinkClass =
   'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-accent hover:text-foreground ' +
@@ -51,7 +55,7 @@ function NavLink({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+    <p className="px-3 pb-1.5 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-slate-500">
       {children}
     </p>
   );
@@ -60,6 +64,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function RootLayout() {
   const { user, isLoading, isUnauthenticated } = useAuth();
   const { isOwner, permissions } = useMe();
+  const integrator = useIntegratorContext();
 
   if (isLoading) {
     return (
@@ -79,15 +84,13 @@ function RootLayout() {
 
   return (
     <div className="flex h-screen bg-background">
-      <aside className="flex w-64 flex-col border-r border-border bg-sidebar">
-        <div className="flex h-14 items-center gap-2 border-b border-border px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-              l
-            </span>
-            <span className="text-[17px] font-semibold tracking-tight text-foreground">
-              le<span className="text-primary">CRM</span>
-            </span>
+      {/* Desktop sidebar — the integrator console is desktop-only, so the full
+          nav (incl. config + workspace switcher) lives here and is hidden on
+          phones, where the client gets a focused bottom tab bar instead. */}
+      <aside className="hidden w-64 flex-col border-r border-border bg-sidebar md:flex">
+        <div className="flex h-14 items-center border-b border-border px-4">
+          <Link to="/" aria-label="leCRM — accueil">
+            <Wordmark />
           </Link>
         </div>
 
@@ -95,14 +98,14 @@ function RootLayout() {
           <SectionLabel>CRM</SectionLabel>
           <div className="space-y-0.5">
             <NavLink to="/contacts" label="Contacts" icon={Users} />
-            <NavLink to="/companies" label="Companies" icon={Building2} />
-            <NavLink to="/deals" label="Deals" icon={CircleDollarSign} />
-            <NavLink to="/tasks" label="Tasks" icon={CheckSquare} />
+            <NavLink to="/companies" label="Entreprises" icon={Building2} />
+            <NavLink to="/deals" label="Affaires" icon={CircleDollarSign} />
+            <NavLink to="/tasks" label="Tâches" icon={CheckSquare} />
           </div>
 
           {user?.workspace_id && (
             <>
-              <SectionLabel>Workspace</SectionLabel>
+              <SectionLabel>Espace de travail</SectionLabel>
               <div className="space-y-0.5">
                 <NavLink
                   to="/pipeline/$workspaceId"
@@ -113,27 +116,27 @@ function RootLayout() {
                 <NavLink
                   to="/reports/$workspaceId"
                   params={{ workspaceId: user.workspace_id }}
-                  label="Reports"
+                  label="Rapports"
                   icon={BarChart3}
                 />
               </div>
             </>
           )}
 
-          <SectionLabel>Configure</SectionLabel>
+          <SectionLabel>Configuration</SectionLabel>
           <div className="space-y-0.5">
-            <NavLink to="/settings" label="Settings" icon={Settings} />
+            <NavLink to="/settings" label="Réglages" icon={Settings} />
             {permissions.can_write && (
               <NavLink
                 to="/settings/custom-fields"
-                label="Custom Fields"
+                label="Champs personnalisés"
                 icon={SlidersHorizontal}
               />
             )}
             {isOwner && (
               <NavLink
                 to="/settings/members"
-                label="Members"
+                label="Membres"
                 icon={UserCog}
               />
             )}
@@ -159,9 +162,9 @@ function RootLayout() {
               variant="ghost"
               size="icon"
               className="h-8 w-8"
-              title="Help"
+              title="Aide"
             >
-              <Link to="/help" aria-label="Help">
+              <Link to="/help" aria-label="Aide">
                 <CircleHelp className="h-4 w-4" />
               </Link>
             </Button>
@@ -172,7 +175,7 @@ function RootLayout() {
               onClick={() => {
                 window.location.href = '/auth/logout';
               }}
-              title="Sign out"
+              title="Déconnexion"
             >
               <LogOut className="h-4 w-4" />
             </Button>
@@ -180,9 +183,37 @@ function RootLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto bg-background">
-        <Outlet />
+      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        {/* Mobile top header — branding + identity, since the sidebar that
+            normally carries them is hidden on phones. */}
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4 md:hidden">
+          <Link to="/" aria-label="leCRM — accueil">
+            <Wordmark />
+          </Link>
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+            {(user?.name || user?.email)?.charAt(0)?.toUpperCase() ?? '?'}
+          </div>
+        </div>
+        {integrator.isIntegrator && (
+          <div
+            role="status"
+            className="flex items-center gap-2.5 border-b border-amber-300 bg-amber-50 px-6 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-200"
+          >
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span>
+              Mode intégrateur · vous administrez le compte client{' '}
+              <strong className="font-semibold">{integrator.clientLabel}</strong>
+            </span>
+          </div>
+        )}
+        {/* Bottom padding on mobile keeps the last rows clear of the fixed
+            tab bar (h-14 + safe-area). */}
+        <div className="flex-1 overflow-auto pb-20 md:pb-0">
+          <Outlet />
+        </div>
       </main>
+
+      <MobileTabBar />
     </div>
   );
 }

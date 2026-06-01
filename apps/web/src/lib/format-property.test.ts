@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatPropertyValue } from './format-property';
+import {
+  formatPropertyValue,
+  prettifyPropertyKey,
+  customFieldLabel,
+} from './format-property';
 import type { PropertyDefinition, PropertyType } from '@/lib/types';
 
 function def(type: PropertyType, allowed?: string[]): PropertyDefinition {
@@ -15,18 +19,18 @@ function def(type: PropertyType, allowed?: string[]): PropertyDefinition {
 }
 
 describe('formatPropertyValue', () => {
-  it('renders booleans as Yes/No (accepting string "true")', () => {
-    expect(formatPropertyValue(def('boolean'), true)).toBe('Yes');
-    expect(formatPropertyValue(def('boolean'), false)).toBe('No');
-    expect(formatPropertyValue(def('boolean'), 'true')).toBe('Yes');
+  it('renders booleans as Oui/Non (accepting string "true")', () => {
+    expect(formatPropertyValue(def('boolean'), true)).toBe('Oui');
+    expect(formatPropertyValue(def('boolean'), false)).toBe('Non');
+    expect(formatPropertyValue(def('boolean'), 'true')).toBe('Oui');
   });
 
-  it('formats numbers, coercing strings', () => {
+  it('formats numbers in the fr-FR locale, coercing strings', () => {
     expect(formatPropertyValue(def('number'), 42)).toBe(
-      new Intl.NumberFormat().format(42),
+      new Intl.NumberFormat('fr-FR').format(42),
     );
     expect(formatPropertyValue(def('number'), '1234.5')).toBe(
-      new Intl.NumberFormat().format(1234.5),
+      new Intl.NumberFormat('fr-FR').format(1234.5),
     );
   });
 
@@ -52,5 +56,39 @@ describe('formatPropertyValue', () => {
     expect(formatPropertyValue(def('string'), undefined)).toBe('');
     expect(formatPropertyValue(def('string'), null)).toBe('');
     expect(formatPropertyValue(def('string'), '')).toBe('');
+  });
+});
+
+describe('prettifyPropertyKey', () => {
+  it('sentence-cases snake_case keys (idiomatic for French labels)', () => {
+    expect(prettifyPropertyKey('source_du_lead')).toBe('Source du lead');
+    expect(prettifyPropertyKey('canal_signature')).toBe('Canal signature');
+    expect(prettifyPropertyKey('probabilite')).toBe('Probabilite');
+  });
+
+  it('never echoes the raw snake_case key', () => {
+    expect(prettifyPropertyKey('canal_prefere')).not.toContain('_');
+    expect(prettifyPropertyKey('canal_prefere')).toBe('Canal prefere');
+  });
+
+  it('handles single words and stray separators', () => {
+    expect(prettifyPropertyKey('tier')).toBe('Tier');
+    expect(prettifyPropertyKey('account__tier')).toBe('Account tier');
+  });
+});
+
+describe('customFieldLabel', () => {
+  it('prefers an admin-set display_name when present', () => {
+    const d: PropertyDefinition = { ...def('enum'), property_key: 'source_du_lead' };
+    expect(customFieldLabel({ ...d, display_name: 'Source du lead' })).toBe(
+      'Source du lead',
+    );
+  });
+
+  it('falls back to a prettified key when display_name is missing or blank', () => {
+    const d: PropertyDefinition = { ...def('string'), property_key: 'canal_prefere' };
+    expect(customFieldLabel(d)).toBe('Canal prefere');
+    expect(customFieldLabel({ ...d, display_name: '   ' })).toBe('Canal prefere');
+    expect(customFieldLabel({ ...d, display_name: null })).toBe('Canal prefere');
   });
 });
