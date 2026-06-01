@@ -38,6 +38,7 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
 	"github.com/gbconsult/lecrm/apps/api/internal/members"
 	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
+	"github.com/gbconsult/lecrm/apps/api/internal/reports"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -153,6 +154,7 @@ func setupRBACEnv(t *testing.T) *rbacEnv {
 	}
 	rbacResolver := &rbac.Resolver{Store: memberStore, DecodeSession: decode, Logger: logger}
 	membersH := &members.Handler{Store: memberStore, DecodeSession: decode, Logger: logger}
+	reportsH := &reports.Handler{Pool: pool, DecodeSession: decode, Logger: logger}
 
 	router := chi.NewRouter()
 	router.Group(func(r chi.Router) {
@@ -162,6 +164,19 @@ func setupRBACEnv(t *testing.T) *rbacEnv {
 			r.Use(rbac.RequireRoleByMethod(rbac.RoleMember, rbac.RoleAdmin))
 			crmH.RegisterRoutes(r)
 			crmH.RegisterANTRoutes(r)
+		})
+		// Reports mirror the production wiring (internal/http/server.go): reads
+		// (run/embed-token/list/get) require member+, definition writes require
+		// admin+. This is what the reports-gating regression test exercises.
+		r.Group(func(r chi.Router) {
+			r.Use(rbacResolver.Resolve)
+			r.Use(rbac.RequireRole(rbac.RoleMember))
+			reportsH.RegisterReadRoutes(r)
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(rbacResolver.Resolve)
+			r.Use(rbac.RequireRole(rbac.RoleAdmin))
+			reportsH.RegisterWriteRoutes(r)
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(rbacResolver.Resolve)
@@ -284,6 +299,57 @@ func TestRBAC_RoleEndpointMatrix(t *testing.T) {
 			code, body := env.req(t, c.user, c.method, c.path, c.body)
 			if code != c.want {
 				t.Errorf("%s %s: got %d, want %d (body %s)", c.method, c.path, code, c.want, body)
+			}
+		})
+	}
+}
+
+// TestRBAC_ReportsEndpointGating locks in the PR #9 review fix: the native
+// reports endpoints used to mount outside any RBAC group, so a member (or a
+// user holding a still-valid cookie after being removed/downgraded) could run
+// reports and create/update/delete workspace-wide saved definitions. Reads now
+// require member+, definition writes require admin+.
+//
+// Denials assert the exact middleware status (no DB/handler needed). The
+// "allowed" cases only assert the principal cleared the role gate (status is
+// never 401/403) — the concrete 2xx/4xx from the handler is out of scope here.
+func TestRBAC_ReportsEndpointGating(t *testing.T) {
+	env := setupRBACEnv(t)
+	m, a := env.memberID, env.adminID
+	someID := uuid.New().String() // gating runs before the {id} lookup
+	const def = `{"name":"x","metric":"deal_count","dimension":"none","period":"all"}`
+
+	denials := []struct {
+		name, method, path, body string
+		user                     *uuid.UUID
+		want                     int
+	}{
+		{"anon list definitions → 401", "GET", "/v1/reports/definitions", "", nil, 401},
+		{"anon run → 401", "POST", "/v1/reports/run", "{}", nil, 401},
+		{"member create definition → 403", "POST", "/v1/reports/definitions", def, &m, 403},
+		{"member update definition → 403", "PUT", "/v1/reports/definitions/" + someID, def, &m, 403},
+		{"member delete definition → 403", "DELETE", "/v1/reports/definitions/" + someID, "", &m, 403},
+	}
+	for _, c := range denials {
+		t.Run(c.name, func(t *testing.T) {
+			if code, body := env.req(t, c.user, c.method, c.path, c.body); code != c.want {
+				t.Errorf("%s %s: got %d, want %d (body %s)", c.method, c.path, code, c.want, body)
+			}
+		})
+	}
+
+	allowed := []struct {
+		name, method, path, body string
+		user                     *uuid.UUID
+	}{
+		{"member list definitions (read)", "GET", "/v1/reports/definitions", "", &m},
+		{"member run report (read)", "POST", "/v1/reports/run", def, &m},
+		{"admin create definition (write)", "POST", "/v1/reports/definitions", def, &a},
+	}
+	for _, c := range allowed {
+		t.Run(c.name, func(t *testing.T) {
+			if code, body := env.req(t, c.user, c.method, c.path, c.body); code == 401 || code == 403 {
+				t.Errorf("%s %s: got denial %d, expected to clear the role gate (body %s)", c.method, c.path, code, body)
 			}
 		})
 	}

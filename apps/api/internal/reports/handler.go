@@ -47,18 +47,36 @@ type Handler struct {
 	Pool *pgxpool.Pool
 }
 
-// RegisterRoutes mounts the handler. Caller must wrap this in a router
-// group that has the workspace middleware attached (the workspace
-// context is required).
+// RegisterRoutes mounts every report route in one group with no role gating.
+// It is the unguarded test seam / no-RBAC fallback; production wires
+// RegisterReadRoutes and RegisterWriteRoutes into separate RBAC groups so a
+// removed/downgraded principal loses access immediately (see
+// internal/http/server.go). Caller must wrap this in a router group that has
+// the workspace middleware attached (the workspace context is required).
 func (h *Handler) RegisterRoutes(r chi.Router) {
+	h.RegisterReadRoutes(r)
+	h.RegisterWriteRoutes(r)
+}
+
+// RegisterReadRoutes mounts the read-only report routes: run a report, fetch a
+// Cube embed token, and list/get saved definitions. run and embed-token are
+// POSTs (the query is in the body) but are semantically reads, so these all
+// require member+ — they must NOT be method-gated up to admin.
+func (h *Handler) RegisterReadRoutes(r chi.Router) {
 	// Cube.dev embed-token (deployments that provision Cube).
 	r.Post("/v1/reports/embed-token", h.handleEmbedToken)
 
 	// Native reporting (always available where the API+DB run, incl. the demo).
 	r.Post("/v1/reports/run", h.handleRunReport)
 	r.Get("/v1/reports/definitions", h.handleListDefinitions)
-	r.Post("/v1/reports/definitions", h.handleCreateDefinition)
 	r.Get("/v1/reports/definitions/{id}", h.handleGetDefinition)
+}
+
+// RegisterWriteRoutes mounts the mutating saved-definition routes. These
+// create/update/delete workspace-wide report definitions, so they require
+// admin+ (parity with CRM writes).
+func (h *Handler) RegisterWriteRoutes(r chi.Router) {
+	r.Post("/v1/reports/definitions", h.handleCreateDefinition)
 	r.Put("/v1/reports/definitions/{id}", h.handleUpdateDefinition)
 	r.Delete("/v1/reports/definitions/{id}", h.handleDeleteDefinition)
 }
