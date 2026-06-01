@@ -80,11 +80,11 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('No data to report yet');
+    expect(markup).toContain('Aucune donnée à afficher');
     expect(markup).not.toContain('<iframe');
   });
 
-  it('renders the error card when the embed-token call fails with 403', () => {
+  it('falls back to the branded placeholder (no English dead-end) when the embed-token call fails', () => {
     const tokenQuery: TokenQuery = {
       data: undefined,
       error: new ApiError(403, 'workspace mismatch'),
@@ -101,12 +101,13 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('Reports unavailable');
-    expect(markup).toContain('do not have permission');
+    // No raw English error card; the user sees the honest "coming soon" seat.
+    expect(markup).toContain('Bientôt disponible');
+    expect(markup).not.toContain('Reports unavailable');
     expect(markup).not.toContain('<iframe');
   });
 
-  it('renders the error card with a helpful message when embed reporting is disabled (503)', () => {
+  it('falls back to the branded placeholder when embed reporting is disabled (503), never a raw error', () => {
     const tokenQuery: TokenQuery = {
       data: undefined,
       error: new ApiError(503, 'embed reporting disabled'),
@@ -123,7 +124,8 @@ describe('<ReportsBody />', () => {
         setActiveId={noop}
       />,
     );
-    expect(markup).toContain('not configured');
+    expect(markup).not.toContain('not configured');
+    expect(markup).toContain('Bientôt disponible');
   });
 
   it('mounts the iframe with the active dashboard when token and data are present', () => {

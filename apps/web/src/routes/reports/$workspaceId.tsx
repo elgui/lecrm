@@ -6,7 +6,6 @@ import { Route as rootRoute } from '../__root';
 import { useAuth } from '@/hooks/use-auth';
 import { useEmbedToken } from '@/hooks/use-embed-token';
 import { useDeals } from '@/hooks/use-deals';
-import { ApiError } from '@/lib/api';
 import {
   BASELINE_DASHBOARDS,
   reportsEnabled,
@@ -24,16 +23,6 @@ export const Route = createRoute({
   path: '/reports/$workspaceId',
   component: ReportsPage,
 });
-
-function describeEmbedError(error: Error): string {
-  if (error instanceof ApiError) {
-    if (error.status === 401) return 'Your session has expired. Please sign in again.';
-    if (error.status === 403) return 'You do not have permission to view reports for this workspace.';
-    if (error.status === 503) return 'Embedded reporting is not configured on this server.';
-    return `Embed token request failed (${error.status}).`;
-  }
-  return 'Could not reach the reporting service.';
-}
 
 function ReportsPage() {
   // Embedded reporting (Cube.dev) is not provisioned on every
@@ -98,8 +87,8 @@ function ReportsLive() {
       <Card>
         <CardContent className="py-8 text-center">
           <p className="text-destructive">
-            Workspace mismatch — this URL is for a different workspace
-            than you are signed into.
+            Espace de travail incorrect — ce lien concerne un autre espace
+            que celui auquel vous êtes connecté.
           </p>
         </CardContent>
       </Card>
@@ -195,8 +184,8 @@ export function ReportsBody({
       <Card>
         <EmptyState
           icon={BarChart3}
-          title="No data to report yet"
-          description="Create your first deal to see dashboards populated here."
+          title="Aucune donnée à afficher pour le moment"
+          description="Créez votre première affaire pour voir les tableaux de bord se remplir ici."
         />
       </Card>
     );
@@ -211,21 +200,11 @@ export function ReportsBody({
     );
   }
 
+  // A token/config failure must never dead-end the page (especially mid-demo).
+  // Fall back to the same honest branded placeholder we show when reporting is
+  // not yet provisioned, rather than a red English error card.
   if (tokenQuery.error) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg text-destructive">
-            Reports unavailable
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {describeEmbedError(tokenQuery.error)}
-          </p>
-        </CardContent>
-      </Card>
-    );
+    return <ReportsComingSoon />;
   }
 
   if (!tokenQuery.data) return null;

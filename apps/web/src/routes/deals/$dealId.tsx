@@ -72,8 +72,10 @@ function DealDetail() {
 
   const customProps = useCustomPropertyForm(definitions, properties);
 
-  // Single save: persist core fields and custom properties together (see the
-  // contact detail page for the rationale — no more two-button data-loss trap).
+  // Single save: persist core fields and custom properties together, awaited so
+  // properties only save once the core update succeeded server-side (see the
+  // contact detail page for the rationale — no more two-button data-loss trap,
+  // and one honest "Enregistrer" outcome).
   const coreDirty = form.formState.isDirty;
   const anyDirty = coreDirty || customProps.isDirty;
   const isSaving = updateMutation.isPending || updateProps.isPending;
@@ -84,22 +86,29 @@ function DealDetail() {
       : null;
 
   const onSaveAll = async () => {
-    let coreOk = true;
-    if (coreDirty) {
-      coreOk = false;
-      await form.handleSubmit((data) => {
-        coreOk = true;
-        updateMutation.mutate({
-          title: data.title,
-          amount: data.amount ? Number(data.amount) : null,
-          currency: data.currency || null,
-          stage_id: data.stage_id || null,
-          expected_close_date: data.expected_close_date || null,
-        });
-      })();
-    }
-    if (coreOk && customProps.isDirty) {
-      updateProps.mutate(customProps.buildPayload());
+    try {
+      if (coreDirty) {
+        let valid = false;
+        await form.handleSubmit(async (data) => {
+          valid = true;
+          await updateMutation.mutateAsync({
+            title: data.title,
+            amount: data.amount ? Number(data.amount) : null,
+            currency: data.currency || null,
+            stage_id: data.stage_id || null,
+            expected_close_date: data.expected_close_date || null,
+          });
+        })();
+        // Client validation failed (the callback never ran) — save nothing.
+        if (!valid) return;
+      }
+      if (customProps.isDirty) {
+        await updateProps.mutateAsync(customProps.buildPayload());
+      }
+    } catch {
+      // A core or properties mutation rejected. The error surfaces through
+      // updateMutation/updateProps.isError (see saveError); swallowing the
+      // rejection here just halts the flow before a partial follow-up write.
     }
   };
 

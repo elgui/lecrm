@@ -95,4 +95,42 @@ describe('useCustomPropertyForm', () => {
     expect(result.current.isDirty).toBe(false);
     expect(result.current.buildPayload()).toEqual({});
   });
+
+  it('does not clobber an in-progress edit when stored values refetch mid-edit', async () => {
+    const { result, rerender } = renderHook(
+      ({ values }) => useCustomPropertyForm(DEFS, values),
+      { initialProps: { values: { source_du_lead: 'Salon' } as Record<string, unknown> } },
+    );
+
+    await waitFor(() => expect(result.current.form.source_du_lead).toBe('Salon'));
+
+    // User edits the draft.
+    act(() => result.current.set('source_du_lead', 'Web'));
+    expect(result.current.isDirty).toBe(true);
+
+    // A background refetch hands back a new object reference with different
+    // content (e.g. a query invalidation mid-edit).
+    rerender({ values: { source_du_lead: 'Salon', probabilite: 10 } });
+
+    // The in-progress edit survives and the form stays dirty — no silent reset.
+    expect(result.current.form.source_du_lead).toBe('Web');
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it('adopts a clean baseline once the refetch catches up to the saved edit', async () => {
+    const { result, rerender } = renderHook(
+      ({ values }) => useCustomPropertyForm(DEFS, values),
+      { initialProps: { values: { source_du_lead: 'Salon' } as Record<string, unknown> } },
+    );
+
+    await waitFor(() => expect(result.current.form.source_du_lead).toBe('Salon'));
+    act(() => result.current.set('source_du_lead', 'Web'));
+    expect(result.current.isDirty).toBe(true);
+
+    // Save succeeds and the values query refetches the saved value, matching
+    // the draft — the dirty flag should clear (new clean baseline).
+    rerender({ values: { source_du_lead: 'Web' } });
+    await waitFor(() => expect(result.current.isDirty).toBe(false));
+    expect(result.current.form.source_du_lead).toBe('Web');
+  });
 });

@@ -64,10 +64,12 @@ function ContactDetail() {
 
   const customProps = useCustomPropertyForm(definitions, properties);
 
-  // Single save: persist core fields and custom properties together. Core
-  // validation runs first; custom properties only save if the core form is
-  // valid (or untouched), so an invalid required field never lets a partial
-  // write through. Each mutation only fires when its section is dirty.
+  // Single save: persist core fields and custom properties together, and keep
+  // the single "Enregistrer" honest about being one outcome. We await each
+  // mutation (not fire-and-forget) so custom properties only persist once the
+  // core update has actually succeeded server-side — client-side validation
+  // alone isn't proof of a successful write. Each mutation only fires when its
+  // section is dirty.
   const coreDirty = form.formState.isDirty;
   const anyDirty = coreDirty || customProps.isDirty;
   const isSaving = updateMutation.isPending || updateProps.isPending;
@@ -78,21 +80,28 @@ function ContactDetail() {
       : null;
 
   const onSaveAll = async () => {
-    let coreOk = true;
-    if (coreDirty) {
-      coreOk = false;
-      await form.handleSubmit((data) => {
-        coreOk = true;
-        updateMutation.mutate({
-          first_name: data.first_name,
-          last_name: data.last_name,
-          email: data.email || null,
-          phone: data.phone || null,
-        });
-      })();
-    }
-    if (coreOk && customProps.isDirty) {
-      updateProps.mutate(customProps.buildPayload());
+    try {
+      if (coreDirty) {
+        let valid = false;
+        await form.handleSubmit(async (data) => {
+          valid = true;
+          await updateMutation.mutateAsync({
+            first_name: data.first_name,
+            last_name: data.last_name,
+            email: data.email || null,
+            phone: data.phone || null,
+          });
+        })();
+        // Client validation failed (the callback never ran) — save nothing.
+        if (!valid) return;
+      }
+      if (customProps.isDirty) {
+        await updateProps.mutateAsync(customProps.buildPayload());
+      }
+    } catch {
+      // A core or properties mutation rejected. The error surfaces through
+      // updateMutation/updateProps.isError (see saveError); swallowing the
+      // rejection here just halts the flow before a partial follow-up write.
     }
   };
 

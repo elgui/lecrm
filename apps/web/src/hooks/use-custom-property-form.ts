@@ -58,11 +58,13 @@ export interface CustomPropertyForm {
 
 /**
  * useCustomPropertyForm owns the editable state for a record's custom
- * properties. It re-seeds whenever the definitions or stored values change
- * (e.g. after a save invalidates the query), tracks a dirty flag against that
- * seeded baseline, and builds the typed PUT payload. Lifting this out of the
- * editor component lets a record-detail page combine it with the core-field
- * form behind a single save action.
+ * properties. It seeds from the stored values on load and re-adopts server
+ * state only while the form is clean — a background refetch or query
+ * invalidation mid-edit will NOT clobber an in-progress draft. After a save
+ * settles the values back to match the draft, the baseline is adopted so the
+ * dirty flag clears. It tracks that dirty flag and builds the typed PUT
+ * payload. Lifting this out of the editor component lets a record-detail page
+ * combine it with the core-field form behind a single save action.
  */
 export function useCustomPropertyForm(
   definitions: PropertyDefinition[] | undefined,
@@ -70,12 +72,33 @@ export function useCustomPropertyForm(
 ): CustomPropertyForm {
   const [form, setForm] = React.useState<CustomPropertyFormState>({});
   const baselineRef = React.useRef('{}');
+  // Mirror the live form in a ref so the (definitions/values) reseed effect can
+  // inspect the current draft without listing `form` as a dependency (which
+  // would re-run it on every keystroke).
+  const formRef = React.useRef(form);
+  formRef.current = form;
 
   React.useEffect(() => {
     if (!definitions) return;
     const seeded = seedFormState(definitions, values);
+    const seededJson = JSON.stringify(seeded);
+    const currentJson = JSON.stringify(formRef.current);
+    // Server state already matches the form: initial load, or a refetch that
+    // caught up to a just-saved edit. Adopt it as the clean baseline (clears
+    // the dirty flag) without a visible change.
+    if (currentJson === seededJson) {
+      baselineRef.current = seededJson;
+      return;
+    }
+    // Form holds unsaved edits that differ from the incoming server state — a
+    // background refetch or a mid-edit query invalidation. Do NOT clobber the
+    // in-progress draft (the whole point of this hook is to prevent data loss).
+    if (currentJson !== baselineRef.current) {
+      return;
+    }
+    // Form is clean and the server values changed: adopt them.
     setForm(seeded);
-    baselineRef.current = JSON.stringify(seeded);
+    baselineRef.current = seededJson;
   }, [definitions, values]);
 
   const set = React.useCallback((key: string, value: string | boolean) => {
