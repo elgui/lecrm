@@ -84,10 +84,16 @@ export function useCustomPropertyForm(
     const seededJson = JSON.stringify(seeded);
     const currentJson = JSON.stringify(formRef.current);
     // Server state already matches the form: initial load, or a refetch that
-    // caught up to a just-saved edit. Adopt it as the clean baseline (clears
-    // the dirty flag) without a visible change.
+    // caught up to a just-saved edit. Adopt it as the clean baseline so the
+    // dirty flag clears. When the tracked baseline is stale (the form was
+    // dirty and the refetch just caught up), re-seed too: `isDirty` is derived
+    // at render time from `baselineRef`, and mutating the ref alone would not
+    // trigger a render, so the flag would never recompute to false.
     if (currentJson === seededJson) {
-      baselineRef.current = seededJson;
+      if (baselineRef.current !== seededJson) {
+        baselineRef.current = seededJson;
+        setForm(seeded);
+      }
       return;
     }
     // Form holds unsaved edits that differ from the incoming server state — a
