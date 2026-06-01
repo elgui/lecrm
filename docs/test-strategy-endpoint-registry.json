@@ -88,24 +88,24 @@
     },
     {
       "method": "POST",
-      "path": "/v1/import/contacts/analyze",
+      "path": "/v1/import/{entity}/analyze",
       "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: parse CSV header + sample rows, return suggested mapping. Read-only, no DB writes."
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals (handler resolves {entity} via chi.URLParam). Parse CSV header + sample rows, return suggested mapping. Read-only, no DB writes."
     },
     {
       "method": "POST",
-      "path": "/v1/import/contacts/preview",
+      "path": "/v1/import/{entity}/preview",
       "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: dry-run — classify every row without writing. Workspace-scoped via search_path."
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals. Dry-run — classify every row without writing. Workspace-scoped via search_path."
     },
     {
       "method": "POST",
-      "path": "/v1/import/contacts/commit",
+      "path": "/v1/import/{entity}/commit",
       "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: commit import in one write transaction; emits import.committed audit event. Workspace-scoped, fail-closed."
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals. Commit import in one write transaction; emits import.committed audit event. Workspace-scoped, fail-closed."
     },
     {
       "method": "GET",
@@ -150,27 +150,6 @@
       "notes": "Sprint 9 feature 8: stream all companies as CSV. Workspace-scoped via search_path."
     },
     {
-      "method": "POST",
-      "path": "/v1/import/companies/analyze",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Companies_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: parse CSV header for companies. Read-only."
-    },
-    {
-      "method": "POST",
-      "path": "/v1/import/companies/preview",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Companies_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: dry-run for companies. Workspace-scoped."
-    },
-    {
-      "method": "POST",
-      "path": "/v1/import/companies/commit",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Companies_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: commit companies import. Workspace-scoped, fail-closed."
-    },
-    {
       "method": "GET",
       "path": "/v1/companies/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
@@ -211,27 +190,6 @@
       "isolation_test": "apps/api/internal/crm/export_integration_test.go::TestExport_Deals_And_Companies_Smoke",
       "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (reads require member+; export is a GET)",
       "notes": "Sprint 9 feature 8: stream all deals as CSV, custom properties flattened to cf_ columns. Workspace-scoped via search_path."
-    },
-    {
-      "method": "POST",
-      "path": "/v1/import/deals/analyze",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Deals_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: parse CSV header for deals. Read-only."
-    },
-    {
-      "method": "POST",
-      "path": "/v1/import/deals/preview",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Deals_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: dry-run for deals. Workspace-scoped."
-    },
-    {
-      "method": "POST",
-      "path": "/v1/import/deals/commit",
-      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Deals_Smoke",
-      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
-      "notes": "Integrator-gap tasket 20260601-110828-736b: commit deals import. Workspace-scoped, fail-closed."
     },
     {
       "method": "GET",

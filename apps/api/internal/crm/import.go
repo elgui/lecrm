@@ -33,6 +33,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
@@ -616,7 +617,7 @@ func (e *importEngine) lookupMatch(ctx context.Context, tx pgx.Tx, core map[stri
 		err := tx.QueryRow(ctx,
 			`SELECT id FROM contacts WHERE email IS NOT NULL AND lower(email) = lower($1) ORDER BY created_at ASC LIMIT 1`,
 			email).Scan(&id)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, false, nil
 		}
 		if err != nil {
@@ -630,7 +631,7 @@ func (e *importEngine) lookupMatch(ctx context.Context, tx pgx.Tx, core map[stri
 			     OR lower(name) = lower($2)
 			  ORDER BY created_at ASC LIMIT 1`,
 			core["domain"], core["name"]).Scan(&id)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, false, nil
 		}
 		if err != nil {
@@ -802,7 +803,7 @@ func parseCSVText(text string) ([]string, [][]string, error) {
 	rdr.TrimLeadingSpace = true
 	records, err := rdr.ReadAll()
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not parse CSV: %v", err)
+		return nil, nil, fmt.Errorf("could not parse CSV: %w", err)
 	}
 	if len(records) == 0 {
 		return nil, nil, fmt.Errorf("CSV has no rows")

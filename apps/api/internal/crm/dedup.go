@@ -32,7 +32,7 @@ package crm
 //     access is structurally impossible.
 
 import (
-	"context"
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -149,25 +149,9 @@ func canonicalPair(a, b uuid.UUID) (uuid.UUID, uuid.UUID) {
 	return b, a
 }
 
-// noMergeExcluded returns the set of excluded id pairs for the given entity.
-func noMergeExcluded(ctx context.Context, tx pgx.Tx, entity string) (map[[2]uuid.UUID]bool, error) {
-	rows, err := tx.Query(ctx,
-		`SELECT id_a, id_b FROM dedup_no_merge_rules WHERE entity_type = $1`, entity)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make(map[[2]uuid.UUID]bool)
-	for rows.Next() {
-		var a, b uuid.UUID
-		if err := rows.Scan(&a, &b); err != nil {
-			return nil, err
-		}
-		lo, hi := canonicalPair(a, b)
-		out[[2]uuid.UUID{lo, hi}] = true
-	}
-	return out, rows.Err()
-}
+// (The per-query no-merge exclusion set is built inline in the candidate
+// scans below — see the `excluded` maps in ListContactDuplicates /
+// ListCompanyDuplicates — so no shared helper is needed.)
 
 func isExcluded(excluded map[[2]uuid.UUID]bool, a, b uuid.UUID) bool {
 	lo, hi := canonicalPair(a, b)
@@ -473,7 +457,7 @@ func (h *Handler) ListCompanyDuplicates(w http.ResponseWriter, r *http.Request) 
 }
 
 // pick returns the value from either survivor or loser based on the resolver map.
-func pick(fields map[string]string, key string, survivorVal, loserVal any) any {
+func pick[T any](fields map[string]string, key string, survivorVal, loserVal T) T {
 	if v, ok := fields[key]; ok && v == "loser" {
 		return loserVal
 	}
@@ -545,14 +529,14 @@ func (h *Handler) MergeContacts(w http.ResponseWriter, r *http.Request) {
 			return c, err
 		}
 		survivor, err := load(survivorID)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &errDedupNotFound{"survivor contact not found"}
 		}
 		if err != nil {
 			return err
 		}
 		loser, err := load(loserID)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &errDedupNotFound{"loser contact not found"}
 		}
 		if err != nil {
@@ -560,8 +544,8 @@ func (h *Handler) MergeContacts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Resolve fields.
-		mergedFirstName := pick(req.Fields, "first_name", survivor.firstName, loser.firstName).(string)
-		mergedLastName := pick(req.Fields, "last_name", survivor.lastName, loser.lastName).(string)
+		mergedFirstName := pick(req.Fields, "first_name", survivor.firstName, loser.firstName)
+		mergedLastName := pick(req.Fields, "last_name", survivor.lastName, loser.lastName)
 		mergedEmail := pickText(req.Fields, "email", survivor.email, loser.email)
 		mergedPhone := pickText(req.Fields, "phone", survivor.phone, loser.phone)
 		mergedCompanyID := pickNullUUID(req.Fields, "company_id", survivor.companyID, loser.companyID)
@@ -704,21 +688,21 @@ func (h *Handler) MergeCompanies(w http.ResponseWriter, r *http.Request) {
 			return c, err
 		}
 		survivor, err := load(survivorID)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &errDedupNotFound{"survivor company not found"}
 		}
 		if err != nil {
 			return err
 		}
 		loser, err := load(loserID)
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return &errDedupNotFound{"loser company not found"}
 		}
 		if err != nil {
 			return err
 		}
 
-		mergedName := pick(req.Fields, "name", survivor.name, loser.name).(string)
+		mergedName := pick(req.Fields, "name", survivor.name, loser.name)
 		mergedDomain := pickText(req.Fields, "domain", survivor.domain, loser.domain)
 		mergedIndustry := pickText(req.Fields, "industry", survivor.industry, loser.industry)
 		mergedSize := pickText(req.Fields, "size", survivor.size, loser.size)
@@ -872,10 +856,6 @@ type errDedupNotFound struct{ msg string }
 func (e *errDedupNotFound) Error() string { return e.msg }
 
 func isDedupNotFound(err error, target **errDedupNotFound) bool {
-	if nf, ok := err.(*errDedupNotFound); ok {
-		*target = nf
-		return true
-	}
-	return false
+	return errors.As(err, target)
 }
 
