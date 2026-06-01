@@ -90,9 +90,13 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	// chi prioritises them over the /{id} wildcard so these words are never
 	// parsed as UUIDs.
 	r.Get("/v1/contacts/export", h.ExportContacts)
-	r.Post("/v1/import/contacts/analyze", h.ImportAnalyze)
-	r.Post("/v1/import/contacts/preview", h.ImportPreview)
-	r.Post("/v1/import/contacts/commit", h.ImportCommit)
+	// CSV import is one parameterised route group for all entities: the handlers
+	// resolve the entity from chi.URLParam(r, "entity") via specForParam, so the
+	// {entity} segment MUST be declared here or it is always "" → 404. The React
+	// wizard and integration tests both POST /v1/import/{contacts|companies|deals}/{step}.
+	r.Post("/v1/import/{entity}/analyze", h.ImportAnalyze)
+	r.Post("/v1/import/{entity}/preview", h.ImportPreview)
+	r.Post("/v1/import/{entity}/commit", h.ImportCommit)
 	r.Get("/v1/contacts/{id}", h.GetContact)
 	r.Put("/v1/contacts/{id}", h.UpdateContact)
 	r.Delete("/v1/contacts/{id}", h.DeleteContact)
@@ -100,9 +104,6 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/companies", h.ListCompanies)
 	r.Post("/v1/companies", h.CreateCompany)
 	r.Get("/v1/companies/export", h.ExportCompanies)
-	r.Post("/v1/import/companies/analyze", h.ImportAnalyze)
-	r.Post("/v1/import/companies/preview", h.ImportPreview)
-	r.Post("/v1/import/companies/commit", h.ImportCommit)
 	r.Get("/v1/companies/{id}", h.GetCompany)
 	r.Put("/v1/companies/{id}", h.UpdateCompany)
 	r.Delete("/v1/companies/{id}", h.DeleteCompany)
@@ -110,9 +111,6 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/deals", h.ListDeals)
 	r.Post("/v1/deals", h.CreateDeal)
 	r.Get("/v1/deals/export", h.ExportDeals)
-	r.Post("/v1/import/deals/analyze", h.ImportAnalyze)
-	r.Post("/v1/import/deals/preview", h.ImportPreview)
-	r.Post("/v1/import/deals/commit", h.ImportCommit)
 	r.Get("/v1/deals/{id}", h.GetDeal)
 	r.Put("/v1/deals/{id}", h.UpdateDeal)
 	r.Delete("/v1/deals/{id}", h.DeleteDeal)

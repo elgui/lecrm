@@ -303,9 +303,15 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ---------- CSV import (integrator-gap tasket 20260601-110828-736b) ----------
-  /v1/import/contacts/analyze:
+  # One parameterised route group serves all three entities — the handler
+  # resolves {entity} via chi.URLParam (handlers.go RegisterRoutes). The
+  # {entity} segment MUST be templated here, not split into static literals,
+  # or the contract test (and the live handler) diverge.
+  /v1/import/{entity}/analyze:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
     post:
-      tags: [contacts, import]
+      tags: [import]
       summary: Parse CSV header + sample rows and return suggested column mapping
       requestBody:
         required: true
@@ -322,10 +328,13 @@ paths:
                 $ref: '#/components/schemas/ImportAnalyzeResp'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
-  /v1/import/contacts/preview:
+  /v1/import/{entity}/preview:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
     post:
-      tags: [contacts, import]
+      tags: [import]
       summary: Dry-run — classify every row without writing anything
       requestBody:
         required: true
@@ -342,10 +351,13 @@ paths:
                 $ref: '#/components/schemas/ImportPreviewResp'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
-  /v1/import/contacts/commit:
+  /v1/import/{entity}/commit:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
     post:
-      tags: [contacts, import]
+      tags: [import]
       summary: Commit the import — write records, merge custom props, emit audit event
       requestBody:
         required: true
@@ -362,126 +374,7 @@ paths:
                 $ref: '#/components/schemas/ImportCommitResp'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/companies/analyze:
-    post:
-      tags: [companies, import]
-      summary: Parse CSV header + sample rows for companies
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportAnalyzeReq'
-      responses:
-        '200':
-          description: Analyze result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportAnalyzeResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/companies/preview:
-    post:
-      tags: [companies, import]
-      summary: Dry-run classification for companies
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportMappingReq'
-      responses:
-        '200':
-          description: Per-row classification
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportPreviewResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/companies/commit:
-    post:
-      tags: [companies, import]
-      summary: Commit import for companies
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportMappingReq'
-      responses:
-        '200':
-          description: Import summary
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportCommitResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/deals/analyze:
-    post:
-      tags: [deals, import]
-      summary: Parse CSV header + sample rows for deals
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportAnalyzeReq'
-      responses:
-        '200':
-          description: Analyze result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportAnalyzeResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/deals/preview:
-    post:
-      tags: [deals, import]
-      summary: Dry-run classification for deals
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportMappingReq'
-      responses:
-        '200':
-          description: Per-row classification
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportPreviewResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
-  /v1/import/deals/commit:
-    post:
-      tags: [deals, import]
-      summary: Commit import for deals
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ImportMappingReq'
-      responses:
-        '200':
-          description: Import summary
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ImportCommitResp'
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ---------- Dedup / merge (tasket 20260601-110828-76e8) ----------
   /v1/dedup/contacts:
@@ -907,6 +800,14 @@ components:
       required: false
       schema: { type: string, enum: [csv], default: csv }
       description: Export serialization. Only `csv` is supported at v0.
+    ImportEntity:
+      name: entity
+      in: path
+      required: true
+      schema: { type: string, enum: [contacts, companies, deals] }
+      description: |
+        The CRM entity the CSV is imported into. An unknown value returns
+        404 `unknown import entity`.
 
   responses:
     CsvExport:

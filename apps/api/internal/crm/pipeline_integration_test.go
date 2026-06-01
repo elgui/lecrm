@@ -33,6 +33,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
+	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
 
@@ -180,7 +181,26 @@ func setupPipelineEnv(t *testing.T) *pipelineTestEnv {
 	router := chi.NewRouter()
 	router.Group(func(r chi.Router) {
 		r.Use(workspace.Middleware(logger, resolver, pipelineDomainTLD))
+		// The CRM write handlers resolve their capability.Principal from an
+		// rbac.Principal in context (handlers.go principalFrom); production
+		// installs it via rbac.Resolve from the session/token. This harness has
+		// no auth front-end, so inject an owner principal — without it the
+		// CreateContact/import-commit write calls return 401 before any handler
+		// logic runs. Mirrors the dedup harness fix (commit 82844ade).
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ctx := rbac.WithPrincipal(req.Context(), &rbac.Principal{
+					Role:      rbac.RoleOwner,
+					ActorType: "human_api",
+				})
+				next.ServeHTTP(w, req.WithContext(ctx))
+			})
+		})
 		handler.RegisterRoutes(r)
+		// Activities/notes/tasks live on a separate registrar; production (and
+		// the contract test) wire both. Without this, the ANT tests that share
+		// this harness 404.
+		handler.RegisterANTRoutes(r)
 	})
 
 	srv := httptest.NewServer(router)
