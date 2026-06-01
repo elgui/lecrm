@@ -132,7 +132,26 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 				deps.Email.RegisterRoutes(r)
 			}
 			if deps.Reports != nil {
-				deps.Reports.RegisterRoutes(r)
+				// Reports must re-resolve the live principal like CRM does —
+				// otherwise a user removed or downgraded while holding a still
+				// valid session cookie keeps report access until it expires.
+				// Reads (run, embed-token, list/get definitions) need member+;
+				// mutating saved-definition writes need admin+ (CRM parity).
+				// Without a resolver the routes mount unguarded (test seam).
+				if deps.RBAC != nil {
+					r.Group(func(r chi.Router) {
+						r.Use(deps.RBAC.Resolve)
+						r.Use(rbac.RequireRole(rbac.RoleMember))
+						deps.Reports.RegisterReadRoutes(r)
+					})
+					r.Group(func(r chi.Router) {
+						r.Use(deps.RBAC.Resolve)
+						r.Use(rbac.RequireRole(rbac.RoleAdmin))
+						deps.Reports.RegisterWriteRoutes(r)
+					})
+				} else {
+					deps.Reports.RegisterRoutes(r)
+				}
 			}
 			if deps.ServiceTokens != nil {
 				deps.ServiceTokens.RegisterRoutes(r)

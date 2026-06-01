@@ -129,3 +129,41 @@ export interface AccessibleWorkspace {
   role: string;
   url: string;
 }
+
+export interface DedupContactRecord {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  company_id: string | null;
+  created_at: string;
+}
+
+export interface DedupCompanyRecord {
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  created_at: string;
+}
+
+export interface DedupContactPair {
+  a: DedupContactRecord;
+  b: DedupContactRecord;
+  reason: 'exact_email' | 'similar_name';
+  score: number;
+}
+
+export interface DedupCompanyPair {
+  a: DedupCompanyRecord;
+  b: DedupCompanyRecord;
+  reason: 'exact_domain' | 'similar_name';
+  score: number;
+}
+
+export interface MergeResult {
+  survivor_id: string;
+  loser_id: string;
+  merged: boolean;
+}

@@ -1,17 +1,15 @@
-import * as React from 'react';
 import { createRoute } from '@tanstack/react-router';
 import { BarChart3, LineChart, Sparkles } from 'lucide-react';
 
 import { Route as rootRoute } from '../__root';
-import { useAuth } from '@/hooks/use-auth';
 import { useEmbedToken } from '@/hooks/use-embed-token';
 import { useDeals } from '@/hooks/use-deals';
 import {
   BASELINE_DASHBOARDS,
-  reportsEnabled,
   type DashboardSpec,
 } from '@/lib/reports';
 import { CubeFrame } from '@/components/reports/cube-frame';
+import { ReportsWorkspace } from '@/components/reports/reports-workspace';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,84 +22,23 @@ export const Route = createRoute({
   component: ReportsPage,
 });
 
+// Native reporting is the live path on every deployment (incl. the demo): it
+// runs aggregation SQL directly against the workspace schema, so it never
+// depends on the Cube.dev embed stack being provisioned. The Cube iframe path
+// (ReportsBody / CubeFrame below) is retained for deployments that wire Cube,
+// and is still covered by reports-body.test.tsx.
 function ReportsPage() {
-  // Embedded reporting (Cube.dev) is not provisioned on every
-  // deployment — notably not on the public demo. Rather than let the
-  // embed-token call 503 into a red "not configured" error mid-demo,
-  // render an honest branded placeholder until the stack is wired up.
-  // See reportsEnabled() in @/lib/reports for what "wired up" means.
-  if (!reportsEnabled()) {
-    return (
-      <div className="p-8">
-        <ReportsComingSoon />
-      </div>
-    );
-  }
-
   return (
     <div className="p-8">
       <div className="mb-6">
         <h1 className="text-xl font-semibold tracking-tight">Rapports</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Tableaux de bord de votre pipeline et de votre activité.
+          Construisez vos indicateurs : un indicateur, un regroupement, une
+          période — avec comparaison à N-1 (année précédente).
         </p>
       </div>
-      <ReportsLive />
+      <ReportsWorkspace />
     </div>
-  );
-}
-
-// Live reporting path — gated behind reportsEnabled(). Holds the data
-// hooks so they (and their network calls / audit writes) never fire
-// when reporting is disabled.
-function ReportsLive() {
-  const { workspaceId } = Route.useParams();
-  const auth = useAuth();
-  const tokenQuery = useEmbedToken();
-  const dealsQuery = useDeals();
-
-  const [activeId, setActiveId] = React.useState<string>(
-    BASELINE_DASHBOARDS[0]!.id,
-  );
-  const active = BASELINE_DASHBOARDS.find((d) => d.id === activeId)
-    ?? BASELINE_DASHBOARDS[0]!;
-
-  // Defense in depth: surface a mismatch instead of silently trusting
-  // whatever the URL says. The backend will still reject a wrong
-  // workspace on the embed-token call (workspace context comes from
-  // the subdomain).
-  const workspaceMismatch =
-    !!auth.user && !!workspaceId && auth.user.workspace_id !== workspaceId;
-
-  if (auth.isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
-
-  if (workspaceMismatch) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-destructive">
-            Espace de travail incorrect — ce lien concerne un autre espace
-            que celui auquel vous êtes connecté.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <ReportsBody
-      tokenQuery={tokenQuery}
-      dealsQuery={dealsQuery}
-      active={active}
-      setActiveId={setActiveId}
-    />
   );
 }
 

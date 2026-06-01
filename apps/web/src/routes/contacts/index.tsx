@@ -3,7 +3,7 @@ import { createRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, Users, Search, ChevronRight } from 'lucide-react';
+import { Plus, Users, Search, ChevronRight, GitMerge } from 'lucide-react';
 import { useContacts, useCreateContact, useContactDefinitions } from '@/hooks/use-contacts';
 import { useCompanyMap } from '@/hooks/use-companies';
 import { useBatchProperties } from '@/hooks/use-metadata-definitions';
@@ -19,6 +19,8 @@ import { Avatar } from '@/components/ui/avatar';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState } from '@/components/empty-state';
 import { ExportButton } from '@/components/export-button';
+import { CsvImportWizard } from '@/components/csv-import-wizard';
+import { DedupWizard } from '@/components/dedup-wizard';
 import {
   Table,
   TableHeader,
@@ -140,6 +142,8 @@ function ContactList() {
   const { new: openCreate } = Route.useSearch();
   const navigate = useNavigate();
   const [creating, setCreating] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const [deduping, setDeduping] = React.useState(false);
   const [query, setQuery] = React.useState('');
 
   // Honour `?new=true` (mobile create FAB) once, then strip the param so a
@@ -178,6 +182,18 @@ function ContactList() {
         actions={
           <>
             <ExportButton resource="contacts" />
+            {permissions.can_write && (
+              <Button variant="outline" size="sm" onClick={() => setImporting(true)}>
+                <Plus className="mr-1 h-4 w-4" />
+                Importer CSV
+              </Button>
+            )}
+            {permissions.can_write && (
+              <Button variant="outline" size="sm" onClick={() => setDeduping(true)}>
+                <GitMerge className="mr-1 h-4 w-4" />
+                Doublons
+              </Button>
+            )}
             {permissions.can_write && !creating && (
               <Button onClick={() => setCreating(true)}>
                 <Plus />
@@ -187,6 +203,14 @@ function ContactList() {
           </>
         }
       />
+
+      {importing && (
+        <CsvImportWizard entity="contacts" onClose={() => setImporting(false)} />
+      )}
+
+      {deduping && (
+        <DedupWizard entity="contacts" onClose={() => setDeduping(false)} />
+      )}
 
       {creating && <CreateContactForm onDone={() => setCreating(false)} />}
 

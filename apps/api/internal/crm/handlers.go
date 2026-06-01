@@ -86,10 +86,17 @@ func principalFrom(r *http.Request) (capability.Principal, bool, *http.Request) 
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/v1/contacts", h.ListContacts)
 	r.Post("/v1/contacts", h.CreateContact)
-	// Static /export segments are registered as their own routes; chi
-	// prioritises them over the /{id} wildcard so "export" is never parsed
-	// as a UUID (Sprint 9 CSV export).
+	// Static /export and /import segments are registered as their own routes;
+	// chi prioritises them over the /{id} wildcard so these words are never
+	// parsed as UUIDs.
 	r.Get("/v1/contacts/export", h.ExportContacts)
+	// CSV import is one parameterised route group for all entities: the handlers
+	// resolve the entity from chi.URLParam(r, "entity") via specForParam, so the
+	// {entity} segment MUST be declared here or it is always "" → 404. The React
+	// wizard and integration tests both POST /v1/import/{contacts|companies|deals}/{step}.
+	r.Post("/v1/import/{entity}/analyze", h.ImportAnalyze)
+	r.Post("/v1/import/{entity}/preview", h.ImportPreview)
+	r.Post("/v1/import/{entity}/commit", h.ImportCommit)
 	r.Get("/v1/contacts/{id}", h.GetContact)
 	r.Put("/v1/contacts/{id}", h.UpdateContact)
 	r.Delete("/v1/contacts/{id}", h.DeleteContact)
@@ -110,6 +117,14 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Patch("/v1/deals/{id}/stage", h.TransitionDealStage)
 
 	r.Get("/v1/pipeline/stages", h.ListPipelineStages)
+
+	// Dedup / merge (tasket 20260601-110828-76e8).
+	r.Get("/v1/dedup/contacts", h.ListContactDuplicates)
+	r.Get("/v1/dedup/companies", h.ListCompanyDuplicates)
+	r.Post("/v1/dedup/contacts/merge", h.MergeContacts)
+	r.Post("/v1/dedup/companies/merge", h.MergeCompanies)
+	r.Post("/v1/dedup/contacts/distinct", h.MarkContactsDistinct)
+	r.Post("/v1/dedup/companies/distinct", h.MarkCompaniesDistinct)
 }
 
 // --- transaction helpers (kept for export.go and other local users) ---

@@ -302,6 +302,193 @@ paths:
           $ref: '#/components/responses/CsvExport'
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  # ---------- CSV import (integrator-gap tasket 20260601-110828-736b) ----------
+  # One parameterised route group serves all three entities — the handler
+  # resolves {entity} via chi.URLParam (handlers.go RegisterRoutes). The
+  # {entity} segment MUST be templated here, not split into static literals,
+  # or the contract test (and the live handler) diverge.
+  /v1/import/{entity}/analyze:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
+    post:
+      tags: [import]
+      summary: Parse CSV header + sample rows and return suggested column mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportAnalyzeReq'
+      responses:
+        '200':
+          description: Analyze result with columns, sample rows, and suggested mapping
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAnalyzeResp'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/import/{entity}/preview:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
+    post:
+      tags: [import]
+      summary: Dry-run — classify every row without writing anything
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportMappingReq'
+      responses:
+        '200':
+          description: Per-row classification (create/update/skip/error) and summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportPreviewResp'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/import/{entity}/commit:
+    parameters:
+      - $ref: '#/components/parameters/ImportEntity'
+    post:
+      tags: [import]
+      summary: Commit the import — write records, merge custom props, emit audit event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportMappingReq'
+      responses:
+        '200':
+          description: Import summary and downloadable error-report CSV
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportCommitResp'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------- Dedup / merge (tasket 20260601-110828-76e8) ----------
+  /v1/dedup/contacts:
+    get:
+      tags: [contacts, dedup]
+      summary: List contact duplicate candidates (exact email + fuzzy name)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DedupContactsResp'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/contacts/merge:
+    post:
+      tags: [contacts, dedup]
+      summary: Merge two contacts — re-points all linked records to the survivor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeContactReq'
+      responses:
+        '200':
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/dedup/contacts/distinct:
+    post:
+      tags: [contacts, dedup]
+      summary: Mark two contacts as distinct — suppress from future duplicate suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DistinctReq'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distinct: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/companies:
+    get:
+      tags: [companies, dedup]
+      summary: List company duplicate candidates (exact domain + fuzzy name)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DedupCompaniesResp'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/dedup/companies/merge:
+    post:
+      tags: [companies, dedup]
+      summary: Merge two companies — re-points contacts, deals, notes, activities, tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MergeCompanyReq'
+      responses:
+        '200':
+          description: Merge result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MergeResult'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /v1/dedup/companies/distinct:
+    post:
+      tags: [companies, dedup]
+      summary: Mark two companies as distinct — suppress from future duplicate suggestions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DistinctReq'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  distinct: { type: boolean }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ---------- Pipeline ----------
   /v1/pipeline/stages:
     get:
@@ -613,6 +800,14 @@ components:
       required: false
       schema: { type: string, enum: [csv], default: csv }
       description: Export serialization. Only `csv` is supported at v0.
+    ImportEntity:
+      name: entity
+      in: path
+      required: true
+      schema: { type: string, enum: [contacts, companies, deals] }
+      description: |
+        The CRM entity the CSV is imported into. An unknown value returns
+        404 `unknown import entity`.
 
   responses:
     CsvExport:
@@ -915,6 +1110,156 @@ components:
       properties:
         token:         { type: string, description: "Plaintext, format: lecrm_<workspace>_<random>" }
         service_token: { $ref: '#/components/schemas/ServiceToken' }
+
+    # --- CSV import schemas ---
+    ImportAnalyzeReq:
+      type: object
+      required: [csv]
+      properties:
+        csv: { type: string, description: UTF-8 CSV text }
+
+    ImportMappingReq:
+      type: object
+      required: [csv, mapping]
+      properties:
+        csv:     { type: string }
+        mapping: { type: object, additionalProperties: { type: string } }
+        dedupe:  { type: string, enum: [update, skip, create], default: update }
+
+    ImportAnalyzeResp:
+      type: object
+      properties:
+        columns:           { type: array, items: { type: string } }
+        sample_rows:       { type: array, items: { type: array, items: { type: string } } }
+        row_count:         { type: integer }
+        core_fields:       { type: array, items: { type: object } }
+        custom_fields:     { type: array, items: { type: object } }
+        suggested_mapping: { type: object, additionalProperties: { type: string } }
+
+    ImportPreviewResp:
+      type: object
+      properties:
+        summary: { $ref: '#/components/schemas/ImportSummary' }
+        rows:    { type: array, items: { $ref: '#/components/schemas/ImportRowOutcome' } }
+
+    ImportCommitResp:
+      type: object
+      properties:
+        summary:          { $ref: '#/components/schemas/ImportSummary' }
+        error_report_csv: { type: string }
+        audit_event:      { type: string }
+
+    ImportSummary:
+      type: object
+      properties:
+        total:  { type: integer }
+        create: { type: integer }
+        update: { type: integer }
+        skip:   { type: integer }
+        error:  { type: integer }
+
+    ImportRowOutcome:
+      type: object
+      properties:
+        line:   { type: integer }
+        action: { type: string, enum: [create, update, skip, error] }
+        reason: { type: string }
+        label:  { type: string }
+
+    DedupContactRecord:
+      type: object
+      required: [id, first_name, last_name, created_at]
+      properties:
+        id:         { type: string, format: uuid }
+        first_name: { type: string }
+        last_name:  { type: string }
+        email:      { type: string, nullable: true }
+        phone:      { type: string, nullable: true }
+        company_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DedupCompanyRecord:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:         { type: string, format: uuid }
+        name:       { type: string }
+        domain:     { type: string, nullable: true }
+        industry:   { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    DedupContactPair:
+      type: object
+      required: [a, b, reason, score]
+      properties:
+        a:      { $ref: '#/components/schemas/DedupContactRecord' }
+        b:      { $ref: '#/components/schemas/DedupContactRecord' }
+        reason: { type: string, enum: [exact_email, similar_name] }
+        score:  { type: number, format: float }
+
+    DedupCompanyPair:
+      type: object
+      required: [a, b, reason, score]
+      properties:
+        a:      { $ref: '#/components/schemas/DedupCompanyRecord' }
+        b:      { $ref: '#/components/schemas/DedupCompanyRecord' }
+        reason: { type: string, enum: [exact_domain, similar_name] }
+        score:  { type: number, format: float }
+
+    DedupContactsResp:
+      type: object
+      required: [pairs]
+      properties:
+        pairs:
+          type: array
+          items: { $ref: '#/components/schemas/DedupContactPair' }
+
+    DedupCompaniesResp:
+      type: object
+      required: [pairs]
+      properties:
+        pairs:
+          type: array
+          items: { $ref: '#/components/schemas/DedupCompanyPair' }
+
+    MergeContactReq:
+      type: object
+      required: [survivor_id, loser_id]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [survivor, loser]
+
+    MergeCompanyReq:
+      type: object
+      required: [survivor_id, loser_id]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [survivor, loser]
+
+    MergeResult:
+      type: object
+      required: [survivor_id, loser_id, merged]
+      properties:
+        survivor_id: { type: string, format: uuid }
+        loser_id:    { type: string, format: uuid }
+        merged:      { type: boolean }
+
+    DistinctReq:
+      type: object
+      required: [id_a, id_b]
+      properties:
+        id_a: { type: string, format: uuid }
+        id_b: { type: string, format: uuid }
 
 security:
   - sessionCookie: []

@@ -87,6 +87,27 @@
       "notes": "Sprint 9 feature 8: stream all contacts as CSV, custom properties flattened to cf_ columns. Workspace-scoped via search_path."
     },
     {
+      "method": "POST",
+      "path": "/v1/import/{entity}/analyze",
+      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals (handler resolves {entity} via chi.URLParam). Parse CSV header + sample rows, return suggested mapping. Read-only, no DB writes."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/import/{entity}/preview",
+      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals. Dry-run — classify every row without writing. Workspace-scoped via search_path."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/import/{entity}/commit",
+      "isolation_test": "apps/api/internal/crm/import_integration_test.go::TestImport_Contacts_CrossTenant_Isolation",
+      "rbac_test": "apps/api/internal/rbac/rbac_integration_test.go::TestRBAC_RoleEndpointMatrix (writes require member+)",
+      "notes": "Integrator-gap tasket 20260601-110828-736b: one parameterised route for contacts|companies|deals. Commit import in one write transaction; emits import.committed audit event. Workspace-scoped, fail-closed."
+    },
+    {
       "method": "GET",
       "path": "/v1/contacts/{id}",
       "isolation_test": "pending — schema-per-tenant via SET LOCAL search_path",
@@ -358,6 +379,48 @@
       "isolation_test": "apps/api/internal/crm/connectors_integration_test.go::TestConnector_CrossTenantWorkspaceMismatchRejected (workspace-scoped via search_path; envelope.workspace must match the token-resolved workspace)",
       "rbac_test": "Scope-gated, not role-gated: crm.RequireConnectorScope requires a service token with the connector.push_events scope. Unit: apps/api/internal/crm/connectors_test.go::TestAuthorizeConnector + TestRequireConnectorScope_*; integration: connectors_integration_test.go::TestConnector_WrongScopeForbidden",
       "notes": "Sprint 9 / ADR-011: chatboting connector event ingestion. Service-token (connector actor) authenticated; idempotency_key dedupes at-least-once delivery; mutations attributed actor_type=connector, source_system={source}, audit-logged fail-closed."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/dedup/contacts",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_CrossTenantIsolation",
+      "rbac_test": "pending — workspace-scoped via writeTx/readTx SET LOCAL search_path; reads require any authenticated member",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: list contact duplicate candidates (exact email + trigram name). In-memory fuzzy match; excludes dedup_no_merge_rules pairs."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/dedup/contacts/merge",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_CrossTenantIsolation",
+      "rbac_test": "pending — workspace-scoped write; requires authenticated member",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: merge two contacts — re-points notes, activities, tasks, deals; emits contact.merged audit event; fail-closed."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/dedup/contacts/distinct",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_Contacts_NoMergeExcludesFromList",
+      "rbac_test": "pending — workspace-scoped write",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: insert a dedup_no_merge_rules row so the pair is never suggested again."
+    },
+    {
+      "method": "GET",
+      "path": "/v1/dedup/companies",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_CrossTenantIsolation",
+      "rbac_test": "pending — workspace-scoped read",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: list company duplicate candidates (exact domain + trigram name). Excludes dedup_no_merge_rules pairs."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/dedup/companies/merge",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_Companies_MergeRepointsContacts",
+      "rbac_test": "pending — workspace-scoped write",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: merge two companies — re-points contacts, deals, notes, activities, tasks; emits company.merged audit event; fail-closed."
+    },
+    {
+      "method": "POST",
+      "path": "/v1/dedup/companies/distinct",
+      "isolation_test": "apps/api/internal/crm/dedup_integration_test.go::TestDedup_CrossTenantIsolation",
+      "rbac_test": "pending — workspace-scoped write",
+      "notes": "Integrator-gap tasket 20260601-110828-76e8: insert a dedup_no_merge_rules row for companies so the pair is never suggested again."
     }
   ]
 }
