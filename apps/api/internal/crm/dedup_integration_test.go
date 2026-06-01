@@ -25,6 +25,7 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/gbconsult/lecrm/apps/api/internal/crm"
+	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 
 	"log/slog"
@@ -109,6 +110,21 @@ func setupDedupEnv(t *testing.T) *pipelineTestEnv {
 	router := chi.NewRouter()
 	router.Group(func(r chi.Router) {
 		r.Use(workspace.Middleware(logger, resolver, pipelineDomainTLD))
+		// The CRM write handlers resolve their capability.Principal from an
+		// rbac.Principal in context (handlers.go principalFrom); in production
+		// rbac.Resolve deposits it from the session/token. This integration
+		// harness has no auth front-end, so inject an owner principal here.
+		// Without it, the CreateContact/CreateCompany fixture calls return 401
+		// and every dedup test fails before reaching the merge path.
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ctx := rbac.WithPrincipal(req.Context(), &rbac.Principal{
+					Role:      rbac.RoleOwner,
+					ActorType: "human_api",
+				})
+				next.ServeHTTP(w, req.WithContext(ctx))
+			})
+		})
 		handler.RegisterRoutes(r)
 	})
 
