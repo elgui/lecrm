@@ -128,6 +128,9 @@ func run(logger *slog.Logger) error {
 		},
 		Audit:  &reports.PgAuditWriter{Pool: pool},
 		Logger: logger,
+		// Native reporting (aggregation SQL + saved definitions) runs directly
+		// against the workspace schema — independent of the Cube embed stack.
+		Pool: pool,
 	}
 
 	// Multi-user RBAC (ADR-009 §2, Sprint 8). A single PgMemberStore

@@ -88,6 +88,46 @@ INSERT INTO deals (id, title, amount, currency, stage_id, contact_id, company_id
      '11110000-0000-4000-8000-000000000006', 'c0000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1', CURRENT_DATE - 12, now() - INTERVAL '12 days')
 ON CONFLICT (id) DO NOTHING;
 
+-- ----------------------------------------------------- historical (N-1) deals
+-- The six deals above all carry created_at = now(), so a year-over-year (N-1)
+-- report would have nothing to compare against. These four deals are pinned to
+-- LAST YEAR (created_at = now() - 1 year, ± a few months) so the Rapports
+-- "Comparer à N-1" column shows a real current-vs-previous delta on the demo —
+-- the exact deliverable shape Léo sells (Analyse Produits: N-1 vs courant).
+-- Explicit created_at (the live deals omit it and default to now()); fixed
+-- UUIDs + ON CONFLICT (id) DO NOTHING keep the seed idempotent.
+INSERT INTO deals (id, title, amount, currency, stage_id, contact_id, company_id, owner_id, expected_close_date, closed_at, created_at) VALUES
+  ('dea10000-0000-4000-8000-000000000007', 'Site vitrine (N-1, gagné)',        7200.00,  'EUR',
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
+     '11110000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-0000000000a1', '00000000-0000-4000-8000-0000000000a1',
+     CURRENT_DATE - 320, now() - INTERVAL '320 days', now() - INTERVAL '1 year' - INTERVAL '20 days'),
+  ('dea10000-0000-4000-8000-000000000008', 'Refonte site (N-1, gagné)',        12500.00, 'EUR',
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
+     '11110000-0000-4000-8000-000000000003', 'c0000000-0000-4000-8000-0000000000a2', '00000000-0000-4000-8000-0000000000a1',
+     CURRENT_DATE - 300, now() - INTERVAL '300 days', now() - INTERVAL '1 year'),
+  ('dea10000-0000-4000-8000-000000000009', 'TMS pilote (N-1, perdu)',          41000.00, 'EUR',
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
+     '11110000-0000-4000-8000-000000000005', 'c0000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1',
+     CURRENT_DATE - 290, now() - INTERVAL '290 days', now() - INTERVAL '1 year' + INTERVAL '30 days'),
+  ('dea10000-0000-4000-8000-00000000000a', 'Portail RDV (N-1, gagné)',         30000.00, 'EUR',
+     (SELECT id FROM pipeline_stages WHERE name = 'Gagné / Perdu'),
+     '11110000-0000-4000-8000-000000000007', 'c0000000-0000-4000-8000-0000000000a4', '00000000-0000-4000-8000-0000000000a1',
+     CURRENT_DATE - 260, now() - INTERVAL '260 days', now() - INTERVAL '1 year' + INTERVAL '60 days')
+ON CONFLICT (id) DO NOTHING;
+
+-- Custom-property values for the N-1 deals, so they also bucket under the
+-- "source du lead" custom-property dimension (group-by-custom-property report).
+INSERT INTO objects (id, object_type, parent_type, parent_id, data) VALUES
+  ('cf000000-0000-4000-8000-00000000d007', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000007',
+     '{"source_du_lead":"Site web","probabilite":100,"canal_signature":"Visio"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d008', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000008',
+     '{"source_du_lead":"Recommandation","probabilite":100,"canal_signature":"En personne"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d009', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-000000000009',
+     '{"source_du_lead":"Salon","probabilite":0,"canal_signature":"Téléphone"}'::jsonb),
+  ('cf000000-0000-4000-8000-00000000d00a', 'custom_properties', 'deal', 'dea10000-0000-4000-8000-00000000000a',
+     '{"source_du_lead":"LinkedIn","probabilite":100,"canal_signature":"Visio"}'::jsonb)
+ON CONFLICT (id) DO NOTHING;
+
 -- --------------------------------------------------------------- activities
 -- Append-only timeline entries. actor_type='human_api' (REST writes).
 INSERT INTO activities (id, entity_type, entity_id, actor_type, actor_id, event_type, payload) VALUES
