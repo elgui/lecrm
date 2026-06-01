@@ -3,6 +3,7 @@ package crm
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
@@ -31,6 +32,12 @@ func TestValidateConnectorEvent(t *testing.T) {
 		{
 			name:     "missing idempotency key",
 			ev:       connectorEvent{Event: evtInvitationSent},
+			urlSrc:   "chatboting",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "idempotency key too long",
+			ev:       connectorEvent{Event: evtInvitationSent, IdempotencyKey: strings.Repeat("k", maxIdempotencyKeyLen+1)},
 			urlSrc:   "chatboting",
 			wantCode: http.StatusBadRequest,
 		},
