@@ -1,12 +1,13 @@
 ---
 id: 20260601-182409-d1c0
 title: [Fix] crm integration harness — close 4 residual failures (connector audit_type + French-stage migration)
-status: later
+status: done
 priority: p1
 created: 2026-06-01
-updated: 2026-06-01
+updated: 2026-06-02
 tags: [lecrm, integration-tests, migrations, connector, tech-debt]
 category: tooling
+done: 2026-06-02
 ---
 
 # [Fix] crm integration harness — close the 4 residual failures (3 connector + 1 pipeline French-stage)
