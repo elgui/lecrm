@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -61,7 +62,14 @@ func connectWithRetry(ctx context.Context, connStr string, maxWait time.Duration
 	}
 }
 
-func pipelineMigrationPath(t *testing.T, filename string) string {
+// pipelineMigrationPaths returns the FULL production migration chain (every
+// NNNN_*.sql, sorted), shared by every crm integration harness. It replaces a
+// per-file hardcoded list that had to be hand-extended for each new migration
+// and silently lagged prod otherwise (e.g. the json-property regression in
+// 0024 would never reach a harness pinned at 0023). Globbing keeps the chain
+// in lockstep with prod; the zero-padded NNNN_ prefix makes lexical sort ==
+// numeric order and a renumber gap (no 0020) is handled transparently.
+func pipelineMigrationPaths(t *testing.T) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -69,11 +77,16 @@ func pipelineMigrationPath(t *testing.T, filename string) string {
 	}
 	// thisFile: apps/api/internal/crm/pipeline_integration_test.go
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
-	p := filepath.Join(repoRoot, "packages", "db", "migrations", filename)
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("migration %s not found at %s: %v", filename, p, err)
+	migrationsDir := filepath.Join(repoRoot, "packages", "db", "migrations")
+	paths, err := filepath.Glob(filepath.Join(migrationsDir, "[0-9]*.sql"))
+	if err != nil {
+		t.Fatalf("glob migrations in %s: %v", migrationsDir, err)
 	}
-	return p
+	if len(paths) == 0 {
+		t.Fatalf("no migrations found in %s", migrationsDir)
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 type pipelineTestEnv struct {
@@ -113,38 +126,15 @@ func setupPipelineEnv(t *testing.T) *pipelineTestEnv {
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(
-			pipelineMigrationPath(t, "0001_init.sql"),
-			pipelineMigrationPath(t, "0002_identity.sql"),
-			pipelineMigrationPath(t, "0003_metadata_engine.sql"),
-			pipelineMigrationPath(t, "0004_workspaces_admin_email_registry.sql"),
-			pipelineMigrationPath(t, "0005_slug_tombstoning.sql"),
-			pipelineMigrationPath(t, "0006_security_definer_hardening.sql"),
-			pipelineMigrationPath(t, "0007_session_revocations.sql"),
-			pipelineMigrationPath(t, "0008_crm_entities.sql"),
-			pipelineMigrationPath(t, "0009_metadata_json_type.sql"),
-			pipelineMigrationPath(t, "0010_pgcrypto_to_core_schema.sql"),
-			pipelineMigrationPath(t, "0011_external_sync.sql"),
-			pipelineMigrationPath(t, "0012_email_suppression.sql"),
-			pipelineMigrationPath(t, "0013_workspace_ro_role.sql"),
-			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
-			pipelineMigrationPath(t, "0015_activities_notes_tasks.sql"),
-			// 0016–0023 (no 0020 — renumbered into 0021) bring the harness up to
-			// the production migration set. 0021 re-seeds the gbconsult-default
-			// pipeline with French stage labels (Découverte, Qualifié, …), which
-			// TestPipeline_ListStages asserts and the connector path depends on;
-			// 0023 admits the 'connector' actor_type in core.audit_log. 0021's
-			// _with_registry delegates to the base provision fn (redefined by
-			// 0022, which seeds no stages) then seeds the French stages itself,
-			// so ordering 0022 after 0021 does not duplicate or revert them.
-			pipelineMigrationPath(t, "0016_service_tokens.sql"),
-			pipelineMigrationPath(t, "0017_app_role.sql"),
-			pipelineMigrationPath(t, "0018_integrator_role_and_grants.sql"),
-			pipelineMigrationPath(t, "0019_integrator_audit_actor.sql"),
-			pipelineMigrationPath(t, "0021_french_pipeline_stages.sql"),
-			pipelineMigrationPath(t, "0022_dedup_no_merge_rules.sql"),
-			pipelineMigrationPath(t, "0023_connector_audit_actor.sql"),
-		),
+		// Full prod migration chain (sorted glob). 0021 re-seeds the
+		// gbconsult-default pipeline with French stage labels (Découverte,
+		// Qualifié, …) that TestPipeline_ListStages asserts and the connector
+		// path depends on; 0023 admits the 'connector' actor_type in
+		// core.audit_log. 0021's _with_registry delegates to the base provision
+		// fn (redefined by 0022, which seeds no stages) then seeds the French
+		// stages itself, so 0022 ordering after 0021 neither duplicates nor
+		// reverts them.
+		tcpostgres.WithInitScripts(pipelineMigrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres: %v", err)

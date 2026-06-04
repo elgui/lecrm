@@ -46,24 +46,9 @@ func setupDedupEnv(t *testing.T) *pipelineTestEnv {
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(
-			pipelineMigrationPath(t, "0001_init.sql"),
-			pipelineMigrationPath(t, "0002_identity.sql"),
-			pipelineMigrationPath(t, "0003_metadata_engine.sql"),
-			pipelineMigrationPath(t, "0004_workspaces_admin_email_registry.sql"),
-			pipelineMigrationPath(t, "0005_slug_tombstoning.sql"),
-			pipelineMigrationPath(t, "0006_security_definer_hardening.sql"),
-			pipelineMigrationPath(t, "0007_session_revocations.sql"),
-			pipelineMigrationPath(t, "0008_crm_entities.sql"),
-			pipelineMigrationPath(t, "0009_metadata_json_type.sql"),
-			pipelineMigrationPath(t, "0010_pgcrypto_to_core_schema.sql"),
-			pipelineMigrationPath(t, "0011_external_sync.sql"),
-			pipelineMigrationPath(t, "0012_email_suppression.sql"),
-			pipelineMigrationPath(t, "0013_workspace_ro_role.sql"),
-			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
-			pipelineMigrationPath(t, "0015_activities_notes_tasks.sql"),
-			pipelineMigrationPath(t, "0022_dedup_no_merge_rules.sql"),
-		),
+		// Full prod migration chain (sorted glob). 0022 adds the
+		// dedup_no_merge_rules table this suite exercises.
+		tcpostgres.WithInitScripts(pipelineMigrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres: %v", err)
