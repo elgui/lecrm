@@ -59,36 +59,12 @@ func setupConnectorEnv(t *testing.T) *connectorTestEnv {
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(
-			pipelineMigrationPath(t, "0001_init.sql"),
-			pipelineMigrationPath(t, "0002_identity.sql"),
-			pipelineMigrationPath(t, "0003_metadata_engine.sql"),
-			pipelineMigrationPath(t, "0004_workspaces_admin_email_registry.sql"),
-			pipelineMigrationPath(t, "0005_slug_tombstoning.sql"),
-			pipelineMigrationPath(t, "0006_security_definer_hardening.sql"),
-			pipelineMigrationPath(t, "0007_session_revocations.sql"),
-			pipelineMigrationPath(t, "0008_crm_entities.sql"),
-			pipelineMigrationPath(t, "0009_metadata_json_type.sql"),
-			pipelineMigrationPath(t, "0010_pgcrypto_to_core_schema.sql"),
-			pipelineMigrationPath(t, "0011_external_sync.sql"),
-			pipelineMigrationPath(t, "0012_email_suppression.sql"),
-			pipelineMigrationPath(t, "0013_workspace_ro_role.sql"),
-			pipelineMigrationPath(t, "0014_idempotency_keys.sql"),
-			pipelineMigrationPath(t, "0015_activities_notes_tasks.sql"),
-			pipelineMigrationPath(t, "0016_service_tokens.sql"),
-			// 0017–0023 (no 0020 — renumbered into 0021) bring the harness up to
-			// the production migration set so provisioning seeds the French
-			// pipeline stages the connector hardcodes (0021) and core.audit_log
-			// admits the 'connector' actor_type the connector audit path writes
-			// (0023). Without these the connector tests fail at resolveStage
-			// ("Découverte") and then at the fail-closed audit insert (23514).
-			pipelineMigrationPath(t, "0017_app_role.sql"),
-			pipelineMigrationPath(t, "0018_integrator_role_and_grants.sql"),
-			pipelineMigrationPath(t, "0019_integrator_audit_actor.sql"),
-			pipelineMigrationPath(t, "0021_french_pipeline_stages.sql"),
-			pipelineMigrationPath(t, "0022_dedup_no_merge_rules.sql"),
-			pipelineMigrationPath(t, "0023_connector_audit_actor.sql"),
-		),
+		// Full prod migration chain (sorted glob). The connector path needs the
+		// French pipeline stages provisioning seeds (0021, hardcoded as
+		// "Découverte" in resolveStage) and core.audit_log admitting the
+		// 'connector' actor_type (0023) — without them the connector tests fail
+		// at resolveStage and then at the fail-closed audit insert (23514).
+		tcpostgres.WithInitScripts(pipelineMigrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres: %v", err)
