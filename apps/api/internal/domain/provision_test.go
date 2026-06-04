@@ -4,9 +4,9 @@ package domain_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -16,6 +16,15 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
+// migrationPaths returns the FULL production migration chain (every
+// NNNN_*.sql, sorted), not a hardcoded subset. A truncated list silently
+// rots: this helper used to stop at 0008, so provisioning could not see
+// gen_random_bytes after migration 0010 relocated pgcrypto into the core
+// schema (0006 pins the SECURITY DEFINER search_path to core,pg_catalog).
+// That stayed invisible until the integration suite first ran in CI.
+// Globbing keeps the harness in lockstep with prod as new migrations land.
+// The zero-padded NNNN_ prefix makes lexical sort == numeric order, and a
+// renumber gap (no 0020) is handled transparently.
 func migrationPaths(t *testing.T) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -25,25 +34,14 @@ func migrationPaths(t *testing.T) []string {
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
 	migrationsDir := filepath.Join(repoRoot, "packages", "db", "migrations")
 
-	files := []string{
-		"0001_init.sql",
-		"0002_identity.sql",
-		"0003_metadata_engine.sql",
-		"0004_workspaces_admin_email_registry.sql",
-		"0005_slug_tombstoning.sql",
-		"0006_security_definer_hardening.sql",
-		"0007_session_revocations.sql",
-		"0008_crm_entities.sql",
+	paths, err := filepath.Glob(filepath.Join(migrationsDir, "[0-9]*.sql"))
+	if err != nil {
+		t.Fatalf("glob migrations in %s: %v", migrationsDir, err)
 	}
-
-	paths := make([]string, len(files))
-	for i, f := range files {
-		p := filepath.Join(migrationsDir, f)
-		if _, err := os.Stat(p); err != nil {
-			t.Fatalf("migration %s not found at %s: %v", f, p, err)
-		}
-		paths[i] = p
+	if len(paths) == 0 {
+		t.Fatalf("no migrations found in %s", migrationsDir)
 	}
+	sort.Strings(paths)
 	return paths
 }
 

@@ -37,17 +37,7 @@ func setupEnv(t *testing.T, ctx context.Context) testEnv {
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(
-			migrationPath(t, "0001_init.sql"),
-			migrationPath(t, "0002_identity.sql"),
-			migrationPath(t, "0003_metadata_engine.sql"),
-			migrationPath(t, "0004_workspaces_admin_email_registry.sql"),
-			migrationPath(t, "0005_slug_tombstoning.sql"),
-			migrationPath(t, "0006_security_definer_hardening.sql"),
-			migrationPath(t, "0007_session_revocations.sql"),
-			migrationPath(t, "0008_crm_entities.sql"),
-			migrationPath(t, "0009_metadata_json_type.sql"),
-		),
+		tcpostgres.WithInitScripts(allMigrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres container: %v", err)
@@ -68,6 +58,7 @@ func setupEnv(t *testing.T, ctx context.Context) testEnv {
 		t.Fatalf("pgxpool: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	waitForPostgres(ctx, t, pool)
 
 	wsID := uuid.New()
 	var schema string
@@ -579,4 +570,4 @@ func TestMetadata_GetMany_BatchRead(t *testing.T) {
 	}
 }
 
-// migrationPath is declared in fail_closed_test.go — shared across test files.
+// allMigrationPaths is declared in fail_closed_test.go — shared across test files.
