@@ -35,7 +35,9 @@ func emitAudit(ctx context.Context, tx pgx.Tx, event string, workspaceID uuid.UU
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, actor_type, payload)
 		 VALUES ($1, $2, $3, $4)`,
-		event, workspaceID, actorType, body,
+		// string(body), not body: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		event, workspaceID, actorType, string(body),
 	); err != nil {
 		return fmt.Errorf("audit insert %s: %w", event, err)
 	}

@@ -240,7 +240,9 @@ func EmitAudit(ctx context.Context, tx pgx.Tx, event string, workspaceID uuid.UU
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, actor_type, payload)
 		 VALUES ($1, $2, $3, $4)`,
-		event, workspaceID, actorType, body,
+		// string(body), not body: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		event, workspaceID, actorType, string(body),
 	); err != nil {
 		return fmt.Errorf("audit insert %s: %w", event, err)
 	}
@@ -296,7 +298,9 @@ func EmitActivity(ctx context.Context, tx pgx.Tx, entityType string, entityID uu
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO activities (entity_type, entity_id, event_type, actor_type, source_system, payload)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		entityType, entityID, eventType, actorArg, srcArg, body,
+		// string(body), not body: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		entityType, entityID, eventType, actorArg, srcArg, string(body),
 	); err != nil {
 		return fmt.Errorf("activity insert %s: %w", eventType, err)
 	}
@@ -401,7 +405,9 @@ func MergeCustomProps(ctx context.Context, tx pgx.Tx, parentType string, parentI
 	_, err = tx.Exec(ctx,
 		`INSERT INTO objects (object_type, parent_type, parent_id, data)
 		 VALUES ('custom_properties', $1, $2, $3)`,
-		parentType, parentID, merged)
+		// string(merged), not merged: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		parentType, parentID, string(merged))
 	return err
 }
 

@@ -896,7 +896,9 @@ func (s *Service) TransitionDealStage(ctx context.Context, p Principal, dealID, 
 		}
 		if _, e = tx.Exec(ctx,
 			`INSERT INTO objects (object_type, parent_type, parent_id, data) VALUES ('activity', 'deal', $1, $2)`,
-			dealID, data,
+			// string(data), not data: under pgx's simple query protocol a []byte
+			// is sent as a bytea literal and rejected by the jsonb column (22P02).
+			dealID, string(data),
 		); e != nil {
 			return e
 		}

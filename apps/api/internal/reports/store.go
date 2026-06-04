@@ -101,7 +101,9 @@ func (s *Store) CreateSaved(ctx context.Context, def Definition) (SavedReport, e
 		row := tx.QueryRow(ctx,
 			`INSERT INTO objects (object_type, data) VALUES ($1, $2)
 			 RETURNING id, data, created_at, updated_at`,
-			savedReportObjectType, data)
+			// string(data), not data: under pgx's simple query protocol a []byte
+			// is sent as a bytea literal and rejected by the jsonb column (22P02).
+			savedReportObjectType, string(data))
 		var e error
 		sr, e = scanSaved(row)
 		if e != nil {

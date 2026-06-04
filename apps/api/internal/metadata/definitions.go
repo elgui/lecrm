@@ -159,7 +159,9 @@ func (s *Store) DeleteDefinition(ctx context.Context, id uuid.UUID) error {
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, payload) VALUES ('metadata.definition.delete', $1, $2)`,
 		uuid.NullUUID{UUID: s.workspaceID, Valid: s.workspaceID != uuid.Nil},
-		auditPayload,
+		// string(auditPayload), not auditPayload: under pgx's simple query protocol
+		// a []byte is sent as a bytea literal and rejected by the jsonb column (22P02).
+		string(auditPayload),
 	); err != nil {
 		return fmt.Errorf("metadata.DeleteDefinition audit: %w", err)
 	}
