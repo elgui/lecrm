@@ -60,6 +60,78 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           cd apps/api && govulncheck ./...
 
+  # ---------------------------------------------- Go API integration suite
+  go-integration:
+    name: go-integration-docker
+    runs-on: ubuntu-latest
+    # Separate from the `go` job so untagged unit feedback stays fast. This
+    # job runs the Docker-backed `//go:build integration` suite — the only
+    # gate that exercises features end-to-end against a real Postgres.
+    # A green untagged build is NOT evidence a feature works: the
+    # connector-audit prod bug (core.audit_log rejecting actor_type
+    # 'connector') and the CSV-import 404 both passed the unit suite while
+    # broken (run report e35442, rec #3).
+    #
+    # Postgres is booted by testcontainers-go (tcpostgres.Run), which binds
+    # to an ephemeral port on 127.0.0.1 — never `-p 5432:5432`. ubuntu-latest
+    # ships a working Docker daemon, so SkipIfProviderIsNotHealthy does NOT
+    # skip here; the tests actually run.
+    #
+    # Balance — solid gate without taxing fast iteration:
+    #   * On PRs the heavy suite runs ONLY when apps/api/** or DB migrations
+    #     changed (the `changes` guard below). Web-only / docs PRs hit the
+    #     fast path and finish in seconds.
+    #   * The job ALWAYS reports the `go-integration-docker` check (green on
+    #     the fast path), so it is safe to mark as a REQUIRED status check —
+    #     a path-filtered-out *job* would otherwise hang a required check
+    #     forever as "expected/pending".
+    #   * On push to main it always runs full, as a post-merge safety net.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need the PR base to diff changed paths (shallow clone has none).
+          fetch-depth: 0
+
+      - name: Detect API / migration changes (PR fast-path guard)
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "push event — running full integration suite."
+            exit 0
+          fi
+          base="origin/${{ github.base_ref }}"
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          if git diff --name-only "${base}...HEAD" \
+               | grep -Eq '^(apps/api/|packages/db/migrations/)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "apps/api or migration changes detected — running integration suite."
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No apps/api or migration changes — integration suite skipped (fast path)."
+          fi
+
+      - name: Set up Go
+        if: steps.changes.outputs.run == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: go mod verify (apps/api)
+        if: steps.changes.outputs.run == 'true'
+        working-directory: apps/api
+        run: go mod verify
+
+      - name: go test -tags integration ./internal/... (apps/api)
+        if: steps.changes.outputs.run == 'true'
+        working-directory: apps/api
+        # -p 1 serializes packages so we never run many Postgres containers
+        # concurrently on a 2-core runner (each integration test boots its
+        # own container and terminates it on cleanup). 20m timeout covers
+        # cold image pulls + per-test container startup across the suite.
+        run: go test -race -count=1 -p 1 -tags integration -timeout 20m ./internal/...
+
   # ---------------------------------------------------- Go admin (Story 8.1)
   build-admin:
     name: build-admin
