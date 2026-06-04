@@ -64,7 +64,9 @@ func emitActivity(
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO activities (entity_type, entity_id, event_type, actor_type, source_system, payload)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		entityType, entityID, eventType, actorArg, srcArg, body,
+		// string(body), not body: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		entityType, entityID, eventType, actorArg, srcArg, string(body),
 	); err != nil {
 		return fmt.Errorf("activity insert %s: %w", eventType, err)
 	}

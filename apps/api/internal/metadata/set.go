@@ -158,7 +158,9 @@ func (s *Store) Set(ctx context.Context, parentType string, parentID uuid.UUID, 
 	}
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO `+objTable+` (object_type, parent_type, parent_id, data) VALUES ('custom_properties', $1, $2, $3)`,
-		parentType, parentID, rawJSON,
+		// string(rawJSON), not rawJSON: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		parentType, parentID, string(rawJSON),
 	); err != nil {
 		return fmt.Errorf("metadata.Set insert: %w", err)
 	}
@@ -166,7 +168,9 @@ func (s *Store) Set(ctx context.Context, parentType string, parentID uuid.UUID, 
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO core.audit_log (event, workspace_id, payload) VALUES ('metadata.property.upsert', $1, $2)`,
 		uuid.NullUUID{UUID: s.workspaceID, Valid: s.workspaceID != uuid.Nil},
-		auditPayload,
+		// string(auditPayload), not auditPayload: under pgx's simple query protocol
+		// a []byte is sent as a bytea literal and rejected by the jsonb column (22P02).
+		string(auditPayload),
 	); err != nil {
 		return fmt.Errorf("metadata.Set audit: %w", err)
 	}

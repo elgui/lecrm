@@ -324,7 +324,10 @@ func (p *PgAuditWriter) WriteEmbedTokenAudit(ctx context.Context, workspaceID, a
 	_, err = p.Pool.Exec(ctx, `
 		INSERT INTO core.audit_log (event, workspace_id, actor_type, actor_user_id, payload)
 		VALUES ('report.embed_token.issued', $1, 'human_api', $2, $3)
-	`, workspaceID, actorID, payload)
+	`,
+		// string(payload), not payload: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		workspaceID, actorID, string(payload))
 	return err
 }
 

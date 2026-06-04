@@ -363,7 +363,9 @@ func (w *PgAuditWriter) WriteAudit(ctx context.Context, ev AuditEvent) error {
 		`INSERT INTO core.audit_log
 		   (event, workspace_id, actor_type, actor_user_id, request_id, payload)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		ev.Event, wsID, actorType, actorUserID, requestID, payloadJSON,
+		// string(payloadJSON), not payloadJSON: under pgx's simple query protocol
+		// a []byte is sent as a bytea literal and rejected by the jsonb column (22P02).
+		ev.Event, wsID, actorType, actorUserID, requestID, string(payloadJSON),
 	)
 	if err != nil {
 		return fmt.Errorf("email: insert audit row: %w", err)

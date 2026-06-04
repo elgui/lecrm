@@ -229,7 +229,9 @@ func (s *Service) applyDealStageChange(ctx context.Context, tx pgx.Tx, p Princip
 	}
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO objects (object_type, parent_type, parent_id, data) VALUES ('activity', 'deal', $1, $2)`,
-		deal.ID, data); err != nil {
+		// string(data), not data: under pgx's simple query protocol a []byte
+		// is sent as a bytea literal and rejected by the jsonb column (22P02).
+		deal.ID, string(data)); err != nil {
 		return sqlcgen.Deal{}, err
 	}
 
