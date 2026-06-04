@@ -13,9 +13,9 @@ package metadata_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -27,7 +27,18 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 )
 
-func migrationPath(t *testing.T, filename string) string {
+// allMigrationPaths returns the FULL production migration chain (every
+// NNNN_*.sql, sorted), shared by every integration setup in this package.
+// It replaces a per-file hardcoded subset that silently rotted: the suites
+// stopped at 0008/0009, so core.lecrm_provision_workspace could not see
+// gen_random_bytes once migration 0010 relocated pgcrypto into core (0006
+// pins the SECURITY DEFINER search_path to core,pg_catalog). When a
+// truncated chain is fed to the container as init scripts, the failing
+// script aborts Postgres startup — surfacing as "connection reset by peer"
+// rather than a clean SQL error. Globbing keeps the harness in lockstep
+// with prod; the zero-padded NNNN_ prefix makes lexical sort == numeric
+// order and a renumber gap (no 0020) is handled transparently.
+func allMigrationPaths(t *testing.T) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -36,11 +47,37 @@ func migrationPath(t *testing.T, filename string) string {
 	// thisFile: apps/api/internal/metadata/fail_closed_test.go
 	// Four levels up reaches the repo root (leCRM/).
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile), "..", "..", "..", ".."))
-	p := filepath.Join(repoRoot, "packages", "db", "migrations", filename)
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("migration %s not found at %s: %v", filename, p, err)
+	migrationsDir := filepath.Join(repoRoot, "packages", "db", "migrations")
+	paths, err := filepath.Glob(filepath.Join(migrationsDir, "[0-9]*.sql"))
+	if err != nil {
+		t.Fatalf("glob migrations in %s: %v", migrationsDir, err)
 	}
-	return p
+	if len(paths) == 0 {
+		t.Fatalf("no migrations found in %s", migrationsDir)
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+// waitForPostgres rides out the brief window where the postgres container is
+// restarting between its init phase and serving real client connections. The
+// official image logs "database system is ready to accept connections" once
+// during init (temp server) and again after a bounce; a single immediate
+// connect can land on the bounce and fail with "connection reset by peer".
+// The domain and tenantpair harnesses already retry; metadata used to connect
+// exactly once and flaked — worse once the full migration chain lengthened the
+// init phase. Ping with a short retry until the server is stably up.
+func waitForPostgres(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if err := pool.Ping(ctx); err == nil {
+			return
+		} else if time.Now().After(deadline) {
+			t.Fatalf("postgres not ready within deadline: %v", err)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
 
 // TestSet_FailClosed_AuditWriteRollsBackMetadata simulates an audit write
@@ -57,10 +94,7 @@ func TestSet_FailClosed_AuditWriteRollsBackMetadata(t *testing.T) {
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(
-			migrationPath(t, "0001_init.sql"),
-			migrationPath(t, "0003_metadata_engine.sql"),
-		),
+		tcpostgres.WithInitScripts(allMigrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("start postgres container: %v", err)
@@ -81,6 +115,7 @@ func TestSet_FailClosed_AuditWriteRollsBackMetadata(t *testing.T) {
 		t.Fatalf("pgxpool: %v", err)
 	}
 	t.Cleanup(pool.Close)
+	waitForPostgres(ctx, t, pool)
 
 	// Provision a workspace — creates the workspace schema with objects and
 	// custom_property_definitions tables (via 0003_metadata_engine.sql).

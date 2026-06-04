@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 	"time"
 
@@ -109,13 +110,11 @@ func Provision(t *testing.T) *Pair {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 
-	initSQL := initSQLPath(t)
-
 	ctr, err := tcpostgres.Run(ctx, "postgres:17-alpine",
 		tcpostgres.WithDatabase("lecrm"),
 		tcpostgres.WithUsername("postgres"),
 		tcpostgres.WithPassword("testpass"),
-		tcpostgres.WithInitScripts(initSQL),
+		tcpostgres.WithInitScripts(migrationPaths(t)...),
 	)
 	if err != nil {
 		t.Fatalf("tenantpair: start postgres container: %v", err)
@@ -240,9 +239,15 @@ func provisionWorkspace(ctx context.Context, conn *pgx.Conn, slug string) (uuid.
 	return id, roleName, nil
 }
 
-// initSQLPath returns the absolute path to 0001_init.sql by navigating
-// from this source file to the repo root.
-func initSQLPath(t *testing.T) string {
+// migrationPaths returns the FULL production migration chain (every
+// NNNN_*.sql, sorted) so the two provisioned tenants get the real prod
+// schema. This harness used to apply ONLY 0001_init.sql, so tests blew up
+// with "column does not exist" (42703) the moment they touched anything
+// added after Sprint 1 — a gap that stayed invisible until the integration
+// suite first ran in CI. Globbing keeps the fixture in lockstep with prod;
+// the zero-padded NNNN_ prefix makes lexical sort == numeric order and a
+// renumber gap (no 0020) is handled transparently.
+func migrationPaths(t *testing.T) []string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -252,9 +257,14 @@ func initSQLPath(t *testing.T) string {
 	// Five levels up reaches the repo root (leCRM/).
 	repoRoot := filepath.Clean(filepath.Join(filepath.Dir(thisFile),
 		"..", "..", "..", "..", ".."))
-	p := filepath.Join(repoRoot, "packages", "db", "migrations", "0001_init.sql")
-	if _, err := os.Stat(p); err != nil {
-		t.Fatalf("tenantpair: init SQL not found at %s: %v", p, err)
+	migrationsDir := filepath.Join(repoRoot, "packages", "db", "migrations")
+	paths, err := filepath.Glob(filepath.Join(migrationsDir, "[0-9]*.sql"))
+	if err != nil {
+		t.Fatalf("tenantpair: glob migrations in %s: %v", migrationsDir, err)
 	}
-	return p
+	if len(paths) == 0 {
+		t.Fatalf("tenantpair: no migrations found in %s", migrationsDir)
+	}
+	sort.Strings(paths)
+	return paths
 }
