@@ -23,6 +23,11 @@ RUN bun run build
 # ----------------------------------------------------------- 2. go API build
 FROM golang:1.25-alpine AS go
 
+# buildkit-provided target arch (e.g. amd64, arm64). Defaults to arm64 so a
+# plain `docker build` on an arm64 host (e.g. the Netcup staging box) produces
+# a runnable binary; on amd64 hosts buildkit sets it to amd64 either way.
+ARG TARGETARCH
+
 WORKDIR /workspace
 
 # Module manifest first for layer caching.
@@ -40,7 +45,7 @@ COPY --from=web /workspace/apps/web/dist/ ./apps/api/internal/spa/dist/
 # Build the static binary. CGO_ENABLED=0 keeps the binary fully static
 # so the distroless:static image can run it without a libc.
 RUN cd apps/api/cmd/lecrm-api \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-arm64} \
     go build -trimpath -ldflags="-s -w" -o /out/lecrm-api .
 
 # ---------------------------------------------------------------- 3. final
