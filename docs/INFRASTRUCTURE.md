@@ -1,7 +1,7 @@
 # Infrastructure, CI & Deployment
 
 **Canonical map of where leCRM runs, how it gets there, and what CI does.**
-Last verified against live hosts: **2026-05-30**.
+Last verified against live hosts: **2026-06-14**.
 
 This is the high-level reference. For operational step-by-step runbooks it
 points to the authoritative sources rather than duplicating them:
@@ -29,14 +29,19 @@ of the app — it is a one-shot tenant-provisioning CLI (`Running: false`,
 | Environment | Status | Host | Deploy model | Public domain | Env file |
 |---|---|---|---|---|---|
 | **dev** | on-demand | local laptop | `docker compose` + native binary | `*.lecrm.test:8080` | `deploy/.env.dev` |
-| **staging** | **LIVE** | `51.77.146.49` (`vps-25b8e3b3`) | `docker compose` from the host git checkout | `*.lecrm.gbconsult.me` | `deploy/.env.staging` (SOPS) |
-| **production** | **not deployed (planned)** | dedicated Hetzner CAX11 (migration target) | `docker compose` (same files) | `*.lecrm.fr` (Cloudflare DNS-01) | TBD |
+| **staging** | **LIVE** | `152.53.143.175` (`lecrm-staging`, Netcup VPS 1000 ARM G11, arm64) | `docker compose` from the host git checkout | `*.lecrm.gbconsult.me` | `deploy/.env.staging` (SOPS) |
+| **production** | **not deployed (planned)** | dedicated isolated VPS (substrate TBD) | `docker compose` (same files) | `*.lecrm.fr` (Cloudflare DNS-01) | TBD |
 
 Notes:
-- **Production does not exist.** The migration to a dedicated Hetzner CAX11
-  for true infra isolation is the planned production substrate (target
-  **2026-06-12** per `deploy/README.md`). Staging on shared OVH is an
-  explicitly council-waived stopgap.
+- **Staging migrated OVH → Netcup on 2026-06-14** (`51.77.146.49` →
+  `152.53.143.175`) for true single-tenant infra isolation — the substrate was
+  revised Hetzner→Netcup (cost/ARM). Full stack rebuilt arm64-native, data
+  restored with row-count parity, wildcard DNS flipped + verified. The old OVH
+  stack is fenced (api stopped) pending teardown — tracked by tasket
+  `20260614-081441-864d` (do NOT disrupt the co-tenant apps on that shared box).
+  Repeatable scripts: `deploy/cutover-resync.sh`, `deploy/enable-walg-archiving.sh`.
+- **Production does not exist.** A dedicated isolated VPS is the planned
+  production substrate. Staging is now isolated on its own Netcup box.
 - Earlier docs (`docs/integrator-handoff.md`, CI comments) reference a
   "production Dokku host `54.37.157.49`". That phrasing applies **only** to
   the `lecrm-admin` CLI image, *not* the API/web app. The API is not, and is
@@ -45,12 +50,15 @@ Notes:
 
 ---
 
-## Staging stack (live, inspected 2026-05-30)
+## Staging stack (live on Netcup, inspected 2026-06-14)
 
-Host `51.77.146.49` (`vps-25b8e3b3`). Compose project **`compose`**, files
-`deploy/compose/postgres.yml` + `deploy/compose/api.yml`, working dir
-`/home/gui/Projects/leCRM/deploy/compose`. All app ports bind to
-**loopback only** — the public entry point is the edge (below).
+Host `152.53.143.175` (`lecrm-staging`, Netcup VPS 1000 ARM G11, **arm64**,
+Ubuntu 24.04). Compose project **`compose`**, files under
+`deploy/compose/`, working dir `/opt/lecrm`. All DB/admin ports bind to
+**loopback only**; the public entry point is Caddy on `0.0.0.0:80/443`
+(this box has no co-tenant nginx, unlike the old OVH host — see Edge below).
+Docker runs directly as root here (no `sg docker` shim). ufw: 22 open
+key-only (no static operator IP), 80/443 public, everything else loopback.
 
 | Container | Image | Host port (loopback) | Role |
 |---|---|---|---|
@@ -60,7 +68,7 @@ Host `51.77.146.49` (`vps-25b8e3b3`). Compose project **`compose`**, files
 | `lecrm-authentik-server` | `ghcr.io/goauthentik/server:2025.10` | `127.0.0.1:9000→9000`, `9443` | OIDC IdP |
 | `lecrm-authentik-worker` | `ghcr.io/goauthentik/server:2025.10` | — | Authentik background worker |
 | `lecrm-authentik-postgres` | `postgres:17-alpine` | — | Authentik's own DB |
-| `lecrm-caddy` | `lecrm-caddy:ovh` | `127.0.0.1:8443→443`, `8080→80` | TLS edge, wildcard cert, reverse proxy |
+| `lecrm-caddy` | `lecrm-caddy:ovh` | `0.0.0.0:443→443`, `0.0.0.0:80→80` | TLS edge, wildcard cert, reverse proxy (binds public directly on Netcup) |
 | `lecrm-pg-test` | `postgres:16` | `127.0.0.1:5434→5432` | Integration/test DB (loopback-bound, see [[feedback_test_postgres_localhost_only]]) |
 
 Health: `https://demo.lecrm.gbconsult.me/healthz` → `200`. The distroless
@@ -71,12 +79,17 @@ At ≤10 tenants there is **no PgBouncer** — `LECRM_DATABASE_URL` points
 straight at `postgres:5432` as `lecrm_api`. The `pgbouncer.yml` layer is
 added only at ≥10 tenants (`ops/connection-pooling.md`).
 
-### Edge / networking (Edge Option B)
+### Edge / networking
 
-The host's shared systemd nginx already terminates TLS for several
-`*.gbconsult.me` vhosts on `0.0.0.0:443`. Caddy must own the
-`*.lecrm.gbconsult.me` wildcard (DNS-01) and terminate its own TLS, so
-nginx runs an **L4 SNI passthrough** in front:
+**On Netcup (current): Caddy binds `0.0.0.0:80/443` directly** — the box is
+single-tenant (no co-located nginx), so there is no SNI-passthrough layer.
+Caddy owns the `*.lecrm.gbconsult.me` wildcard via OVH DNS-01 and terminates
+TLS; `auth.lecrm.gbconsult.me` → Authentik, everything else → `lecrm-api`.
+
+> **Historical (OVH stopgap, Edge Option B — retired 2026-06-14):** the shared
+> OVH host's systemd nginx terminated `0.0.0.0:443` for several `*.gbconsult.me`
+> vhosts, so Caddy bound `127.0.0.1:8080/8443` and nginx ran an **L4 SNI
+> passthrough** in front:
 
 ```
 client ──:443──► host nginx (ssl_preread, no TLS termination)
