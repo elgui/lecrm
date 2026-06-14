@@ -151,24 +151,37 @@ is the primary entry point (production deploy).
 
 ## Staging (lecrm.gbconsult.me)
 
-> **Status (2026-05-29):** **full stack LIVE (order:3).**
-> `https://demo.lecrm.gbconsult.me` is a working, populated CRM:
-> `/healthz` 200, SPA served, `/auth/login` 302 → Authentik with the
-> state cookie scoped to `demo.lecrm.gbconsult.me`. Running:
-> `lecrm-postgres` (healthy), `lecrm-authentik-{server,worker,postgres}`,
-> `lecrm-api`, `lecrm-caddy`. Edge (order:2) unchanged: custom Caddy +
-> nginx L4 SNI on `:443` over the OVH DNS-01 wildcard.
-> **WAL-G backups: LIVE (2026-05-30)** — pivoted from OVH Object Storage
-> to **Cloudflare R2** (`lecrm-wal` bucket); base backup pushed, WAL
-> archiving green (see "WAL-G backups" below).
-> **Léo access: LIVE (2026-05-30)** — Authentik user `leo`
-> (leo@vernayo.com) provisioned; verified a full browser login through
-> Authentik → `/auth/callback` → seeded CRM (auto-created his `core.users`
-> row + `member` of the `demo` workspace). See "Access / auth model" below.
-> **Still TODO:** host firewall (80/443/22-only).
-> **TEMPORARY stopgap** —
-> migrates to a fresh Hetzner CAX11 by **2026-06-12** (order:5) for true
-> infra isolation; the council knowingly waived the isolation gate on OVH.
+> **Status (2026-06-14): LIVE on its own Netcup box — OVH→Netcup migration DONE.**
+> Host is now **`152.53.143.175`** (`lecrm-staging`, Netcup VPS 1000 ARM G11,
+> **arm64**, Ubuntu 24.04) — a dedicated single-tenant box (the isolation gate
+> the OVH stopgap waived). `https://demo.lecrm.gbconsult.me` is a working,
+> populated CRM: `/healthz` 200, SPA served, `/auth/login` 302 → Authentik;
+> full browser login by Léo confirmed. Running: `lecrm-postgres` (healthy),
+> `lecrm-authentik-{server,worker,postgres}`, `lecrm-api`, `lecrm-caddy`,
+> `lecrm-walg-backup`.
+> **Edge:** on this box there is no co-tenant nginx, so **Caddy binds
+> `0.0.0.0:80/443` directly** (no L4 SNI passthrough). Wildcard
+> `*.lecrm.gbconsult.me` issued via **OVH DNS-01** (Let's Encrypt).
+> **WAL-G backups: ON** — Cloudflare R2, prefix `s3://lecrm-wal/netcup-demo`
+> (distinct from OVH's `…/demo`); base backups pushed, `failed_count=0`.
+> **Secrets:** fresh-minted on the new box (new Postgres/Authentik/session
+> secrets); OVH DNS-01 + R2 creds reused; new disposable SOPS age key.
+> **ufw:** 80/443 public, 22 key-only (operator has no static IP), DB/admin
+> loopback.
+>
+> **Migration runbook (repeatable):** `deploy/cutover-resync.sh` (fence OVH →
+> dump → restore → parity-verify) and `deploy/enable-walg-archiving.sh`.
+> The arm64 build fix is on `main` (PR #14). The **old OVH stack is fenced**
+> (api stopped) and pending teardown — tasket `20260614-081441-864d`
+> (⚠️ that box is shared; do not disrupt the co-tenant apps).
+>
+> <details><summary>Historical: OVH stopgap status (2026-05-29 → 2026-06-14)</summary>
+>
+> Full stack was first brought up LIVE (order:3) on shared OVH `51.77.146.49`
+> (`vps-25b8e3b3`) behind host nginx L4 SNI passthrough; WAL-G pivoted to R2
+> `…/demo` (2026-05-30); Léo access + login branding live (2026-05-30/31). The
+> box was a council-waived shared-tenant stopgap, migrated off on 2026-06-14.
+> </details>
 
 ### order:3 bring-up — what runs and how (live runbook)
 
@@ -363,13 +376,15 @@ splitting TLS ownership.
     `*.lecrm.gbconsult.me`, all other SNI → relocated nginx vhosts on
     `127.0.0.1:8444`. Applying it touches the shared host's public `:443`
     (tele-claude/aaraume/conversation/drawlk) → runbook + go-ahead required.
-- **⚠️ Still blocked — OVH API token.** Secret vars in `.env.staging` are
-  **empty placeholders**: `OVH_APPLICATION_KEY`, `OVH_APPLICATION_SECRET`,
-  `OVH_CONSUMER_KEY` (only `OVH_ENDPOINT=ovh-eu` is set). Mint a token
-  scoped to `GET/PUT/POST/DELETE /domain/zone/gbconsult.me/*` at
-  <https://eu.api.ovh.com/createToken/>; **verify before use.** Fill them,
-  re-encrypt `.env.staging.enc`, then `up` the edge → Caddy issues the
-  wildcard via DNS-01. `CLOUDFLARE_API_TOKEN` is **not** used for staging.
+- **OVH API token — RESOLVED (working).** `OVH_APPLICATION_KEY`,
+  `OVH_APPLICATION_SECRET`, `OVH_CONSUMER_KEY` (+ `OVH_ENDPOINT=ovh-eu`) are
+  populated and proven: Caddy issues the `*.lecrm.gbconsult.me` wildcard via
+  OVH DNS-01 on both the retired OVH host and the live Netcup box (the same
+  token is **reused** on Netcup — do not revoke it at OVH teardown).
+  `CLOUDFLARE_API_TOKEN` is **not** used for staging. To mint a fresh token if
+  ever needed: scope `GET/PUT/POST/DELETE /domain/zone/gbconsult.me/*` at
+  <https://eu.api.ovh.com/createToken/>, fill `.env.staging`, re-encrypt
+  `.env.staging.enc` (note: `sops` decrypt needs `--input-type dotenv`).
 
 ### Secrets
 

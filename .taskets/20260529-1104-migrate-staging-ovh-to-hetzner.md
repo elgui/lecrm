@@ -1,9 +1,10 @@
 ---
 id: 20260529-1104-migrate-staging-ovh-to-hetzner
 title: "Staging: migrate OVH stopgap → fresh Hetzner CAX11 (hard deadline 2026-06-12)"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-06-14
 category: project
 group: lecrm-staging-deploy
 group_order: 220
@@ -11,6 +12,15 @@ order: 5
 plan: true
 tags: [deploy, staging, migration, hetzner, isolation, deadline, leo-test]
 ---
+
+> **CLOSED 2026-06-14 ✅** — Migrated to **Netcup VPS 1000 ARM G11 `152.53.143.175`**
+> (substrate revised from Hetzner→Netcup per the cost/ARM decision; see memory
+> `project_staging_hetzner_to_netcup_migration`). Full stack rebuilt arm64-native,
+> data restored with row-count parity (3 workspaces), Authentik re-provisioned
+> (OIDC + leCRM branding + Léo), Caddy wildcard via OVH DNS-01, WAL-G archiving ON
+> (R2 `netcup-demo`). Wildcard DNS flipped + verified (12/12 tests + OIDC login,
+> browser login by Léo confirmed). Repeatable scripts: `deploy/cutover-resync.sh`,
+> `deploy/enable-walg-archiving.sh`. OVH teardown tracked by tasket `20260614-081441-864d`.
 
 # Staging: migrate OVH stopgap → fresh Hetzner CAX11 (hard deadline 2026-06-12)
 
