@@ -1,10 +1,10 @@
 ---
 id: 20260528-142652-8580
 title: v1 kickoff signal — unpark lecrm-v1-build/aa6f and update group_order
-status: parked
+status: next
 priority: p2
 created: 2026-05-28
-updated: 2026-05-28
+updated: 2026-06-14
 tags: [v1-readiness, kickoff, milestone]
 category: project
 group: lecrm-v1-readiness
@@ -17,12 +17,17 @@ plan: true
 
 Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 (`lecrm-v1-build`, tasket `aa6f`) becomes the next active build track.
 
-**Preconditions to flip from `parked` → `next`** (ALL must hold):
+> **2026-06-14 decision — first-client gate DROPPED.** Guillaume chose to
+> decouple v1 from any "first paying client" milestone and keep the build train
+> moving. The original precondition #4 ("First paying client signed") is removed;
+> v1 kicks off as soon as the technical readiness gates below close. (The
+> commercial motion proceeds in parallel and is no longer a blocker here.)
+
+**Preconditions to flip `lecrm-v1-build` → `next`** (ALL must hold):
 
 1. Sibling tasket `lecrm-v1-readiness/order:1` (ADR-004 rev. 2) — `done`.
 2. Sibling tasket `lecrm-v1-readiness/order:2` (v0 ship-gate verification) — `done`.
-3. Sibling tasket `lecrm-v1-readiness/order:3` (Brevo plan tier) — `done`.
-4. First paying client signed. Source of truth: an entry in the leCRM workspace once v0 self-hosts; before that, Guillaume's own notes / pipeline tracker. Quote the client name and signature date in the evidence section. (Léo's Vernayo HubSpot is NOT a source of truth for leCRM clients — leCRM has its own sales motion. See memory `feedback_leo_scope_lecrm`.)
+3. Sibling tasket `lecrm-v1-readiness/order:3` (Brevo plan tier, tasket `2702`) — `done`. **← the only one still open; now `next`, run it first.**
 
 ## Steps when all preconditions hold
 
@@ -30,10 +35,7 @@ Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 
    - `status: later` → `status: next`
    - Bump `updated:` to today.
    - Add an `unparked:` line referencing this readiness tasket's commit.
-2. Decide v1-build's `group_order`. Today it sits at `20` — a legacy sprint-style number that pre-dates the current feature-track convention (50/60/70 for crm-*, this readiness group at 80). Right answer: bump v1-build to `90` so the dashboard sorts it after readiness. The actual order frontmatter edit:
-   ```
-   group_order: 20 → 90
-   ```
+2. Confirm v1-build's `group_order`. It already sits at `300` (sorts after the now-complete `lecrm-staging-deploy` group at 220, before `lecrm-v2-exploration` at 400) — that ordering is correct, so **no bump needed**. (The earlier "20→90" instruction was stale; aa6f was renumbered to 300 under the current feature-track convention.)
 3. Re-read the v1 done criteria in `aa6f`. Reconcile against ADR-004 rev. 2 from sibling 1 — they should now match. If they don't, fix the tasket body before the run.
 4. Verify the v1 tasket's open-dependencies section is empty (Brevo + ADR-004 should both be closed by readiness gates 1 & 3).
 5. Decide whether v1 needs sub-taskets (likely yes — at minimum: enrollments DDL, river job framework, Brevo inbound handler, Gmail Pub/Sub watch, OOO classifier, GlockApps preflight). If so, run the Tasket `CreatePlanGroup` workflow against ADR-004 rev. 2 to spawn them as a v1-build sub-plan-group.
@@ -47,14 +49,12 @@ Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 
 ```
 ADR-004 rev. 2 commit:        [hash]
 v0 ship-gate commit:          [hash]
-Brevo plan-tier decision:     [link to ADR-003 addendum]
-First paying client:          [name + signature date]
-Client signal source:         [CRM record id OR HubSpot deal id]
+Brevo plan-tier decision:     [link to ADR-003 addendum from tasket 2702]
 ```
 
 ## Done when
 
-- `.taskets/20260510-162158-aa6f-*.md` shows `status: next`, `group_order: 90`, and an `unparked:` line.
+- `.taskets/20260510-162158-aa6f-*.md` shows `status: next`, `group_order: 300` (unchanged), and an `unparked:` line.
 - This tasket's evidence section is filled in with real values.
 - A v1-build sub-plan-group exists (or the call was explicitly made not to — record the rationale here).
 
