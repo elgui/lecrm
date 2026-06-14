@@ -1,7 +1,7 @@
 ---
 id: 20260528-142628-2702
 title: Confirm Brevo plan tier for v1 inbound parse webhook
-status: next
+status: done
 priority: p2
 created: 2026-05-28
 updated: 2026-06-14
@@ -11,6 +11,7 @@ group: lecrm-v1-readiness
 group_order: 80
 order: 3
 plan: true
+done: 2026-06-14
 ---
 
 ## Why
