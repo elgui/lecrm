@@ -133,6 +133,90 @@ func (tp *TenantPool) RunInWorkspace(
 	}
 	defer conn.Release()
 
+	if err := verifyConnSearchPath(ctx, conn, roleName); err != nil {
+		return err
+	}
+
+	return fn(ctx, conn)
+}
+
+// AcquireTx opens a workspace-scoped transaction implementing the river
+// worker entry contract from ADR-004 rev 2 §3:
+//
+//	ctx, tx, release, err := pool.AcquireTx(ctx, args.WorkspaceID)
+//	if err != nil { return err }
+//	defer release()
+//	// ... all DB + audit_log writes go through tx ...
+//	return tx.Commit(ctx)
+//
+// It resolves the workspace's Postgres role, takes a bounded pooled
+// connection authenticated as that role, verifies the search_path is scoped
+// to the workspace schema (the role-barrier defense-in-depth that stops a
+// mis-routed job from touching another tenant's data), and begins a
+// transaction on that connection.
+//
+// The returned release() is idempotent and must be deferred immediately: it
+// rolls the transaction back (a no-op once the caller has committed) and
+// returns the connection to the pool. The caller commits explicitly on the
+// success path; release() handles every other path, including panics.
+//
+// Unlike jobs.RunWorkspaceJob, AcquireTx does NOT take a workspace-wide
+// advisory lock: sequences workers serialize on the enrollment row
+// (SELECT ... FOR UPDATE inside Transition()), so a connection-wide lock
+// would needlessly serialize independent enrollments in the same workspace
+// and throttle send throughput. Tenant isolation rests on the Postgres role
+// barrier (the connection is the workspace role), not on the advisory lock.
+//
+// The returned context is currently the input context unchanged; it is part
+// of the contract signature so a future revision can attach
+// workspace-scoped values without a breaking change.
+func (tp *TenantPool) AcquireTx(
+	ctx context.Context,
+	workspaceID uuid.UUID,
+) (context.Context, pgx.Tx, func(), error) {
+	roleName, err := tp.resolver.WorkspaceRoleName(ctx, workspaceID)
+	if err != nil {
+		return ctx, nil, nil, fmt.Errorf("tenant pool: resolve workspace %s: %w", workspaceID, err)
+	}
+
+	pool, err := tp.getOrCreate(ctx, roleName)
+	if err != nil {
+		return ctx, nil, nil, fmt.Errorf("tenant pool: pool for %s: %w", roleName, err)
+	}
+
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return ctx, nil, nil, fmt.Errorf("tenant pool: acquire conn for %s: %w", roleName, err)
+	}
+
+	if err := verifyConnSearchPath(ctx, conn, roleName); err != nil {
+		conn.Release()
+		return ctx, nil, nil, err
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		conn.Release()
+		return ctx, nil, nil, fmt.Errorf("tenant pool: begin tx for %s: %w", roleName, err)
+	}
+
+	var releaseOnce sync.Once
+	release := func() {
+		releaseOnce.Do(func() {
+			// Rollback returns ErrTxClosed (a no-op) once the caller has
+			// committed; we discard the error deliberately.
+			_ = tx.Rollback(ctx)
+			conn.Release()
+		})
+	}
+	return ctx, tx, release, nil
+}
+
+// verifyConnSearchPath asserts that the pooled connection's search_path is
+// scoped to the workspace schema (which equals the role name, per the
+// provision function in 0001_init.sql). A connection whose search_path does
+// not contain the expected schema is mis-scoped and must not be used.
+func verifyConnSearchPath(ctx context.Context, conn *pgxpool.Conn, roleName string) error {
 	var searchPath string
 	if err := conn.QueryRow(ctx, "SHOW search_path").Scan(&searchPath); err != nil {
 		return fmt.Errorf("tenant pool: verify search_path: %w", err)
@@ -142,8 +226,7 @@ func (tp *TenantPool) RunInWorkspace(
 			"tenant pool: search_path %q does not contain workspace schema %q; connection mis-scoped",
 			searchPath, roleName)
 	}
-
-	return fn(ctx, conn)
+	return nil
 }
 
 // Close shuts down all managed pools. Safe to call multiple times.
