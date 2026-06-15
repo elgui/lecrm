@@ -5,11 +5,109 @@
 package sqlcgen
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"net/netip"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type EnrollmentState string
+
+const (
+	EnrollmentStateEnrolled      EnrollmentState = "enrolled"
+	EnrollmentStateStepSent      EnrollmentState = "step_sent"
+	EnrollmentStateWaitingReply  EnrollmentState = "waiting_reply"
+	EnrollmentStateReplyReceived EnrollmentState = "reply_received"
+	EnrollmentStateOooDetected   EnrollmentState = "ooo_detected"
+	EnrollmentStateFailed        EnrollmentState = "failed"
+	EnrollmentStateBounced       EnrollmentState = "bounced"
+	EnrollmentStateUnsubscribed  EnrollmentState = "unsubscribed"
+	EnrollmentStateSuppressed    EnrollmentState = "suppressed"
+	EnrollmentStateCompleted     EnrollmentState = "completed"
+)
+
+func (e *EnrollmentState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EnrollmentState(s)
+	case string:
+		*e = EnrollmentState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EnrollmentState: %T", src)
+	}
+	return nil
+}
+
+type NullEnrollmentState struct {
+	EnrollmentState EnrollmentState `json:"enrollment_state"`
+	Valid           bool            `json:"valid"` // Valid is true if EnrollmentState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEnrollmentState) Scan(value interface{}) error {
+	if value == nil {
+		ns.EnrollmentState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EnrollmentState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEnrollmentState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EnrollmentState), nil
+}
+
+type StepSendState string
+
+const (
+	StepSendStatePending    StepSendState = "pending"
+	StepSendStateSent       StepSendState = "sent"
+	StepSendStateDelivered  StepSendState = "delivered"
+	StepSendStateBounced    StepSendState = "bounced"
+	StepSendStateCancelled  StepSendState = "cancelled"
+	StepSendStateSuperseded StepSendState = "superseded"
+)
+
+func (e *StepSendState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = StepSendState(s)
+	case string:
+		*e = StepSendState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for StepSendState: %T", src)
+	}
+	return nil
+}
+
+type NullStepSendState struct {
+	StepSendState StepSendState `json:"step_send_state"`
+	Valid         bool          `json:"valid"` // Valid is true if StepSendState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullStepSendState) Scan(value interface{}) error {
+	if value == nil {
+		ns.StepSendState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.StepSendState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullStepSendState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.StepSendState), nil
+}
 
 type Activity struct {
 	ID           uuid.UUID          `json:"id"`
@@ -51,7 +149,7 @@ type CoreAuditLog struct {
 	OccurredAt  pgtype.Timestamptz `json:"occurred_at"`
 	Event       string             `json:"event"`
 	WorkspaceID uuid.NullUUID      `json:"workspace_id"`
-	ActorType   pgtype.Text        `json:"actor_type"`
+	ActorType   string             `json:"actor_type"`
 	ActorUserID uuid.NullUUID      `json:"actor_user_id"`
 	ActorIp     *netip.Addr        `json:"actor_ip"`
 	RequestID   uuid.NullUUID      `json:"request_id"`
@@ -67,6 +165,13 @@ type CoreIdempotencyKey struct {
 	ResponseBody   []byte             `json:"response_body"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+}
+
+type CoreIntegratorGrant struct {
+	WorkspaceID uuid.UUID          `json:"workspace_id"`
+	Email       string             `json:"email"`
+	GrantedBy   string             `json:"granted_by"`
+	GrantedAt   pgtype.Timestamptz `json:"granted_at"`
 }
 
 type CoreReservedSlug struct {
@@ -145,6 +250,37 @@ type Deal struct {
 	ClosedAt          pgtype.Timestamptz `json:"closed_at"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Enrollment struct {
+	ID               uuid.UUID          `json:"id"`
+	SequenceID       uuid.UUID          `json:"sequence_id"`
+	ContactID        uuid.UUID          `json:"contact_id"`
+	State            EnrollmentState    `json:"state"`
+	CurrentStepIndex int16              `json:"current_step_index"`
+	EnrolledAt       pgtype.Timestamptz `json:"enrolled_at"`
+	NextActionAt     pgtype.Timestamptz `json:"next_action_at"`
+	LastTransitionAt pgtype.Timestamptz `json:"last_transition_at"`
+	ReplyMessageID   pgtype.Text        `json:"reply_message_id"`
+	OooReturnsAt     pgtype.Timestamptz `json:"ooo_returns_at"`
+	CreatedByUserID  uuid.NullUUID      `json:"created_by_user_id"`
+	WorkspaceID      uuid.UUID          `json:"workspace_id"`
+}
+
+type EnrollmentStep struct {
+	ID             uuid.UUID          `json:"id"`
+	EnrollmentID   uuid.UUID          `json:"enrollment_id"`
+	StepIndex      int16              `json:"step_index"`
+	State          StepSendState      `json:"state"`
+	BrevoMessageID pgtype.Text        `json:"brevo_message_id"`
+	RfcMessageID   pgtype.Text        `json:"rfc_message_id"`
+	ScheduledFor   pgtype.Timestamptz `json:"scheduled_for"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	DeliveredAt    pgtype.Timestamptz `json:"delivered_at"`
+	BouncedAt      pgtype.Timestamptz `json:"bounced_at"`
+	BounceType     pgtype.Text        `json:"bounce_type"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type Note struct {
