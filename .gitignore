@@ -59,6 +59,17 @@ secrets/operator/secrets.yaml
 !secrets/clients/_template/secrets.yaml.template
 !secrets/operator/secrets.yaml.template
 
+# Gmail OAuth refresh-token manifests (tasket 20260614-154815-5078,
+# ADR-004 rev2 §4). Only the encrypted `.enc.yaml` form and the
+# `_template` may be committed; the plaintext intermediate `<user_id>.yaml`
+# (a per-user refresh token!) MUST stay local. Filenames are variable
+# (`<user_id>.yaml`), so the `*.yaml` glob also catches `<user_id>.enc.yaml`
+# — re-include the encrypted form explicitly. Order matters: ignore, then
+# negate (git applies the last matching pattern).
+secrets/oauth/gmail/*/*.yaml
+!secrets/oauth/gmail/*/*.enc.yaml
+!secrets/oauth/gmail/_template/secrets.yaml.template
+
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*
 .archexplorer/

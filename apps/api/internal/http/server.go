@@ -47,7 +47,14 @@ type RouterDeps struct {
 	// client-side routing fallback to index.html (ADR-009 §5.1). Mounted
 	// as the router's NotFound handler. When nil, unmatched paths get
 	// chi's default plain-text 404 (test seam).
-	SPA             http.Handler
+	SPA http.Handler
+	// GmailWebhook registers the Gmail Pub/Sub push route
+	// (POST /v1/webhooks/gmail/push, ADR-004 rev 2 §4). Mounted OUTSIDE the
+	// workspace-middleware group like the Brevo inbound webhook — its
+	// authentication is the Google-signed OIDC JWT, not a session cookie.
+	// Nil until the sequences river runtime is wired (the handler needs a
+	// workspace-scoped enqueuer); the route is simply absent until then.
+	GmailWebhook    interface{ RegisterRoute(chi.Router) }
 	CookieDomainTLD string
 }
 
@@ -73,6 +80,12 @@ func NewRouter(deps RouterDeps) *chi.Mux {
 	// auth is the HMAC over the request body, not a session cookie.
 	if deps.Email != nil {
 		deps.Email.RegisterWebhookRoute(r)
+	}
+
+	// Gmail Pub/Sub push webhook (ADR-004 rev 2 §4) — also outside the
+	// workspace-middleware group; its auth is the Google-signed OIDC JWT.
+	if deps.GmailWebhook != nil {
+		deps.GmailWebhook.RegisterRoute(r)
 	}
 
 	// /admin/audit lives outside the workspace-middleware group too:

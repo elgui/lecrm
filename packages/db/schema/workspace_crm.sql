@@ -85,3 +85,59 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- v1 native sequences (ADR-004 rev 2 §1). Created per-workspace by
+-- core.lecrm_provision_workspace (migration 0025) as schema-qualified types +
+-- tables; mirrored here unqualified so sqlc can emit typed Go bindings.
+CREATE TYPE enrollment_state AS ENUM (
+  'enrolled',
+  'step_sent',
+  'waiting_reply',
+  'reply_received',
+  'ooo_detected',
+  'failed',
+  'bounced',
+  'unsubscribed',
+  'suppressed',
+  'completed'
+);
+
+CREATE TYPE step_send_state AS ENUM (
+  'pending',
+  'sent',
+  'delivered',
+  'bounced',
+  'cancelled',
+  'superseded'
+);
+
+CREATE TABLE IF NOT EXISTS enrollments (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sequence_id        UUID NOT NULL,
+  contact_id         UUID NOT NULL,
+  state              enrollment_state NOT NULL DEFAULT 'enrolled',
+  current_step_index SMALLINT NOT NULL DEFAULT 0,
+  enrolled_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  next_action_at     TIMESTAMPTZ,
+  last_transition_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reply_message_id   TEXT,
+  ooo_returns_at     TIMESTAMPTZ,
+  created_by_user_id UUID,
+  workspace_id       UUID NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS enrollment_steps (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  enrollment_id    UUID NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+  step_index       SMALLINT NOT NULL,
+  state            step_send_state NOT NULL DEFAULT 'pending',
+  brevo_message_id TEXT,
+  rfc_message_id   TEXT,
+  scheduled_for    TIMESTAMPTZ NOT NULL,
+  sent_at          TIMESTAMPTZ,
+  delivered_at     TIMESTAMPTZ,
+  bounced_at       TIMESTAMPTZ,
+  bounce_type      TEXT,
+  idempotency_key  TEXT NOT NULL,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);

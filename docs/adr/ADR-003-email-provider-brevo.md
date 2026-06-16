@@ -159,7 +159,7 @@ Rejected. IP reputation from a fresh self-hosted sender is a 4–8 week warm-up 
 
 ## TO RESOLVE
 
-1. **Brevo inbound parse plan tier — non-blocking.** Pricing for `inboundEmailProcessed` webhook access is not publicly documented. Confirm with Brevo sales which plan unlocks it. **This is not a v0/v1 blocker.** Per [ADR-004 §3](ADR-004-sequences-architecture.md), inbound parse is the **secondary** reply-detection surface; the primary path (Gmail Pub/Sub + Microsoft Graph subscriptions on per-user OAuth) covers >95% of the EU SMB target market without it. The Brevo answer determines only how the catch-all "generic CRM reply-to" path is implemented:
+1. **Brevo inbound parse plan tier — non-blocking. `[RESOLVED 2026-06-14 — see Addendum A2026-06-14 below. Brevo inbound parse IS Professional-tier-gated (~€500/mo, confirmed by account owner) — uneconomic for a secondary path. v1 ships Gmail-only; generic reply@ catch-all deferred, provider undecided.]`** Pricing for `inboundEmailProcessed` webhook access is not publicly documented. Confirm with Brevo sales which plan unlocks it. **This is not a v0/v1 blocker.** Per [ADR-004 §3](ADR-004-sequences-architecture.md), inbound parse is the **secondary** reply-detection surface; the primary path (Gmail Pub/Sub + Microsoft Graph subscriptions on per-user OAuth) covers >95% of the EU SMB target market without it. The Brevo answer determines only how the catch-all "generic CRM reply-to" path is implemented:
    - **Best case** — inbound parse on Standard plan or below: ship as designed in ADR-004 §3.
    - **Bad case** — inbound parse Enterprise-only or volume-capped uneconomically: drop the secondary path entirely in v0/v1. Sequences ship with primary (Gmail/Graph OAuth) + IMAP IDLE fallback for non-mainstream mailboxes (rare in target market). The "generic CRM reply-to" use case is deferred. ~95% of SMB sequences happen from the rep's mailbox anyway, so this is a small UX gap not a feature loss.
    - **Bad case alternative** — if a client genuinely needs the catch-all path, three fallbacks in increasing operational cost: (a) self-hosted Postfix → LMTP → BullMQ webhook (~1 day setup, EU-residency by definition, free); (b) Mailjet inbound parse only as a single-feature second vendor (acceptable DPA cost, two-vendor split); (c) CloudMailin or similar EU-friendly inbound-only service (verify GDPR/DPF posture). All three are viable; Postfix is the default fallback because it has no third-party dependency.
@@ -169,3 +169,132 @@ Rejected. IP reputation from a fresh self-hosted sender is a 4–8 week warm-up 
 4. **Scaleway TEM Scale exact pricing.** €80/mo + 100k included was published in May 2026 but Scaleway has updated pricing in the past. Re-confirm at the moment we approach the >50k/mo threshold.
 5. **Domain provisioning fallback for non-mainstream DNS providers.** Cloudflare/OVH/Gandi cover most of our French SMB clients but not all. Document a manual DNS-record copy-paste flow with a 4 h propagation window and a clear UI status indicator for clients on other DNS hosts. The 30-min onboarding target ([Scenario A in ARCHITECTURE.md §12](../ARCHITECTURE.md)) does not include DKIM verification — explicitly acknowledge this in the wizard.
 6. **DMARC report ingestion (RUA/RUF).** DMARC `rua` and `ruf` aggregate reports are sent to `mailto:` addresses on the sending domain. Decide whether leCRM ingests them (set address to `dmarc-rua@<lecrm-host>` and parse) or delegates to client (default = client-managed). v0 default: client-managed; v2: optional ingestion as a deliverability-monitoring add-on.
+
+---
+
+## Addendum A2026-06-14 — Inbound parse plan tier resolved (closes TO RESOLVE item 1)
+
+**Author:** Guia (automated research pass, tasket `20260528-142628-2702`); **corrected 2026-06-14**
+after account-owner verification (see Correction note).
+**Status:** Accepted — **Option D: Gmail-only reply detection at v1; generic `reply@` catch-all
+deferred, provider undecided** (Guillaume, 2026-06-14).
+**Why now:** v1 sequences dev (`apps/api/internal/email/brevo/inbound.go`, not yet written) needs a
+confirmed inbound-reply input before code lands. The first-paying-client gate was dropped on
+2026-06-14, so this ran as standalone self-research (no external-collaborator wait).
+
+### Headline & correction
+
+**Brevo inbound parse is Professional-tier-gated (~€500/mo)** — confirmed by Guillaume from the live
+account (2026-06-14). This is the ADR-004 rev 2 §Q4 / TO RESOLVE-1 **"bad case."** €500/mo is ~4–6×
+the *entire* email-layer budget envelope (≤€80–120/mo across the phase-3 portfolio, §Context) and
+would buy only the **secondary** catch-all reply path. **Decision: don't pay for it.** v1 ships
+**Gmail-only** reply detection (covers ~95% of SMB sequences, sent from the rep's own mailbox —
+ADR-004 rev 2 §4). The generic `reply@<client-domain>` catch-all is **deferred**, provider
+undecided; a costed comparison is recorded in Finding 3 for when that decision is taken.
+
+> **Correction note.** An earlier revision of this addendum concluded "no tier gate, €0, Option B,"
+> inferred from the *absence* of a gating note in Brevo's developer docs. That was wrong — dev-doc
+> silence is not "free." The two sources that would have caught it (Brevo's help-center inbound
+> article; the pricing page) were not machine-readable this pass (403 / JS-rendered), which was
+> flagged as the residual caveat — and it resolved against the inference. The account owner's
+> dashboard visibility is authoritative and supersedes it.
+
+### Evidence
+
+```
+Current plan:        Free (Guillaume, 2026-06-14)
+Renewal date:        N/A — Free plan is free-forever; no paid renewal date.
+Required plan:       Professional (~€500/mo) to use inbound parse / inbound webhooks.
+                     CONFIRMED by Guillaume from the live Brevo account, 2026-06-14 — this
+                     SUPERSEDES the earlier doc-inference of "no gate". Corroborating list
+                     price: Brevo Professional ≈ $499/mo (2026 review sources).
+Monthly cost delta:  ~€500/mo to enable inbound on Brevo → REJECTED (≈4–6× the whole email-layer
+                     budget of ≤€80–120/mo, §Context, spent on a secondary path).
+Upgrade trigger:     N/A for inbound — not taken. v1 reply detection = Gmail-only.
+Catch-all decision:  DEFERRED — build a generic reply@ path only when a paying client needs it;
+                     provider undecided (costed comparison in Finding 3).
+Inbound payload doc: https://developers.brevo.com/docs/inbound-parse-webhooks
+                     (Brevo; reference only — Brevo inbound is NOT on the v1 path)
+Guillaume decision:  Option D (Gmail-only at v1; catch-all deferred, provider undecided) —
+                     ACCEPTED 2026-06-14. Also requested: cost the paid alternatives now (done).
+```
+
+### Finding 1 — Brevo inbound parse is Professional-gated (~€500/mo), so it's not used
+
+- **Confirmed by the account owner** (Guillaume, dashboard, 2026-06-14): inbound webhooks / inbound
+  parse require a **Professional** subscription (~€500/mo). Corroborating list price: Brevo
+  Professional ≈ **$499/mo** ([Costbench — Brevo pricing 2026](https://costbench.com/software/marketing-automation/brevo/)).
+- Brevo's [inbound parse docs](https://developers.brevo.com/docs/inbound-parse-webhooks) document the
+  feature, MX delegation and payload but **do not state the tier requirement** — which is exactly why
+  the gate was invisible from docs alone (the original mistake).
+- **Why we don't pay it:** inbound parse is the **secondary** reply path; the primary Gmail path
+  (per-user OAuth) already covers ~95% of SMB sequences (ADR-004 rev 2 §4 / §Q4). €500/mo for the
+  remaining-~5% catch-all is ~4–6× the entire email-layer budget (≤€80–120/mo, §Context).
+  Economically a non-starter.
+
+### Finding 2 — v1 decision: Gmail-only, catch-all deferred (Option D)
+
+v1 sequences ship with **Gmail Pub/Sub reply detection only** (ADR-004 rev 2 §4; Gmail-first per
+ADR-009 §9). No `inbound.go` against Brevo at v1. The generic `reply@<client-domain>` catch-all is
+**deferred** until a paying client genuinely needs it, and the provider for it is **left undecided**
+(Guillaume's explicit choice — don't pre-commit, not even to Postfix). The costed comparison in
+Finding 3 is the ready input for that future decision.
+
+### Finding 3 — Costed comparison of catch-all options (for the deferred decision)
+
+When the generic `reply@` catch-all is eventually needed, these are the realistic providers. Brevo
+Professional is shown only as the rejected reference. Pricing triangulated from 2026 sources;
+re-confirm at adoption time (§Source hygiene).
+
+| Option | Recurring cost | EU / GDPR posture | Effort & ops | New sub-processor? |
+|---|---|---|---|---|
+| **Postfix self-host → river webhook** | **€0** (runs on existing EU VPS, e.g. Netcup DE) | Strongest — you pick server location (EU by construction); no third party, no extra DPA | ~1 day build, then you own the MTA (spam filtering, MIME parse) | No |
+| **Mailjet Parse API** | **~$17/mo** (Essential, cheapest paid; "Crystal and above" is legacy naming — free tier excluded) | EU data centres (Sinch); adds a Sinch DPA sub-processor | Low — managed API, basic-auth + HTTPS webhook | Yes (Mailjet/Sinch) |
+| **CloudMailin** | **$0** ≤10k/mo → $25 Starter (10k) → $45 Pro (20k) → $85 Premium (40k) | Weaker by default — shared clusters are "US **and/or** Europe"; guaranteed EU needs a Dedicated server (from ~$1,499/mo) or a confirmed EU cluster + DPA. UK firm (UK has GDPR adequacy). | Low — managed API | Yes (CloudMailin) |
+| Brevo Professional *(rejected ref)* | **~€500/mo** | EU-default (Paris); no new vendor | Low — already integrated | No |
+
+Sources: [Mailjet Parse API guide](https://dev.mailjet.com/email/guides/parse-api/) (gating: paid
+plans, "Crystal and above"), [Mailjet pricing](https://www.emailsoftwareinsights.com/reviews/mailjet/pricing/)
+(Free $0 / Essential from $17 / Premium from $27), [CloudMailin pricing](https://www.cloudmailin.com/plans),
+[CloudMailin inbound](https://www.cloudmailin.com/inbound) ("default clusters operate in the US
+and/or Europe; dedicated servers … any region").
+
+**Non-binding read (decision is deferred):**
+- **Mailjet Parse API (~$17/mo)** — cheapest *managed* EU-acceptable option, ~30× cheaper than Brevo
+  Pro; leCRM already keeps Mailjet as the deliverability fallback (Alt 1), so the vendor/DPA may
+  exist anyway. Strong default if a managed path is wanted.
+- **Postfix self-host (€0)** — best sovereignty/cost if avoiding any new sub-processor outweighs
+  running an MTA.
+- **CloudMailin** — most generous free tier (10k/mo) but its default "US and/or Europe" shared
+  clusters are the weakest fit for the EU-residency-mandatory constraint (§Context) unless an
+  EU-only cluster + DPA is contractually confirmed; discount it otherwise.
+
+**Reference — Brevo inbound payload shape (if Brevo inbound is ever reconsidered).** The Brevo
+payload *does* satisfy the ADR-004 rev 2 `brevoInboundEvent` struct (`From`, `To`, `InReplyTo`,
+`MessageId`, `ExtractedMarkdownMessage`, `SpamScore`, full `Headers` all present), with three
+implementation gotchas: the envelope is an `items[]` array (not one object — contrast the outbound
+webhook at `apps/api/internal/email/brevo/webhook.go:38`); `From`/`To` are `Mailbox{Address,Name}`
+objects, not strings; and `SpamScore` may be nested as `Spam.Score`. Source:
+[inbound parse webhooks](https://developers.brevo.com/docs/inbound-parse-webhooks). Not on the v1 path.
+
+### Decision matrix (final)
+
+| Option | Cost delta | Status |
+|---|---|---|
+| Use Brevo inbound (requires Professional) | ~€500/mo | **Rejected** — uneconomic for a secondary path |
+| **D — Gmail-only at v1; catch-all deferred, provider undecided** | **€0** | **ACCEPTED** (Guillaume, 2026-06-14) |
+| Build a non-Brevo catch-all (Postfix / Mailjet / CloudMailin) | €0–~$17/mo (Finding 3) | Deferred — pick from Finding 3 when a client needs it |
+
+### Impact on this ADR and others
+
+- **ADR-003 §Decision is PARTIALLY SUPERSEDED for the inbound role.** The "Inbound parse: Brevo's
+  `inboundEmailProcessed` webhook … MX delegation to `inbound*.sendinblue.com`" decision bullet and
+  the "inbound parse is production-quality / unblocks v1" Consequence no longer hold at the chosen
+  budget — Brevo inbound is Pro-gated and **not used**. Brevo remains the **outbound transactional +
+  sequences** provider (unchanged); only its **inbound** role is dropped. Fold this into an ADR-003
+  rev 2 if the catch-all is ever rebuilt on a provider.
+- **ADR-004 rev 2 §Q4 / TO RESOLVE-S2:** resolved — inbound parse is Pro-only/uneconomic ⇒ catch-all
+  deferred, v1 Gmail-only. The `inbound.go` sketch in ADR-004 rev 2 §4 is **not built at v1**; if a
+  catch-all is added later, its parse layer follows the chosen provider (Finding 3), not Brevo.
+  Record the deferral in `docs/STRATEGIC-OVERVIEW.md` per S2.
+- **ADR-003 §Decision (plan progression):** still volume-driven and otherwise unchanged for outbound.

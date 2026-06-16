@@ -1,10 +1,11 @@
 ---
 id: 20260528-142652-8580
 title: v1 kickoff signal — unpark lecrm-v1-build/aa6f and update group_order
-status: next
+status: done
 priority: p2
 created: 2026-05-28
 updated: 2026-06-14
+done: 2026-06-14
 tags: [v1-readiness, kickoff, milestone]
 category: project
 group: lecrm-v1-readiness
@@ -27,7 +28,9 @@ Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 
 
 1. Sibling tasket `lecrm-v1-readiness/order:1` (ADR-004 rev. 2) — `done`.
 2. Sibling tasket `lecrm-v1-readiness/order:2` (v0 ship-gate verification) — `done`.
-3. Sibling tasket `lecrm-v1-readiness/order:3` (Brevo plan tier, tasket `2702`) — `done`. **← the only one still open; now `next`, run it first.**
+3. Sibling tasket `lecrm-v1-readiness/order:3` (Brevo plan tier, tasket `2702`) — `done` (closed 2026-06-14; Option D — Gmail-only at v1).
+
+**All three preconditions held on 2026-06-14 — this kickoff executed (see Outcome below).**
 
 ## Steps when all preconditions hold
 
@@ -47,10 +50,24 @@ Final gate of the v1 readiness plan-group. When this tasket flips to `done`, v1 
 ## Evidence (fill in before flipping `done`)
 
 ```
-ADR-004 rev. 2 commit:        [hash]
-v0 ship-gate commit:          [hash]
-Brevo plan-tier decision:     [link to ADR-003 addendum from tasket 2702]
+ADR-004 rev. 2 commit:        a24f67a8 (docs(adr): re-issue ADR-004 sequences architecture for Go + river)
+v0 ship-gate commit:          869dc774 (chore(taskets): close v0 ship-gate — all upstream shipped, verified)
+Brevo plan-tier decision:     docs/adr/ADR-003-email-provider-brevo.md → "Addendum A2026-06-14"
+                              (Option D — Gmail-only at v1; Brevo inbound rejected, Pro-tier-gated ~€500/mo).
+                              Tasket 2702 (done 2026-06-14); committed on this branch as 6bbc953c.
 ```
+
+## Outcome (2026-06-14)
+
+- **aa6f flipped** `later → next`, `updated: 2026-06-14`, `unparked:` line added; `group_order: 300` unchanged (Step 2 — no bump). Done-criteria reconciled against ADR-004 rev 2: the Brevo `inbound.go` deliverable is moved to **Deferred** (Gmail-only at v1 per the Brevo gate); added the `enrollments`/`enrollment_steps` DDL, the `audit_log.actor_type` prereq migration, and the four river job types as explicit v1 items. Open-dependencies section emptied (both gates closed).
+- **v1-build sub-plan-group created** (Step 5 — "create now" decision, Guillaume 2026-06-14). Six sequenced sub-taskets in group `lecrm-v1-build` (order 2–7, `group_order: 300`, status `later`), derived from ADR-004 rev 2:
+  - `order:2` — Sequences schema + `actor_type` migration (`20260614-154749-c718`)
+  - `order:3` — river job framework + workspace-scoped workers (`20260614-154815-2133`)
+  - `order:4` — State machine + `Transition()` + in-txn audit (`20260614-154815-ff66`)
+  - `order:5` — Gmail Pub/Sub Watch reply detection (PRIMARY v1) (`20260614-154815-5078`)
+  - `order:6` — OOO classifier (rules + Haiku) (`20260614-154815-a81e`)
+  - `order:7` — Preflight: suppression + caps + throttle + GlockApps (`20260614-154815-d8f9`)
+  - No Brevo-inbound sub-tasket (deferred, not v1).
 
 ## Done when
 

@@ -343,9 +343,13 @@ func (w *PgAuditWriter) WriteAudit(ctx context.Context, ev AuditEvent) error {
 	if err != nil {
 		return err
 	}
-	var actorType any
-	if ev.ActorType != "" {
-		actorType = string(ev.ActorType)
+	// core.audit_log.actor_type is NOT NULL DEFAULT 'human_api' (migration
+	// 0025); a bare nil here would violate the constraint and roll back the
+	// fail-closed write. Default an unset actor to 'human_api', mirroring
+	// capability.EmitAudit. All current callers already set a valid actor.
+	actorType := string(ev.ActorType)
+	if actorType == "" {
+		actorType = string(ActorHumanAPI)
 	}
 	var actorUserID any
 	if ev.ActorUserID != uuid.Nil {

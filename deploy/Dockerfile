@@ -23,9 +23,12 @@ RUN bun run build
 # ----------------------------------------------------------- 2. go API build
 FROM golang:1.25-alpine AS go
 
-# buildkit-provided target arch (e.g. amd64, arm64). Defaults to arm64 so a
-# plain `docker build` on an arm64 host (e.g. the Netcup staging box) produces
-# a runnable binary; on amd64 hosts buildkit sets it to amd64 either way.
+# buildkit-provided target arch (e.g. amd64, arm64). BuildKit always sets this
+# from the build host (or --platform), so a plain build on the arm64 Netcup box
+# produces an arm64 binary and an amd64 host produces amd64. It is only ever
+# empty under the legacy builder (DOCKER_BUILDKIT=0), which silently ignores the
+# `# syntax=` directive above — the build fails loudly there (see GOARCH below)
+# rather than guessing an arch and shipping an unrunnable binary.
 ARG TARGETARCH
 
 WORKDIR /workspace
@@ -45,7 +48,7 @@ COPY --from=web /workspace/apps/web/dist/ ./apps/api/internal/spa/dist/
 # Build the static binary. CGO_ENABLED=0 keeps the binary fully static
 # so the distroless:static image can run it without a libc.
 RUN cd apps/api/cmd/lecrm-api \
- && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:-arm64} \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH:?TARGETARCH is empty — build with BuildKit (DOCKER_BUILDKIT=1 / compose v2); the legacy builder cannot supply the target arch} \
     go build -trimpath -ldflags="-s -w" -o /out/lecrm-api .
 
 # ---------------------------------------------------------------- 3. final
