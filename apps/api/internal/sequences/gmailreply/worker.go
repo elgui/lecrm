@@ -157,6 +157,23 @@ func (d Deps) pollMailbox(ctx context.Context, tx pgx.Tx, args PollMailboxArgs) 
 		}
 		for _, m := range correlateReplies(msgs, matched) {
 			if err := d.applyReply(ctx, tx, m); err != nil {
+				// An illegal transition here is a benign race, not a batch failure:
+				// the enrollment already left waiting_reply (e.g. a redelivered
+				// Pub/Sub push another worker already correlated, or a reply matched
+				// after the window closed). matchSteps' state read is stale relative
+				// to Transition's SELECT … FOR UPDATE, so the loser sees an illegal
+				// edge. InvalidAudit has already written the sequences.transition.invalid
+				// trace on this tx; skip THIS reply and keep the rest of the batch —
+				// and the cursor advance — intact, instead of rolling the whole
+				// scanned window back and reprocessing it. Any other error is
+				// transient/real and must abort so no reply is skipped past the cursor.
+				if errors.Is(err, sequences.ErrInvalidTransition) {
+					d.Logger.WarnContext(ctx, "gmail reply skipped: illegal transition (already correlated?)",
+						"enrollment_id", m.EnrollmentID.String(),
+						"error", err.Error(),
+					)
+					continue
+				}
 				return err
 			}
 		}

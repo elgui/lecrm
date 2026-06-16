@@ -78,8 +78,12 @@ func (r stateRow) Scan(dest ...any) error {
 	if len(dest) != 2 {
 		return errors.New("stateRow: unexpected dest count")
 	}
-	*(dest[0].(*string)) = r.state
-	*(dest[1].(*uuid.UUID)) = r.wsID
+	if p, ok := dest[0].(*string); ok {
+		*p = r.state
+	}
+	if p, ok := dest[1].(*uuid.UUID); ok {
+		*p = r.wsID
+	}
 	return nil
 }
 
@@ -229,7 +233,8 @@ func TestTransition_InvalidPanics(t *testing.T) {
 			t.Fatal("Transition did not panic on an illegal transition")
 		}
 		var ite *InvalidTransitionError
-		if !errors.As(r.(error), &ite) {
+		rerr, ok := r.(error)
+		if !ok || !errors.As(rerr, &ite) {
 			t.Fatalf("panic value = %v (%T), want *InvalidTransitionError", r, r)
 		}
 		if ite.From != StateEnrolled || ite.To != StateReplyReceived {
@@ -267,7 +272,11 @@ func TestTransition_InvalidAudit_EmitsAndReturns(t *testing.T) {
 		t.Errorf("audit event = %v, want %q", got, AuditEventTransitionInvalid)
 	}
 	var payload map[string]any
-	_ = json.Unmarshal([]byte(audit.args[4].(string)), &payload)
+	body, ok := audit.args[4].(string)
+	if !ok {
+		t.Fatalf("audit payload arg = %T, want string", audit.args[4])
+	}
+	_ = json.Unmarshal([]byte(body), &payload)
 	if payload["to_attempted"] != string(StateReplyReceived) {
 		t.Errorf("audit to_attempted = %v, want %q", payload["to_attempted"], StateReplyReceived)
 	}

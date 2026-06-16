@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/riverqueue/river"
 )
 
 func TestPollMailboxArgs_KindAndOpts(t *testing.T) {
@@ -64,10 +63,10 @@ func TestDailySchedule_Next(t *testing.T) {
 
 func TestPeriodicWatchRenew_ConstructsWorkspaceJob(t *testing.T) {
 	ws := uuid.New()
+	// PeriodicWatchRenew returns *river.PeriodicJob, so the type is proven at
+	// compile time; this asserts it constructs a non-nil, usable value.
 	pj := PeriodicWatchRenew(ws)
 	if pj == nil {
 		t.Fatal("PeriodicWatchRenew returned nil")
 	}
-	// Proves it is a usable river.PeriodicJob value of the right type.
-	var _ *river.PeriodicJob = pj
 }

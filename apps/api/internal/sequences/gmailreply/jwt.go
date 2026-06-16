@@ -42,7 +42,7 @@ func (GoogleTokenValidator) Validate(ctx context.Context, rawToken, audience str
 	payload, err := idtoken.Validate(ctx, rawToken, audience)
 	if err != nil {
 		// idtoken already checked signature/aud/exp; any failure is a reject.
-		return "", fmt.Errorf("%w: %v", ErrInvalidToken, err)
+		return "", fmt.Errorf("%w: %w", ErrInvalidToken, err)
 	}
 	return verifyPayloadClaims(payload)
 }

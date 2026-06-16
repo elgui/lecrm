@@ -103,22 +103,41 @@ type recipientRow struct {
 }
 
 func (r recipientRow) Scan(dest ...any) error {
-	*(dest[0].(**string)) = r.email
-	*(dest[1].(*uuid.UUID)) = r.contactID
+	if p, ok := dest[0].(**string); ok {
+		*p = r.email
+	}
+	if p, ok := dest[1].(*uuid.UUID); ok {
+		*p = r.contactID
+	}
 	return nil
 }
 
 type scalarStrRow struct{ s string }
 
-func (r scalarStrRow) Scan(dest ...any) error { *(dest[0].(*string)) = r.s; return nil }
+func (r scalarStrRow) Scan(dest ...any) error {
+	if p, ok := dest[0].(*string); ok {
+		*p = r.s
+	}
+	return nil
+}
 
 type scalarIntRow struct{ n int }
 
-func (r scalarIntRow) Scan(dest ...any) error { *(dest[0].(*int)) = r.n; return nil }
+func (r scalarIntRow) Scan(dest ...any) error {
+	if p, ok := dest[0].(*int); ok {
+		*p = r.n
+	}
+	return nil
+}
 
 type timeRow struct{ t time.Time }
 
-func (r timeRow) Scan(dest ...any) error { *(dest[0].(*time.Time)) = r.t; return nil }
+func (r timeRow) Scan(dest ...any) error {
+	if p, ok := dest[0].(*time.Time); ok {
+		*p = r.t
+	}
+	return nil
+}
 
 func strptr(s string) *string { return &s }
 

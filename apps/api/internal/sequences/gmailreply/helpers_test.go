@@ -135,7 +135,9 @@ func (r cursorRow) Scan(dest ...any) error {
 	if r.err != nil {
 		return r.err
 	}
-	*(dest[0].(*[]byte)) = r.raw
+	if p, ok := dest[0].(*[]byte); ok {
+		*p = r.raw
+	}
 	return nil
 }
 
@@ -170,10 +172,18 @@ func matchedRows(ms []MatchedStep) *fakeRows {
 	for _, m := range ms {
 		m := m
 		fr.scans = append(fr.scans, func(dest []any) error {
-			*(dest[0].(*string)) = m.RFCMessageID
-			*(dest[1].(*uuid.UUID)) = m.EnrollmentID
-			*(dest[2].(*int16)) = int16(m.StepIndex)
-			*(dest[3].(*string)) = string(m.State)
+			if p, ok := dest[0].(*string); ok {
+				*p = m.RFCMessageID
+			}
+			if p, ok := dest[1].(*uuid.UUID); ok {
+				*p = m.EnrollmentID
+			}
+			if p, ok := dest[2].(*int16); ok {
+				*p = int16(m.StepIndex)
+			}
+			if p, ok := dest[3].(*string); ok {
+				*p = string(m.State)
+			}
 			return nil
 		})
 	}
@@ -185,9 +195,15 @@ func connRows(cs []connRow) *fakeRows {
 	for _, c := range cs {
 		c := c
 		fr.scans = append(fr.scans, func(dest []any) error {
-			*(dest[0].(*uuid.UUID)) = c.id
-			*(dest[1].(*[]byte)) = c.settings
-			*(dest[2].(*[]byte)) = c.cursor
+			if p, ok := dest[0].(*uuid.UUID); ok {
+				*p = c.id
+			}
+			if p, ok := dest[1].(*[]byte); ok {
+				*p = c.settings
+			}
+			if p, ok := dest[2].(*[]byte); ok {
+				*p = c.cursor
+			}
 			return nil
 		})
 	}

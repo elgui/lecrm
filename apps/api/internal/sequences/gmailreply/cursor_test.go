@@ -59,10 +59,11 @@ func TestSaveCursor_PassesJSONBAsString(t *testing.T) {
 		t.Errorf("save SQL should cast $1 to jsonb, got: %s", e.sql)
 	}
 	// First arg MUST be a string, not []byte (simple-protocol jsonb footgun).
-	if _, isStr := e.args[0].(string); !isStr {
+	got, isStr := e.args[0].(string)
+	if !isStr {
 		t.Fatalf("cursor jsonb arg type = %T, want string", e.args[0])
 	}
-	if got := e.args[0].(string); !strings.Contains(got, `"history_id":12345`) {
+	if !strings.Contains(got, `"history_id":12345`) {
 		t.Errorf("cursor payload = %q", got)
 	}
 }

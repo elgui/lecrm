@@ -28,7 +28,15 @@ import (
 //     An illegal transition is a programming error: it panics in dev/test
 //     (InvalidPanic, the default) and, in prod (InvalidAudit), emits a
 //     sequences.transition.invalid audit row in-tx and returns an error the
-//     caller surfaces as 500 (§2 last paragraph).
+//     caller surfaces as 500 (§2 last paragraph). The trace is written on the
+//     CALLER's tx, so it persists only if the caller commits that tx; a caller
+//     that returns the error and rolls back fail-closed discards the trace along
+//     with everything else. That is the right default for a single-transition
+//     handler (an illegal transition makes no state change worth keeping). A
+//     caller that wants the trace to survive — e.g. the poll_mailbox batch, which
+//     treats a benign racing illegal transition as skip-not-abort — must commit
+//     the tx; because the invalid path performs no UPDATE, committing persists
+//     ONLY the trace, never a bad state change.
 //  3. Updates enrollments.state, last_transition_at, and any side-effect columns
 //     the caller set via options (reply_message_id, ooo_returns_at,
 //     next_action_at, current_step_index) (§2 step 3).
@@ -90,7 +98,10 @@ func Transition(
 			panic(invErr)
 		}
 		// Prod: trace the illegal transition (auth retention, §6) in-tx, then
-		// return so the handler rolls back and surfaces 500.
+		// return ErrInvalidTransition. No UPDATE runs, so the trace is the only
+		// write — it survives iff the caller commits this tx (the poll_mailbox
+		// batch does, on the benign-race skip path); a caller that rolls back
+		// fail-closed surfaces 500 and discards the trace. See the doc comment.
 		if aerr := emitAudit(ctx, tx, AuditEventTransitionInvalid, workspaceID, cfg,
 			map[string]any{
 				"enrollment_id": enrollmentID.String(),
@@ -98,7 +109,7 @@ func Transition(
 				"to_attempted":  string(to),
 				"caller":        cfg.caller,
 			}); aerr != nil {
-			return fmt.Errorf("%w (audit also failed: %v)", invErr, aerr)
+			return fmt.Errorf("%w (audit also failed: %w)", invErr, aerr)
 		}
 		return invErr
 	}

@@ -67,8 +67,8 @@ var compiledRules = &Rules{
 	subjectMarkers: mustCompile(
 		`(?i)\bout[\s-]?of[\s-]?office\b`,
 		`(?i)\bo\.?o\.?o\.?\b`,
-		`(?i)\bauto(?:matic|mated)?[\s-]?(?:reply|response|reponse)\b`,
-		`(?i)reponse\s+automatique`,
+		`(?i)\bauto(?:matic|mated)?[\s-]?(?:reply|response|reponse)\b`, //nolint:misspell // accent-folded French (réponse)
+		`(?i)reponse\s+automatique`,                                    //nolint:misspell // accent-folded French (réponse)
 		`(?i)\babsence\b`,
 		`(?i)\bon\s+(?:vacation|holiday|leave|annual\s+leave|pto)\b`,
 		`(?i)\bconges?\b`,

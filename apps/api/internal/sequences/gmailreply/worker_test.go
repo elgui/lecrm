@@ -93,6 +93,42 @@ func TestPollMailbox_OOOClassification_TransitionsOOODetected(t *testing.T) {
 	}
 }
 
+// TestPollMailbox_IllegalTransition_SkipsReplyAndAdvancesCursor: a benign race
+// (the enrollment already left waiting_reply, so the reply-transition is illegal)
+// must NOT roll back the batch — the reply is skipped and the cursor still
+// advances, so the scanned window is not endlessly reprocessed. (PR #17 review #2)
+func TestPollMailbox_IllegalTransition_SkipsReplyAndAdvancesCursor(t *testing.T) {
+	enr := uuid.New()
+	args := PollMailboxArgs{WorkspaceID: uuid.New(), UserID: uuid.New(), HistoryID: 100}
+
+	tx := &fakeTx{
+		cursorRaw: []byte(`{"history_id":100}`),
+		matched: []MatchedStep{
+			{RFCMessageID: "sent@lecrm", EnrollmentID: enr, StepIndex: 1, State: sequences.StateWaitingReply},
+		},
+	}
+	cli := &fakeClient{
+		msgs:   []InboundMessage{{RFC822MessageID: "reply@gmail", InReplyTo: "<sent@lecrm>"}},
+		newHID: 150,
+	}
+	// The transitioner reports an illegal transition (the loser of the race).
+	tr := &recordingTransitioner{err: sequences.ErrInvalidTransition}
+	d := depsWith(tx, cli, DefaultClassifier{}, tr)
+
+	if err := d.pollMailbox(context.Background(), tx, args); err != nil {
+		t.Fatalf("pollMailbox should swallow a benign illegal transition, got: %v", err)
+	}
+	// The cursor still advanced despite the skipped reply — the window is not
+	// reprocessed on the next push.
+	e, ok := tx.execMatching("UPDATE sync_connections")
+	if !ok {
+		t.Fatal("cursor not saved after a skipped reply")
+	}
+	if s, _ := e.args[0].(string); !strings.Contains(s, `"history_id":150`) {
+		t.Errorf("cursor saved = %v, want history_id 150", e.args[0])
+	}
+}
+
 func TestPollMailbox_NoMessages_AdvancesCursorOnly(t *testing.T) {
 	args := PollMailboxArgs{WorkspaceID: uuid.New(), UserID: uuid.New(), HistoryID: 100}
 	tx := &fakeTx{cursorRaw: []byte(`{"history_id":100}`)}
@@ -186,7 +222,11 @@ func TestPollMailbox_NoCursorNoHistoryID_BaselinesViaWatch(t *testing.T) {
 		t.Errorf("should not scan history without a baseline, got %d", cli.sinceCalls)
 	}
 	e, ok := tx.execMatching("UPDATE sync_connections")
-	if !ok || !strings.Contains(e.args[0].(string), `"history_id":4242`) {
+	if !ok {
+		t.Fatalf("watch baseline cursor not persisted: %+v", tx.execs)
+	}
+	cursor, isStr := e.args[0].(string)
+	if !isStr || !strings.Contains(cursor, `"history_id":4242`) {
 		t.Fatalf("watch baseline cursor not persisted: %+v", tx.execs)
 	}
 }
@@ -232,7 +272,11 @@ func TestWatchRenew_AdoptsBaselineWhenNoCursor(t *testing.T) {
 		t.Fatalf("watchRenew: %v", err)
 	}
 	e, ok := tx.execMatching("UPDATE sync_connections")
-	if !ok || !strings.Contains(e.args[0].(string), `"history_id":321`) {
+	if !ok {
+		t.Fatalf("first-time baseline should be persisted, execs=%+v", tx.execs)
+	}
+	cursor, isStr := e.args[0].(string)
+	if !isStr || !strings.Contains(cursor, `"history_id":321`) {
 		t.Fatalf("first-time baseline should be persisted, execs=%+v", tx.execs)
 	}
 }

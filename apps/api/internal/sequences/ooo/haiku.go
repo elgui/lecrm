@@ -118,9 +118,9 @@ type haikuReq struct {
 }
 
 type haikuSysBlock struct {
-	Type         string            `json:"type"`
-	Text         string            `json:"text"`
-	CacheControl *haikuCacheCtrl   `json:"cache_control,omitempty"`
+	Type         string          `json:"type"`
+	Text         string          `json:"text"`
+	CacheControl *haikuCacheCtrl `json:"cache_control,omitempty"`
 }
 
 type haikuCacheCtrl struct {
@@ -203,7 +203,7 @@ func (h *HaikuClassifier) ClassifyOOO(ctx context.Context, body ReplyBody) (bool
 	if err != nil {
 		return false, 0, fmt.Errorf("ooo: haiku request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respRaw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 	if err != nil {

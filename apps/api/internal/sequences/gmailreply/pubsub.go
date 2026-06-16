@@ -52,7 +52,7 @@ type Notification struct {
 func ParsePushBody(body []byte) (Notification, error) {
 	var env pushEnvelope
 	if err := json.Unmarshal(body, &env); err != nil {
-		return Notification{}, fmt.Errorf("%w: envelope: %v", ErrBadPushBody, err)
+		return Notification{}, fmt.Errorf("%w: envelope: %w", ErrBadPushBody, err)
 	}
 	if env.Message.Data == "" {
 		return Notification{}, fmt.Errorf("%w: empty message.data", ErrBadPushBody)
@@ -70,7 +70,7 @@ func ParsePushBody(body []byte) (Notification, error) {
 
 	var n Notification
 	if err := json.Unmarshal(raw, &n); err != nil {
-		return Notification{}, fmt.Errorf("%w: notification json: %v", ErrBadPushBody, err)
+		return Notification{}, fmt.Errorf("%w: notification json: %w", ErrBadPushBody, err)
 	}
 	if n.EmailAddress == "" {
 		return Notification{}, fmt.Errorf("%w: notification missing emailAddress", ErrBadPushBody)
