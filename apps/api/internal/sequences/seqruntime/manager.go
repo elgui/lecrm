@@ -71,7 +71,11 @@ func (m *Manager) buildWorkers() *river.Workers {
 // Start lists every workspace and starts a river client bound to its river_<hex>
 // schema. A workspace whose river tables are missing (not yet `lecrm-migrate
 // river-setup`) is logged and skipped, so one un-migrated workspace does not
-// take the runtime down for the healthy ones.
+// take the runtime down for the healthy ones. The skip is decided by a
+// pre-flight readiness probe rather than by client.Start's return value: River
+// surfaces a missing-schema/permission problem ASYNCHRONOUSLY from its
+// elector/producer goroutines (Start itself returns nil), so without the probe
+// an un-set-up workspace would spam retry errors instead of being skipped.
 func (m *Manager) Start(ctx context.Context) error {
 	ids, err := m.listWorkspaces(ctx)
 	if err != nil {
@@ -79,8 +83,14 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 	workers := m.buildWorkers()
 
-	started := 0
+	started, skipped := 0, 0
 	for _, id := range ids {
+		if !m.riverReady(ctx, id) {
+			m.logger.WarnContext(ctx, "seqruntime: skipping workspace — river tables absent (run lecrm-migrate river-setup)",
+				"workspace_id", id.String(), "schema", sequences.RiverSchema(id))
+			skipped++
+			continue
+		}
 		cfg := sequences.WorkspaceRiverConfig(id, workers, 0)
 		cfg.PeriodicJobs = []*river.PeriodicJob{gmailreply.PeriodicWatchRenew(id)}
 
@@ -101,8 +111,28 @@ func (m *Manager) Start(ctx context.Context) error {
 		started++
 	}
 	m.logger.InfoContext(ctx, "sequences river runtime started",
-		"workspaces_total", len(ids), "clients_started", started)
+		"workspaces_total", len(ids), "clients_started", started, "skipped_unready", skipped)
 	return nil
+}
+
+// riverReady reports whether workspace id's river_<hex> schema has River's
+// tables (i.e. `lecrm-migrate river-setup` has run for it). It is a catalog
+// lookup (pg_class/pg_namespace) so it needs no privilege on the river schema —
+// a workspace lacking the schema USAGE grant must still be detected and skipped,
+// not error. Probing river_leader is sufficient: river-setup creates the full
+// table set + grants atomically, so its presence implies the rest.
+func (m *Manager) riverReady(ctx context.Context, id uuid.UUID) bool {
+	var ok bool
+	if err := m.cfg.Pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		   SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+		   WHERE n.nspname = $1 AND c.relname = 'river_leader')`,
+		sequences.RiverSchema(id)).Scan(&ok); err != nil {
+		m.logger.ErrorContext(ctx, "seqruntime: river readiness probe failed",
+			"workspace_id", id.String(), "err", err)
+		return false
+	}
+	return ok
 }
 
 func (m *Manager) listWorkspaces(ctx context.Context) ([]uuid.UUID, error) {
