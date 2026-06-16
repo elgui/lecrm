@@ -7,6 +7,8 @@
 //
 //	apply                  — apply pending SQL migrations from LECRM_MIGRATIONS_DIR
 //	provision-workspace    — provision a workspace role+schema (idempotent)
+//	river-setup            — create River tables in workspaces' river_<hex>
+//	                         schemas + grant lecrm_api (idempotent backfill)
 //
 // Environment variables:
 //
@@ -22,10 +24,12 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/gbconsult/lecrm/apps/migrate/internal/migrator"
 	"github.com/gbconsult/lecrm/apps/migrate/internal/provision"
+	"github.com/gbconsult/lecrm/apps/migrate/internal/riversetup"
 )
 
 func main() {
@@ -40,7 +44,7 @@ func main() {
 
 func run(logger *slog.Logger, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: lecrm-migrate <apply|provision-workspace> [flags]")
+		return fmt.Errorf("usage: lecrm-migrate <apply|provision-workspace|river-setup> [flags]")
 	}
 
 	switch args[0] {
@@ -48,8 +52,10 @@ func run(logger *slog.Logger, args []string) error {
 		return cmdApply(logger, args[1:])
 	case "provision-workspace":
 		return cmdProvisionWorkspace(logger, args[1:])
+	case "river-setup":
+		return cmdRiverSetup(logger, args[1:])
 	default:
-		return fmt.Errorf("unknown subcommand %q; want apply or provision-workspace", args[0])
+		return fmt.Errorf("unknown subcommand %q; want apply, provision-workspace or river-setup", args[0])
 	}
 }
 
@@ -65,7 +71,7 @@ func cmdApply(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(context.Background())
+	defer func() { _ = conn.Close(context.Background()) }()
 
 	return migrator.Apply(context.Background(), conn, *migrationsDir, logger)
 }
@@ -85,11 +91,18 @@ func cmdProvisionWorkspace(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer func() { _ = conn.Close(ctx) }()
 
 	result, err := provision.Run(ctx, conn, *slug, logger)
 	if err != nil {
 		return err
+	}
+
+	// Create River's tables in the workspace's river_<hex> schema and grant
+	// lecrm_api so the API's per-workspace river client can run. Idempotent, so
+	// it is safe on re-provision of an existing workspace.
+	if err := riversetup.SetupWorkspace(ctx, os.Getenv("LECRM_PROVISIONER_DSN"), result.WorkspaceID, result.RoleName, logger); err != nil {
+		return fmt.Errorf("provision-workspace: river setup: %w", err)
 	}
 
 	logger.Info("done",
@@ -97,6 +110,72 @@ func cmdProvisionWorkspace(logger *slog.Logger, args []string) error {
 		"slug", result.Slug,
 		"role", result.RoleName,
 		"is_new", result.IsNew)
+	return nil
+}
+
+// cmdRiverSetup backfills River tables (+ lecrm_api grants) into the river_<hex>
+// schema of one workspace (--slug) or every workspace in core.workspaces
+// (--all). Idempotent; intended for existing workspaces provisioned before the
+// river runtime landed.
+func cmdRiverSetup(logger *slog.Logger, args []string) error {
+	fs := flag.NewFlagSet("river-setup", flag.ContinueOnError)
+	slug := fs.String("slug", "", "workspace slug to set up (mutually exclusive with --all)")
+	all := fs.Bool("all", false, "set up every workspace in core.workspaces")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if (*slug == "") == (!*all) {
+		return fmt.Errorf("river-setup: pass exactly one of --slug or --all")
+	}
+
+	ctx := context.Background()
+	dsn := os.Getenv("LECRM_PROVISIONER_DSN")
+	if dsn == "" {
+		return fmt.Errorf("LECRM_PROVISIONER_DSN is required")
+	}
+	conn, err := openProvisionerConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = conn.Close(ctx) }()
+
+	query := "SELECT id, role_name FROM core.workspaces"
+	queryArgs := []any{}
+	if *slug != "" {
+		query += " WHERE slug = $1"
+		queryArgs = append(queryArgs, *slug)
+	}
+	rows, err := conn.Query(ctx, query, queryArgs...)
+	if err != nil {
+		return fmt.Errorf("river-setup: list workspaces: %w", err)
+	}
+	type target struct {
+		id   uuid.UUID
+		role string
+	}
+	var targets []target
+	for rows.Next() {
+		var t target
+		if err := rows.Scan(&t.id, &t.role); err != nil {
+			rows.Close()
+			return fmt.Errorf("river-setup: scan workspace: %w", err)
+		}
+		targets = append(targets, t)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("river-setup: iterate workspaces: %w", err)
+	}
+	if len(targets) == 0 {
+		return fmt.Errorf("river-setup: no matching workspace")
+	}
+
+	for _, t := range targets {
+		if err := riversetup.SetupWorkspace(ctx, dsn, t.id, t.role, logger); err != nil {
+			return fmt.Errorf("river-setup: workspace %s (%s): %w", t.id, t.role, err)
+		}
+	}
+	logger.Info("river-setup done", "workspaces", len(targets))
 	return nil
 }
 
