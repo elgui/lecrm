@@ -69,6 +69,17 @@ secrets/operator/secrets.yaml
 secrets/oauth/gmail/*/*.yaml
 !secrets/oauth/gmail/*/*.enc.yaml
 !secrets/oauth/gmail/_template/secrets.yaml.template
+# Staging grants live one level deeper (secrets/oauth/gmail/staging/<ws>/<user>),
+# which the 2-level globs above do NOT cover — ignore the plaintext there too.
+secrets/oauth/gmail/staging/*/*.yaml
+!secrets/oauth/gmail/staging/*/*.enc.yaml
+
+# Deploy-rendered (SOPS-decrypted) Gmail OAuth manifests, mounted read-only into
+# the api container at /run/secrets/gmail (deploy/compose/api.yml). These are
+# plaintext refresh tokens — never commit; only the .gitkeep placeholder keeps
+# the bind-mount source dir present in a fresh checkout.
+deploy/gmail-creds/*
+!deploy/gmail-creds/.gitkeep
 
 # Smoke-test transient artifacts
 /tmp/lecrm-smoke-*

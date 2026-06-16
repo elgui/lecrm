@@ -43,6 +43,20 @@ services:
       LECRM_OIDC_CLIENT_SECRET: ${LECRM_OIDC_CLIENT_SECRET:?required}
       LECRM_OIDC_SCOPES: ${LECRM_OIDC_SCOPES:-openid profile email}
       LECRM_OIDC_CALLBACK_PATH: ${LECRM_OIDC_CALLBACK_PATH:-/auth/callback}
+      # Gmail reply detection (ADR-004 rev 2 §4). Defaults empty → the API leaves
+      # the push route unmounted and starts no river runtime (fail-safe). Set
+      # TOPIC + CREDS_DIR (and AUDIENCE + OAUTH client) in .env.staging to enable.
+      LECRM_GMAIL_PUBSUB_TOPIC: ${LECRM_GMAIL_PUBSUB_TOPIC:-}
+      LECRM_GMAIL_PUSH_AUDIENCE: ${LECRM_GMAIL_PUSH_AUDIENCE:-}
+      LECRM_GMAIL_PUSH_SA: ${LECRM_GMAIL_PUSH_SA:-}
+      LECRM_GMAIL_OAUTH_CLIENT_ID: ${LECRM_GMAIL_OAUTH_CLIENT_ID:-}
+      LECRM_GMAIL_OAUTH_CLIENT_SECRET: ${LECRM_GMAIL_OAUTH_CLIENT_SECRET:-}
+      LECRM_GMAIL_CREDS_DIR: ${LECRM_GMAIL_CREDS_DIR:-}
+    volumes:
+      # Deploy-rendered Gmail OAuth refresh-token manifests (SOPS-decrypted to a
+      # gitignored host dir at deploy time). Read-only; empty until a mailbox is
+      # connected via the OAuth gate. Harmless when the feature is off.
+      - ${LECRM_GMAIL_CREDS_HOST_DIR:-../gmail-creds}:/run/secrets/gmail:ro
     ports:
       # Loopback only — Caddy (on the lecrm network) is the real entry point.
       - "127.0.0.1:${LECRM_API_HOST_PORT:-8088}:8080"

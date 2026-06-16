@@ -1,0 +1,3 @@
+# Bind-mount source for the api container's /run/secrets/gmail (deploy/compose/api.yml).
+# Deploy renders SOPS-decrypted Gmail OAuth manifests here as <workspace_id>/<user_id>.yaml.
+# Everything in this dir except this placeholder is gitignored (plaintext refresh tokens).

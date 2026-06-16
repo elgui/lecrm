@@ -212,6 +212,76 @@ When all four hold: **continue the gate** so order:6
 
 ---
 
+## Staging (demo.lecrm.gbconsult.me)
+
+The §1–§4 above are written for production (`lecrm-prod` / `api.lecrm.fr`). On
+staging the runtime is the same code; only the externals and secret-routing
+differ. The engine wiring landed separately (per-workspace river runtime +
+push-handler mount); these are the staging-specific deltas.
+
+**Externals.** Use a staging GCP project (or a staging-suffixed subscription on
+`lecrm-prod`) and the staging push endpoint:
+
+```bash
+export PUSH_ENDPOINT="https://demo.lecrm.gbconsult.me/v1/webhooks/gmail/push"
+```
+
+**Secret routing (operator key stays OFF this box).** Staging Gmail manifests are
+encrypted to the **disposable staging age key** (the one already used for
+`deploy/.env.staging.enc`), not the operator key — `ops/secrets/.sops.yaml` has a
+dedicated rule keyed on the `staging/` path segment:
+
+```
+secrets/oauth/gmail/staging/<workspace_id>/<user_id>.enc.yaml
+```
+
+**Decrypt-at-deploy.** The API reads rendered *plaintext* manifests (no runtime
+SOPS); render them into the gitignored mount source before/at deploy:
+
+```bash
+sops -d secrets/oauth/gmail/staging/$WS/$U.enc.yaml \
+  > deploy/gmail-creds/$WS/$U.yaml          # mounted ro at /run/secrets/gmail
+```
+
+**Enable the feature** in `deploy/.env.staging` (compose passes these through;
+empty by default = route unmounted, runtime not started):
+
+```bash
+LECRM_GMAIL_PUBSUB_TOPIC=projects/<staging-project>/topics/gmail-inbox-events
+LECRM_GMAIL_PUSH_AUDIENCE=https://demo.lecrm.gbconsult.me/v1/webhooks/gmail/push
+LECRM_GMAIL_PUSH_SA=gmail-push-invoker@<staging-project>.iam.gserviceaccount.com
+LECRM_GMAIL_OAUTH_CLIENT_ID=<oauth client id>
+LECRM_GMAIL_OAUTH_CLIENT_SECRET=<oauth client secret>
+LECRM_GMAIL_CREDS_DIR=/run/secrets/gmail
+```
+
+**River tables + grants (once per workspace).** The river client cannot start
+until River's tables exist in each `river_<hex>` schema and `lecrm_api` is granted
+on them — idempotent backfill:
+
+```bash
+lecrm-migrate apply          # applies 0027 (core.gmail_mailbox_index)
+lecrm-migrate river-setup --all
+```
+
+**Register the connection** (stands in for the in-product connect flow):
+
+```bash
+psql "$SUPERUSER_DSN" -v ws='<workspace_uuid>' -v usr='<user_uuid>' \
+  -v email='<rep mailbox>' -f deploy/seed/gmail-demo-connection.sql
+```
+
+**Verify the route is live** after rebuilding the api:
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -X POST https://demo.lecrm.gbconsult.me/v1/webhooks/gmail/push   # 401, not 404
+```
+
+Then do §3 `users.watch()` and **continue the gate** as above.
+
+---
+
 ## References
 
 - `docs/adr/ADR-004-rev2-sequences-architecture.md` §4 (Gmail path), S3 (scope minimisation).
