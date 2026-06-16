@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/gbconsult/lecrm/apps/api/internal/admin"
 	"github.com/gbconsult/lecrm/apps/api/internal/auth"
 	"github.com/gbconsult/lecrm/apps/api/internal/config"
@@ -28,6 +30,8 @@ import (
 	"github.com/gbconsult/lecrm/apps/api/internal/metadata"
 	"github.com/gbconsult/lecrm/apps/api/internal/rbac"
 	"github.com/gbconsult/lecrm/apps/api/internal/reports"
+	"github.com/gbconsult/lecrm/apps/api/internal/sequences/gmailreply"
+	"github.com/gbconsult/lecrm/apps/api/internal/sequences/seqruntime"
 	"github.com/gbconsult/lecrm/apps/api/internal/spa"
 	"github.com/gbconsult/lecrm/apps/api/internal/workspace"
 )
@@ -161,10 +165,60 @@ func run(logger *slog.Logger) error {
 		logger.Info("embedded SPA ready")
 	}
 
+	// Gmail reply detection (ADR-004 rev 2 §4). Wired only when configured; an
+	// unset config leaves gmailWebhook a nil interface so server.go mounts no
+	// push route, and we start no river runtime — a partial deploy fails safe.
+	var gmailWebhook interface{ RegisterRoute(chi.Router) }
+	var seqManager *seqruntime.Manager
+	if cfg.Gmail.Enabled() {
+		// Dedicated pool for the river runtime (background pollers + workers) so
+		// it never contends with the request-serving pool. lecrm_api's CONNECTION
+		// LIMIT (0017) comfortably covers both pools.
+		runtimePool, rerr := db.Open(ctx, cfg.DatabaseURL)
+		if rerr != nil {
+			return fmt.Errorf("gmail runtime pool: %w", rerr)
+		}
+		defer runtimePool.Close()
+
+		acquirer := &seqruntime.SearchPathAcquirer{Pool: runtimePool}
+		clientFactory := &gmailreply.GoogleClientFactory{
+			Creds: &seqruntime.FileCredentialStore{
+				Dir:          cfg.Gmail.CredsDir,
+				ClientID:     cfg.Gmail.OAuthClientID,
+				ClientSecret: cfg.Gmail.OAuthClientSecret,
+			},
+			TopicName: cfg.Gmail.PubSubTopic,
+		}
+		seqManager = seqruntime.NewManager(seqruntime.ManagerConfig{
+			Pool:     runtimePool,
+			Acquirer: acquirer,
+			GmailDeps: gmailreply.Deps{
+				Acquirer:   acquirer,
+				Clients:    clientFactory,
+				Classifier: gmailreply.DefaultClassifier{},
+				Logger:     logger,
+			},
+			Logger: logger,
+		})
+		gmailWebhook = &gmailreply.PushHandler{
+			Validator:      gmailreply.GoogleTokenValidator{},
+			Audience:       cfg.Gmail.PushAudience,
+			ServiceAccount: cfg.Gmail.PushServiceAccount,
+			Resolver:       &seqruntime.ConnectionResolver{Pool: pool},
+			Enqueuer:       &seqruntime.Enqueuer{Manager: seqManager},
+			Logger:         logger,
+		}
+		logger.Info("gmail reply detection enabled",
+			"topic", cfg.Gmail.PubSubTopic, "push_audience", cfg.Gmail.PushAudience)
+	} else {
+		logger.Info("gmail reply detection disabled (set LECRM_GMAIL_PUBSUB_TOPIC + LECRM_GMAIL_CREDS_DIR to enable)")
+	}
+
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.RouterDeps{
 			Logger:          logger,
+			GmailWebhook:    gmailWebhook,
 			AuthHandler:     authH,
 			ServiceTokens:   tokensH,
 			BearerAuth:      bearerAuth,
@@ -192,6 +246,15 @@ func run(logger *slog.Logger) error {
 		}
 	}()
 
+	// Start the per-workspace river runtime (sequences workers + Gmail watch
+	// renewal). Non-fatal on error: the API still serves and the push route is
+	// mounted; the enqueuer returns 500 (Pub/Sub retries) until a client is up.
+	if seqManager != nil {
+		if err := seqManager.Start(ctx); err != nil {
+			logger.Error("sequences river runtime failed to start", "err", err)
+		}
+	}
+
 	<-ctx.Done()
 	logger.Info("shutdown initiated")
 
@@ -199,6 +262,12 @@ func run(logger *slog.Logger) error {
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown: %w", err)
+	}
+	// Drain the river clients after the HTTP server stops accepting pushes.
+	if seqManager != nil {
+		if err := seqManager.Stop(shutdownCtx); err != nil {
+			logger.Error("sequences river runtime stop error", "err", err)
+		}
 	}
 	logger.Info("shutdown complete")
 	return nil

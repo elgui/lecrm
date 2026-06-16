@@ -29,6 +29,31 @@ type Config struct {
 	CubeJWTSecret []byte
 
 	OIDC OIDCConfig
+
+	// Gmail reply detection (ADR-004 rev 2 §4). Wired only when Gmail.Enabled()
+	// (topic + creds dir set); absent config → push route absent + river runtime
+	// not started, mirroring the Cube/Brevo feature gates so a partial deploy
+	// fails safe.
+	Gmail GmailConfig
+}
+
+// GmailConfig configures the Gmail Pub/Sub reply-detection path (ADR-004 rev 2
+// §4). When Enabled() is false the API mounts no push route and starts no river
+// runtime — rather than exposing a non-functional or under-validated endpoint.
+type GmailConfig struct {
+	PubSubTopic        string // projects/<project>/topics/gmail-inbox-events (users.watch target)
+	PushAudience       string // expected OIDC `aud` (the push endpoint URL)
+	PushServiceAccount string // expected verified OIDC `email` (push-auth service account)
+	OAuthClientID      string // non-secret OAuth web-client id
+	OAuthClientSecret  string // OAuth web-client secret (SOPS-sourced)
+	CredsDir           string // root dir of deploy-rendered per-user refresh-token manifests
+}
+
+// Enabled reports whether the Gmail reply path should be wired. Both the topic
+// (the watch-renew worker needs it) and the rendered-creds dir (the client
+// factory needs refresh tokens) are required for a functioning path.
+func (g GmailConfig) Enabled() bool {
+	return g.PubSubTopic != "" && g.CredsDir != ""
 }
 
 // OIDCConfig configures the relying-party against the v0 Authentik IDP
@@ -56,6 +81,14 @@ func Load() (*Config, error) {
 			ClientSecret: os.Getenv("LECRM_OIDC_CLIENT_SECRET"),
 			Scopes:       splitNonEmpty(envOr("LECRM_OIDC_SCOPES", "openid profile email"), " "),
 			CallbackPath: envOr("LECRM_OIDC_CALLBACK_PATH", "/auth/callback"),
+		},
+		Gmail: GmailConfig{
+			PubSubTopic:        os.Getenv("LECRM_GMAIL_PUBSUB_TOPIC"),
+			PushAudience:       os.Getenv("LECRM_GMAIL_PUSH_AUDIENCE"),
+			PushServiceAccount: os.Getenv("LECRM_GMAIL_PUSH_SA"),
+			OAuthClientID:      os.Getenv("LECRM_GMAIL_OAUTH_CLIENT_ID"),
+			OAuthClientSecret:  os.Getenv("LECRM_GMAIL_OAUTH_CLIENT_SECRET"),
+			CredsDir:           os.Getenv("LECRM_GMAIL_CREDS_DIR"),
 		},
 	}
 
@@ -91,6 +124,18 @@ func Load() (*Config, error) {
 
 	if strings.HasPrefix(c.CookieDomainTLD, ".") || strings.Contains(c.CookieDomainTLD, "*") {
 		return nil, fmt.Errorf("LECRM_COOKIE_DOMAIN_TLD must be a bare hostname (got %q)", c.CookieDomainTLD)
+	}
+
+	// When the Gmail reply path is enabled, the security-relevant knobs must be
+	// present: the exposed push endpoint must validate the OIDC audience, and the
+	// client factory must have OAuth credentials to exchange refresh tokens.
+	if c.Gmail.Enabled() {
+		if c.Gmail.PushAudience == "" {
+			return nil, errors.New("LECRM_GMAIL_PUSH_AUDIENCE is required when the Gmail path is enabled")
+		}
+		if c.Gmail.OAuthClientID == "" || c.Gmail.OAuthClientSecret == "" {
+			return nil, errors.New("LECRM_GMAIL_OAUTH_CLIENT_ID and LECRM_GMAIL_OAUTH_CLIENT_SECRET are required when the Gmail path is enabled")
+		}
 	}
 
 	return c, nil
