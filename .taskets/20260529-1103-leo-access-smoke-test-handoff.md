@@ -1,15 +1,18 @@
 ---
 id: 20260529-1103-leo-access-smoke-test-handoff
 title: "Staging: create Léo's login, end-to-end smoke test, and access handoff note"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-06-05
+tags: [deploy, staging, access, oidc, smoke-test, handoff, leo-test]
 category: project
+review: "partially-done: access live (ca361b0a); handoff note + admin-role + critical-path test remain"
 group: lecrm-staging-deploy
 group_order: 220
 order: 4
 plan: true
-tags: [deploy, staging, access, oidc, smoke-test, handoff, leo-test]
+done: 2026-06-05
 ---
 
 # Staging: create Léo's login, end-to-end smoke test, and access handoff note
@@ -53,11 +56,28 @@ Working directory: `/home/gui/Projects/leCRM`.
    - a contact line for issues (Guillaume).
    Keep it short and non-technical. **Hold for Guillaume's review before it reaches Léo.**
 
+## Current state (housekeep 2026-05-30)
+
+**Access is LIVE — substantive provisioning done in `ca361b0a`.** Léo
+(leo@vernayo.com) exists in Authentik; full browser login through Authentik
+→ `/auth/callback` → seeded demo CRM verified (callback auto-created his
+`core.users` row + workspace binding); auth model documented in
+`deploy/README.md`. **Three items remain, none touching infra:**
+
+1. **Role gap.** The auto-bind makes Léo a **`member`**, but this tasket
+   wants **`admin`** so he can exercise writes (create contacts, move deals).
+   Verify against `apps/api/internal/rbac/role.go` whether `member` can write;
+   if not, promote Léo's `core.workspace_members.role` to `admin`.
+2. **Browser critical path** (view → create → edit → move stage → note → CSV)
+   not yet evidenced end-to-end — only login + view-seeded-data is confirmed.
+3. **Product-facing handoff note** `docs/handoff/leo-test-access.md` not
+   written (the README addition is infra-facing and stays internal).
+
 ## Done When
 
-- [ ] Léo's Authentik user exists; identity method recorded.
-- [ ] `core.workspace_members` links Léo to `demo` as `admin`.
-- [ ] End-to-end login verified live (cookie scoping + `/auth/me` populated + `(issuer,sub)` key).
+- [x] Léo's Authentik user exists; identity method recorded. *(local Authentik account, ca361b0a)*
+- [~] `core.workspace_members` links Léo to `demo` — **bound as `member`, tasket wants `admin`** (see item 1).
+- [x] End-to-end login verified live (browser login → callback → seeded CRM, ca361b0a).
 - [ ] Browser critical path green: view → create → edit → move stage → note → CSV export.
 - [ ] `docs/handoff/leo-test-access.md` written, product-facing, infra-free.
 - [ ] Handoff explicitly flagged as **pending Guillaume's review** before sending to Léo (not auto-sent).

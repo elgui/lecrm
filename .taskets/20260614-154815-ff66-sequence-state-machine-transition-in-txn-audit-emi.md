@@ -1,16 +1,17 @@
 ---
 id: 20260614-154815-ff66
 title: Sequence state machine + Transition() + in-txn audit emission
-status: later
+status: done
 priority: p2
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-15
 tags: [sequences, v1, state-machine, audit]
 category: project
 group: lecrm-v1-build
 group_order: 300
 order: 4
 plan: true
+done: 2026-06-15
 ---
 
 # Sequence state machine + Transition() + in-txn audit emission

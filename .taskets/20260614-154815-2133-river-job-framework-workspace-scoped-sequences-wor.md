@@ -1,10 +1,11 @@
 ---
 id: 20260614-154815-2133
 title: river job framework + workspace-scoped sequences workers
-status: later
+status: done
 priority: p2
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-15
+done: 2026-06-15
 tags: [sequences, v1, river, jobs]
 category: project
 group: lecrm-v1-build

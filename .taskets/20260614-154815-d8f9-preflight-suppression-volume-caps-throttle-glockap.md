@@ -1,15 +1,16 @@
 ---
 id: 20260614-154815-d8f9
 title: "Preflight: suppression + volume caps + throttle + GlockApps scoring"
-status: later
+status: done
 priority: p2
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-15
+done: 2026-06-15
 tags: [sequences, v1, deliverability, suppression]
 category: project
 group: lecrm-v1-build
 group_order: 300
-order: 7
+order: 8
 plan: true
 ---
 

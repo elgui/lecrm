@@ -1,15 +1,17 @@
 ---
 id: 20260529-1102-boot-staging-stack-workspace-seed
 title: "Staging: boot the stack, run migrations, provision demo workspace + seed data + backups"
-status: todo
+status: done
 priority: p1
 created: 2026-05-29
+updated: 2026-05-30
+tags: [deploy, staging, compose, migrations, workspace, seed, walg, leo-test]
 category: project
 group: lecrm-staging-deploy
 group_order: 220
 order: 3
 plan: true
-tags: [deploy, staging, compose, migrations, workspace, seed, walg, leo-test]
+done: 2026-05-30
 ---
 
 # Staging: boot the stack, run migrations, provision demo workspace + seed data + backups

@@ -1,17 +1,18 @@
 ---
 id: 20260510-162158-aa6f
 title: leCRM v1 — Native sequences engine (Track F, post-first-client)
-status: next
+status: now
 priority: p2
 created: 2026-05-10
-updated: 2026-06-14
-unparked: 2026-06-14 — v1-readiness gates closed (kickoff tasket 20260528-142652-8580)
+updated: 2026-06-15
 tags: [sequences, email, deliverability, v1]
 category: project
 group: lecrm-v1-build
 group_order: 300
 order: 1
 plan: true
+role: epic
+unparked: 2026-06-14 — v1-readiness gates closed (kickoff tasket 20260528-142652-8580)
 ---
 
 # leCRM v1 — Native sequences engine (post-first-paying-client)

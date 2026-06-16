@@ -1,16 +1,17 @@
 ---
 id: 20260614-154815-a81e
 title: OOO classifier (rules + Haiku)
-status: later
+status: done
 priority: p2
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-15
 tags: [sequences, v1, ooo, classifier]
 category: project
 group: lecrm-v1-build
 group_order: 300
-order: 6
+order: 7
 plan: true
+done: 2026-06-15
 ---
 
 # OOO classifier (rules + Haiku)

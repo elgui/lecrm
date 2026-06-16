@@ -1,10 +1,11 @@
 ---
 id: 20260530-111108-0077
 title: "Demo: French pipeline stage names in gbconsult-default template (+ data-fix live demo)"
-status: later
+status: done
 priority: p2
 created: 2026-05-30
 updated: 2026-05-31
+done: 2026-05-31
 tags: [demo, pipeline, i18n, first-impression, polish]
 category: engineering
 group: lecrm-demo-polish

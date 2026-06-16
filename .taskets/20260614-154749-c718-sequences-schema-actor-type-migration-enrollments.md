@@ -1,10 +1,11 @@
 ---
 id: 20260614-154749-c718
 title: Sequences schema + actor_type migration (enrollments, enrollment_steps)
-status: later
+status: done
 priority: p2
 created: 2026-06-14
-updated: 2026-06-14
+updated: 2026-06-15
+done: 2026-06-15
 tags: [sequences, v1, schema, migration]
 category: project
 group: lecrm-v1-build

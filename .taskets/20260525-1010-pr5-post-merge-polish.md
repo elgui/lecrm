@@ -1,16 +1,16 @@
 ---
 id: 20260525-1010-pr5-post-merge-polish
-title: "PR#5 post-merge polish — remaining low-severity review findings"
-status: pending
+title: PR#5 post-merge polish — remaining low-severity review findings
+status: parked
 priority: p3
 created: 2026-05-25
+updated: 2026-05-30
+tags: [code-quality, review-findings, polish]
 category: project
 group: crm-entity-foundation
 group_order: 100
 order: 10
-updated: 2026-05-28
 plan: false
-tags: [code-quality, review-findings, polish]
 ---
 
 # PR#5 post-merge polish — remaining low-severity review findings

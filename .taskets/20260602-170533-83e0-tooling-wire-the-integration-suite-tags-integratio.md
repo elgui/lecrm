@@ -1,12 +1,13 @@
 ---
 id: 20260602-170533-83e0
 title: [Tooling] Wire the integration suite (-tags integration) into CI
-status: later
+status: done
 priority: p2
 created: 2026-06-02
-updated: 2026-06-02
+updated: 2026-06-04
 tags: [lecrm, ci, integration-tests, tech-debt]
 category: tooling
+done: 2026-06-04
 ---
 
 ## Why

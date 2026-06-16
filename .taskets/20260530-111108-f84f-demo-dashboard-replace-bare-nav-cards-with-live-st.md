@@ -1,10 +1,11 @@
 ---
 id: 20260530-111108-f84f
 title: "Demo dashboard: replace bare nav-cards with live stats (counts + pipeline value)"
-status: later
+status: done
 priority: p2
 created: 2026-05-30
 updated: 2026-05-31
+done: 2026-05-31
 tags: [demo, frontend, first-impression, polish]
 category: engineering
 group: lecrm-demo-polish
