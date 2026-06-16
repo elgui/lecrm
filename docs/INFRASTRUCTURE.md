@@ -62,7 +62,7 @@ key-only (no static operator IP), 80/443 public, everything else loopback.
 
 | Container | Image | Host port (loopback) | Role |
 |---|---|---|---|
-| `lecrm-api` | `lecrm-api:staging` (built from `deploy/Dockerfile`) | `127.0.0.1:8088→8080` | REST `/v1/*` + embedded React SPA |
+| `lecrm-api` | `lecrm-api:staging` (built from `deploy/Dockerfile`) | `127.0.0.1:8088→8080` | REST `/v1/*` + embedded React SPA + per-workspace River sequences runtime (Gmail reply detection at `POST /v1/webhooks/gmail/push`, gated by `LECRM_GMAIL_*`; live since 2026-06-16) |
 | `lecrm-postgres` | `lecrm/postgres:v0` (Postgres 17 + WAL-G) | `127.0.0.1:54320→5432` | Primary DB (all tenant schemas) |
 | `lecrm-walg-backup` | WAL-G sidecar | — | Continuous WAL archiving → Cloudflare R2 (`lecrm-wal`) |
 | `lecrm-authentik-server` | `ghcr.io/goauthentik/server:2025.10` | `127.0.0.1:9000→9000`, `9443` | OIDC IdP |
@@ -139,12 +139,17 @@ blocks future automated promotion but does **not** take down staging
 
 ## Deployment process (reality)
 
-Staging is updated **manually on the host**, not by CI:
+Staging is updated **manually on the host**, not by CI. **Host: Netcup
+`152.53.143.175`** (the OVH `gui@51.77.146.49` process is retired — cutover 2026-06-14):
 
-1. SSH to the host: `ssh gui@51.77.146.49` (user `gui`; `debian`/`dokku`/`root` are denied).
-2. Update the checkout at `/home/gui/Projects/leCRM` (e.g. `git pull`).
-3. Decrypt secrets: `sops -d deploy/.env.staging.enc > deploy/.env.staging` (mode 0600).
-4. Build + restart from source:
+1. SSH: `ssh root@152.53.143.175 -i ~/.ssh/lecrm_netcup_ed25519` (key-only; Docker runs as root, no `sg` shim).
+2. `/opt/lecrm` is a **non-git** file tree — update it by syncing tracked source from a
+   clean checkout, e.g. `git archive <ref> apps packages deploy/compose deploy/Dockerfile
+   | ssh root@152.53.143.175 tar -xf - -C /opt/lecrm`. `git pull` does not apply.
+3. Decrypt secrets: `sops -d --input-type dotenv deploy/.env.staging.enc > deploy/.env.staging` (mode 0600).
+4. Apply DDL + per-workspace River setup (`lecrm-migrate`, arm64, superuser DSN on loopback
+   `127.0.0.1:54320`): `lecrm-migrate apply && lecrm-migrate river-setup --all`.
+5. Build + restart from source:
    ```bash
    docker compose --env-file deploy/.env.staging \
      -f deploy/compose/postgres.yml \
@@ -179,11 +184,21 @@ API → workspace seed) is in **`deploy/README.md` → "Staging" section**.
    CAX11.
 2. **CI does not deploy.** Staging is hand-deployed; keep that in mind when
    reasoning about what a green/red `main` actually gates.
-3. **Host working-tree drift.** The staging checkout
-   (`/home/gui/Projects/leCRM`) has had uncommitted local modifications to
-   Go source/test files. Because deploys build from that working tree, the
-   running image can diverge from `main`. Prefer a clean `git pull` + build,
-   or pin via `LECRM_IMAGE_TAG`, before relying on the deployed artifact.
-4. **Shared-host stopgap.** Staging co-exists with unrelated apps
-   (`aaraume-*`, `agentsim-redis`, …) on the OVH box. The isolation gate was
-   knowingly waived pending the Hetzner migration (target 2026-06-12).
+3. **Deploy tree builds the image.** The live Netcup deploy tree (`/opt/lecrm`,
+   **non-git**) is what `docker compose … --build` compiles, so the running image
+   can diverge from `main`. Sync tracked source from a clean checkout (see
+   "Deployment process") + rebuild, or pin `LECRM_IMAGE_TAG`, before trusting the
+   artifact. (The retired OVH checkout `/home/gui/Projects/leCRM` had the same
+   property plus chronic uncommitted Go/test drift.)
+4. **OVH→Netcup cutover done (2026-06-14).** Staging migrated OFF the shared OVH box
+   (`51.77.146.49`, co-tenant `aaraume-*`/`agentsim-*`) to the single-tenant Netcup
+   box. The earlier "Hetzner CAX11" target was superseded by Netcup ARM. OVH is up
+   but superseded (decommission pending).
+5. **Restore dropped database-level grants.** The cutover's per-DB `pg_dump` restore
+   did not carry database-level `GRANT`s (those live in `pg_dumpall` globals). Found
+   2026-06-16: `lecrm_provisioner` lacked `CREATE ON DATABASE lecrm`, which had
+   silently broken workspace provisioning on the live demo since cutover (any
+   `CREATE SCHEMA … AUTHORIZATION` in the provision fn → permission denied). Fixed
+   with `GRANT CREATE ON DATABASE lecrm TO lecrm_provisioner`. Audit
+   `pg_dumpall --globals-only` parity vs OVH for other lost grants before
+   provisioning-heavy ops.

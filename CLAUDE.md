@@ -3,19 +3,28 @@
 Project-specific guardrails for agents. Read before editing or deploying.
 High-level infra/CI/deploy map: `docs/INFRASTRUCTURE.md` (authoritative).
 
-## ⚠️ This checkout may BE the live deploy source
+## ⚠️ Deploy target moved to Netcup (cutover 2026-06-14)
 
-On host `51.77.146.49` (`vps-25b8e3b3`) the path `/home/gui/Projects/leCRM`
-is the **staging checkout that deploys build from** — `docker compose ... up
--d --build` compiles the running image from the **working tree, not from a
-committed ref**. Consequences every session must respect:
+The **live staging + public demo** (`https://demo.lecrm.gbconsult.me`) now runs on
+the **Netcup box `152.53.143.175`** (`lecrm-staging`, arm64) — the wildcard
+`*.lecrm.gbconsult.me` DNS points there. Compose project lives at `/opt/lecrm` (a
+**non-git** file tree), Docker runs as **root** (no `sg` shim). Authoritative map:
+`docs/INFRASTRUCTURE.md`.
 
-- **Check where you are before deploying:** `hostname` / `hostname -I`. If you
-  are on `vps-25b8e3b3`, your uncommitted edits go live the moment someone
-  rebuilds. Treat the working tree as production input.
-- **Commit your change before (or as part of) deploying it.** Never rely on a
-  dirty tree as the artifact — pin via `LECRM_IMAGE_TAG` or commit first so the
-  running image is reproducible from history.
+The OVH box `51.77.146.49` (`vps-25b8e3b3`, this `/home/gui/Projects/leCRM`
+checkout) is the **OLD** staging host, superseded at the cutover (decommission
+pending). **Rebuilding here does NOT affect the public demo.** Always `hostname`
+to know which box you're on.
+
+Deploy-from-working-tree still bites on **whichever box you rebuild**: `docker
+compose ... up -d --build` compiles the image from the working tree, not a
+committed ref. So:
+- **Commit your change before (or as part of) deploying it** — never ship a dirty
+  tree; pin `LECRM_IMAGE_TAG` or commit first so the image is reproducible.
+- On Netcup, `/opt/lecrm` has **no `.git`** — update it by syncing tracked source
+  from a clean checkout (e.g. `git archive <ref> apps packages deploy/compose
+  deploy/Dockerfile | ssh root@152.53.143.175 tar -xf - -C /opt/lecrm`), then
+  rebuild. `git pull` does not apply there.
 
 ## Avoid working-tree drift (the #1 recurring problem)
 
@@ -58,14 +67,22 @@ three list routes. Prefer surgical `Edit`. Many routes are folders
 
 ## Deploy (staging) — quick reference
 
-Full runbook: `deploy/README.md` → "Staging". Public demo:
-`https://demo.lecrm.gbconsult.me` (health: `/healthz` → 200). Rebuild + restart
-the API (it embeds the React SPA) from the host checkout:
+Full runbook: `deploy/README.md` → "Staging"; authoritative map:
+`docs/INFRASTRUCTURE.md`. **Live host: Netcup `152.53.143.175`**
+(`ssh root@152.53.143.175 -i ~/.ssh/lecrm_netcup_ed25519`), compose project at
+`/opt/lecrm`, Docker as root. Public demo `https://demo.lecrm.gbconsult.me`
+(health: `/healthz` → 200). Rebuild + restart the API (it embeds the React SPA)
+from `/opt/lecrm`:
 
 ```bash
-sg docker -c "docker compose --env-file deploy/.env.staging \
-  -f deploy/compose/postgres.yml -f deploy/compose/api.yml up -d --build api"
+docker compose --env-file deploy/.env.staging \
+  -f deploy/compose/postgres.yml -f deploy/compose/api.yml up -d --build api
 ```
+
+DB migrations + per-workspace River setup run via `lecrm-migrate apply` then
+`lecrm-migrate river-setup --all` (superuser DSN on loopback `127.0.0.1:54320`).
+Gmail reply detection is gated by `LECRM_GMAIL_*` in `deploy/.env.staging` (unset
+→ push route unmounted, runtime not started).
 
 CI (`.github/workflows/ci.yml`) **builds/tests only — it does not deploy.**
 Staging is updated by hand on the host, so a green `main` does not imply the

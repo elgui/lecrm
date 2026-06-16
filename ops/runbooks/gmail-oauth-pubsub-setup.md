@@ -214,10 +214,17 @@ When all four hold: **continue the gate** so order:6
 
 ## Staging (demo.lecrm.gbconsult.me)
 
+> **Status: LIVE since 2026-06-16.** The engine wiring + this rollout are deployed
+> on the **Netcup** box (`root@152.53.143.175`, `/opt/lecrm`, arm64 — see
+> `docs/INFRASTRUCTURE.md`). `POST /v1/webhooks/gmail/push` returns **401** (not 404)
+> and the per-workspace river runtime is up (`clients_started=3`). What remains is
+> the human OAuth/GCP setup (§1–§2) + `users.watch()` (§3); the route's
+> `LECRM_GMAIL_*` config currently uses placeholders for topic / push-SA / OAuth
+> client, so end-to-end reply detection is not active until those are real.
+
 The §1–§4 above are written for production (`lecrm-prod` / `api.lecrm.fr`). On
 staging the runtime is the same code; only the externals and secret-routing
-differ. The engine wiring landed separately (per-workspace river runtime +
-push-handler mount); these are the staging-specific deltas.
+differ. These are the staging-specific deltas.
 
 **Externals.** Use a staging GCP project (or a staging-suffixed subscription on
 `lecrm-prod`) and the staging push endpoint:
@@ -260,7 +267,13 @@ until River's tables exist in each `river_<hex>` schema and `lecrm_api` is grant
 on them — idempotent backfill:
 
 ```bash
-lecrm-migrate apply          # applies 0027 (core.gmail_mailbox_index)
+# Prereq on Netcup: the cutover's per-DB pg_dump restore dropped database-level
+# grants, so lecrm_provisioner lacked CREATE on the db (provision fn / 0025 →
+# "permission denied for database lecrm"). Restore it once (postgres superuser):
+docker exec lecrm-postgres psql -U postgres -d lecrm \
+  -c "GRANT CREATE ON DATABASE lecrm TO lecrm_provisioner"
+
+lecrm-migrate apply          # applies 0025/0026/0027 (incl. core.gmail_mailbox_index)
 lecrm-migrate river-setup --all
 ```
 
